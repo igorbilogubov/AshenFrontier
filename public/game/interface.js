@@ -5,7 +5,9 @@ const $=id=>document.getElementById(id);
 const write=(node,value)=>{const text=String(value);if(node.textContent!==text)node.textContent=text;};
 const emptyDraft=()=>Object.fromEntries(STAT_KEYS.map(key=>[key,0]));
 const total=points=>STAT_KEYS.reduce((sum,key)=>sum+(points?.[key]||0),0);
-const format=value=>Number.isInteger(value)?String(value):Number(value).toFixed(1);
+const displayNumber=new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2});
+const displayRegen=new Intl.NumberFormat('ru-RU',{maximumFractionDigits:3});
+const format=value=>displayNumber.format(value);
 const percent=value=>`${format(Math.round(value*1000)/10)}%`;
 const clampRatio=(value,max)=>Math.max(0,Math.min(1,max?value/max:1));
 const rarityNames=['Обычный предмет','Необычный предмет','Редкий предмет'];
@@ -53,7 +55,7 @@ export function bindInterface(game,toast,clearInput){
   }
   const derivedDefinitions=[
     ['attack','Урон',format],['armor','Защита',format],['hitChance','Шанс попадания',percent],['damageReduction','Снижение урона',percent],
-    ['maxHp','Здоровье',format],['hpRegen','Реген. здоровья',value=>`${Number(value.toFixed(3))} / с`],['maxMana','Мана',format],['manaRegen','Реген. маны',value=>`${Number(value.toFixed(3))} / с`]
+    ['maxHp','Здоровье',format],['hpRegen','HP вне боя',value=>`${displayRegen.format(value)} / с`],['maxMana','Мана',format],['manaRegen','Реген. маны',value=>`${displayRegen.format(value)} / с`]
   ];
   for(const [key,label,formatter] of derivedDefinitions){
     const cell=document.createElement('div'),term=document.createElement('dt'),value=document.createElement('dd');cell.className='derived-stat';term.textContent=label;

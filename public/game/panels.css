@@ -37,6 +37,11 @@ body.panel-open #chat-panel,body.panel-open .quest,body.panel-open .map-panel{op
 @media(max-height:650px) and (min-width:601px){.rpg-panel{top:14px;bottom:78px}.panel-body{padding-top:12px;padding-bottom:12px}.rpg-panel .panel-title{padding-top:11px;padding-bottom:9px}.panel-title .eyebrow{display:none}.rpg-panel .panel-title h2{font-size:22px}.panel-bottom{padding-top:9px;padding-bottom:10px}}
 @media(prefers-reduced-motion:reduce){.experience-track i,.hud-experience i{transition:none}}
 
+/* Empty cells keep their grid visible; disabled actions alone should fade. */
+.rpg-panel .bag-cell.empty:disabled{opacity:1;border-color:#82916e45;background:#14201980}
+@media(max-width:1100px){#chat-panel{bottom:234px}}
+@media(max-width:600px){#chat-panel{bottom:278px}}
+
 @media(max-height:800px) and (min-width:601px){
   .rpg-panel{top:14px;bottom:88px}.rpg-panel .panel-title,.inventory-panel .panel-title{padding:11px 18px 10px}.rpg-panel .panel-title h2{font-size:22px}.rpg-panel .panel-title .eyebrow{font-size:7px;margin-bottom:2px}.panel-tabs button{padding:8px 2px}.panel-body{padding:12px 18px}.character-identity{gap:9px}.character-identity h3{font-size:19px}.character-identity p{font-size:10px;margin-top:2px}.class-emblem{height:42px;width:38px}.class-emblem svg{width:35px;height:35px}.level-seal b{font-size:28px}.level-seal span{font-size:6px;margin-top:3px}.experience-heading{margin-top:10px;font-size:8px}.class-role{font-size:9px;line-height:1.45;margin:9px 0 10px;padding-bottom:9px}.section-heading{margin-bottom:7px}.section-heading .points-counter{font-size:9px}.points-counter b{height:22px;min-width:26px;font-size:16px}.panel-body .stat-row{padding:6px;gap:5px}.stat-name{font-size:14px}.stat-description{font-size:8px;margin-top:2px;line-height:1.35}.stat-value{font-size:20px}.stat-rows{gap:4px}.derived-heading{margin-top:14px}.derived-stat{padding:6px 9px}.derived-stat dt{font-size:8px}.derived-stat dd{font-size:11px}.panel-bottom{padding:9px 18px 10px}#stat-status{margin-bottom:7px;font-size:9px}.allocation-actions button{min-height:32px}
 }

@@ -81,11 +81,12 @@ function returnToCamp(){
 }
 function number(event,kind=''){const element=document.createElement('span');element.className='damage-number '+kind;element.textContent=kind==='miss'?'Промах':(kind==='heal'?'+':kind==='loot'?'+':'')+String(event.amount);$('world-ui').append(element);floats.push({element,x:event.x,z:event.z,y:kind==='hurt'?2.2:1.5,life:.95});}
 function processEvents(){
+  let gainedLevel=null;
   for(const event of game.events.splice(0)){
     interfaceUI.onEvent?.(event);
     if(event.type==='notice')toast(event.text);
     if(event.type==='item')toast(`Получено: ${event.name}${event.pending?' · ожидает в рюкзаке':''}`);
-    if(event.type==='level')toast(`Новый уровень: ${event.level} · +5 очков характеристик · C`);
+    if(event.type==='level')gainedLevel=event.level;
     if(event.type==='miss')number(event,'miss');
     if(event.type==='hit'){
       number(event);for(let i=0;i<6;i++){const p=mesh(scene,lootGeometry,new T.MeshBasicMaterial({color:i%2?'#edc387':'#e6a17e'}),event.x,.7,event.z);p.castShadow=false;particles.push({mesh:p,v:new T.Vector3((Math.random()-.5)*3,1+Math.random()*2,(Math.random()-.5)*3),life:.25+Math.random()*.18});}
@@ -100,6 +101,8 @@ function processEvents(){
     if(event.type==='camp'){clearInput();selected=null;toast('У костра восстанавливаются здоровье, мана и зелья');}
     if(event.type==='quest')toast('Опушка очищена! Награда: 50 золота');
   }
+  // Kill/loot events arrive in the same snapshot: keep level progression visible.
+  if(gainedLevel!==null)toast(`Новый уровень: ${gainedLevel} · доступны очки характеристик · C`);
 }
 function tick(dt){
   if(!game.connected){processEvents();return;}

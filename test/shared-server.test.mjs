@@ -76,7 +76,7 @@ test('stat allocation is atomic over WebSocket and migrates, saves and restores 
     const token='d'.repeat(48);
     await writeFile(path.join(dir,'heroes.json'),JSON.stringify({[token]:old}));
     server=await start(dir);
-    const owner=await connect(server,{token}),observer=await connect(server,{name:'Наблюдатель',classId:'mage'});clients.push(owner,observer);
+    const owner=await connect(server,{token,classId:'mage'}),observer=await connect(server,{name:'Наблюдатель',classId:'mage'});clients.push(owner,observer);
     const p=owner.state.self;
     assert.equal(p.schemaVersion,3);assert.equal(p.unspentPoints,35);
     for(const field of ['id','classId','level','xp','gold','questKills','boss','questClaimed','items','equipment','x','z'])assert.deepEqual(p[field],old[field],field);
@@ -102,11 +102,18 @@ test('stat allocation is atomic over WebSocket and migrates, saves and restores 
     for(const privateField of ['allocatedStats','attributes','unspentPoints','statRevision','items','token'])assert(!(privateField in peer),privateField);
     assert(!observer.events.some(e=>e.type==='statResult'));
 
+    // The stored archer class also wins over old clients and forged class commands.
+    for(const classId of ['warrior','mage','archer']){
+      owner.events.length=0;owner.send({type:'class',classId});
+      await until(()=>owner.events.some(e=>e.type==='notice'&&e.text==='Класс выбирается при создании героя и не меняется'));
+      for(const field of ['id','classId','level','xp','gold','items','equipment','allocatedStats','statRevision','unspentPoints'])assert.deepEqual(owner.state.self[field],allocated[field],field);
+    }
     await close(owner);
-    const rejoined=await connect(server,{token});clients.push(rejoined);
+    const rejoined=await connect(server,{token,classId:'warrior'});clients.push(rejoined);
+    assert.equal(rejoined.state.self.classId,'archer');
     assert.deepEqual(rejoined.state.self.allocatedStats,allocated.allocatedStats);assert.equal(rejoined.state.self.unspentPoints,30);
     await stop(server);server=await start(dir);
-    const restored=await connect(server,{token});clients.push(restored);
+    const restored=await connect(server,{token,classId:'mage'});clients.push(restored);
     for(const field of ['id','classId','level','xp','gold','questKills','boss','questClaimed','items','equipment','allocatedStats','statRevision'])assert.deepEqual(restored.state.self[field],allocated[field],field);
     assert.equal(restored.state.self.unspentPoints,30);
     const disk=JSON.parse(await readFile(path.join(dir,'heroes.json'),'utf8'))[token];

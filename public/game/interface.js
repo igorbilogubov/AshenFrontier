@@ -71,7 +71,6 @@ export function bindInterface(game,toast,clearInput){
   $('reset-stats').onclick=()=>{$('reset-confirm').hidden=false;$('reset-confirm-yes').focus({preventScroll:true});};
   $('reset-confirm-no').onclick=()=>{$('reset-confirm').hidden=true;$('reset-stats').focus({preventScroll:true});};
   $('reset-confirm-yes').onclick=()=>sendStatCommand('resetStats');
-  $('change-class').onchange=()=>{if(!canEdit()||pending)return;clearDraft();game.send({type:'class',classId:$('change-class').value});};
   $('claim-items').onclick=()=>{if(canEdit())game.send({type:'claim'});};
   $('copy-key').onclick=async()=>{try{await navigator.clipboard.writeText(game.token);toast('Ключ героя скопирован. Храните его как пароль.');}catch{toast('Копирование требует localhost или HTTPS');}};
 
@@ -152,7 +151,7 @@ export function bindInterface(game,toast,clearInput){
     $('stat-apply').disabled=!editable||!!pending||!spent;$('stat-cancel').disabled=!!pending||!spent;write($('stat-apply'),pending?'Применяем…':spent?`Применить · ${spent}`:'Применить');
     const message=pending?'Ждём подтверждения сервера…':!game.connected?'Нет соединения. Ожидаем общий мир.':!editable?'Распределение доступно у костра, вне боя.':statusMessage|| (spent?'Зелёным показаны будущие значения.':p.unspentPoints>0?'Выберите статы и примените очки.':'Следующий уровень принесёт 5 очков.');
     write($('stat-status'),message);$('stat-status').classList.toggle('pending',!!pending);
-    $('change-class').value=p.classId;$('change-class').disabled=!editable||!!pending;$('reset-stats').disabled=!editable||!!pending||!total(p.allocatedStats);$('reset-confirm-yes').disabled=!editable||!!pending;
+    $('reset-stats').disabled=!editable||!!pending||!total(p.allocatedStats);$('reset-confirm-yes').disabled=!editable||!!pending;
   }
   function updateInventory(){
     if(panels.inventory.hidden)return;

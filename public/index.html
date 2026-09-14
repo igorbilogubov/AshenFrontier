@@ -69,7 +69,8 @@
       <span class="mark">✦</span><p class="eyebrow">ПЕПЕЛЬНЫЙ РУБЕЖ</p><h2>У каждого огня — своя история</h2>
       <p>Общий мир, совместная охота и герой, который остаётся с вами.</p>
       <label>Имя героя<input id="join-name" name="name" maxlength="18" required autocomplete="nickname" value="Странник"></label>
-      <label>Класс<select id="join-class"><option value="warrior">Воин</option><option value="archer">Лучник</option><option value="mage">Маг</option></select></label>
+      <label>Класс при создании героя<select id="join-class"><option value="warrior">Воин</option><option value="archer">Лучник</option><option value="mage">Маг</option></select></label>
+      <p>Класс выбирается один раз. У существующего героя он сохранится при входе по ключу.</p>
       <details><summary>У меня уже есть герой</summary><label>Ключ героя<input id="join-key" type="password" autocomplete="off" spellcheck="false" placeholder="Вставьте ключ этого сервера"></label></details>
       <p id="join-error" role="alert"></p><button id="join-submit" type="submit">Войти в мир</button>
       <small>Герой сохраняется автоматически. Ключ для другого устройства доступен в окне вещей.</small>
@@ -87,7 +88,7 @@
       <div class="section-heading derived-heading"><h3>Боевые показатели</h3><span id="preview-label">С учётом вещей</span></div>
       <dl id="derived-stats" class="derived-stats"></dl>
       <p class="stat-footnote">Защита снижает входящий урон. Шанс попадания действует для ударов и заклинаний.</p>
-      <details class="camp-services"><summary>Подготовка у костра</summary><label>Класс героя<select id="change-class"><option value="warrior">Воин</option><option value="archer">Лучник</option><option value="mage">Маг</option></select></label><p>Смена класса возвращает распределённые очки.</p><button id="reset-stats" class="subtle-button" type="button">Сбросить статы бесплатно</button><small>На время альфы · только у костра, вне боя</small><div id="reset-confirm" hidden><p>Вернуть все вложенные очки? Уровень и вещи сохранятся.</p><div class="inline-actions"><button id="reset-confirm-yes" type="button">Вернуть очки</button><button id="reset-confirm-no" type="button">Отмена</button></div></div></details>
+      <details class="camp-services"><summary>Подготовка у костра</summary><button id="reset-stats" class="subtle-button" type="button">Сбросить статы бесплатно</button><small>На время альфы · только у костра, вне боя</small><div id="reset-confirm" hidden><p>Вернуть все вложенные очки? Уровень и вещи сохранятся.</p><div class="inline-actions"><button id="reset-confirm-yes" type="button">Вернуть очки</button><button id="reset-confirm-no" type="button">Отмена</button></div></div></details>
     </div>
     <div class="panel-bottom"><p id="stat-status" role="status" aria-live="polite">Распределяйте очки у костра, вне боя.</p><div class="allocation-actions"><button id="stat-cancel" class="subtle-button" type="button" disabled>Отмена</button><button id="stat-apply" class="primary-button" type="button" disabled>Применить</button></div></div>
   </aside>

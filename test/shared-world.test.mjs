@@ -62,11 +62,14 @@ test('six slots equip only owned class-compatible items at camp; sale cannot des
   for(const id of Object.values(p.equipment))w.command(p,{type:'sell',id});assert.deepEqual(p.equipment,before);assert.equal(p.items.length,count);
   const wrong=makeLoot('mage',2,1,'weapon');p.items.push(wrong);w.command(p,{type:'equip',id:wrong.id});assert.deepEqual(p.equipment,before);
 });
-test('class changes preserve hero progress and reject full-bag weapon creation atomically',()=>{
-  const {w,p}=setup('archer');p.gold=101;p.level=4;while(p.items.length<16)p.items.push(makeLoot('archer',1,0,'ring'));
-  w.command(p,{type:'class',classId:'mage'});assert.equal(p.classId,'archer');assert.equal(p.items.length,16);
-  p.items.pop();w.command(p,{type:'class',classId:'mage'});assert.equal(p.classId,'mage');assert.equal(p.gold,101);assert.equal(p.level,4);
-  assert.equal(p.items.find(i=>i.id===p.equipment.weapon).classId,'mage');
+test('class and starting weapon chosen at creation remain attached to the saved hero',()=>{
+  for(const classId of ['warrior','archer','mage']){
+    const {p}=setup(classId);p.gold=101;p.level=4;
+    const restored=safeHero(persistentHero(p));
+    assert.equal(restored.classId,classId);assert.equal(restored.gold,101);assert.equal(restored.level,4);
+    assert.equal(restored.items.find(i=>i.id===restored.equipment.weapon).classId,classId);
+    assert.deepEqual(restored.items,p.items);assert.deepEqual(restored.equipment,p.equipment);
+  }
 });
 test('archer and mage launch real server projectiles that hit and respect obstacles',()=>{
   for(const classId of ['archer','mage']){

@@ -71,7 +71,7 @@ test('allocation and reset require a living, idle character at camp outside comb
   }
 });
 
-test('allocation, reset and class switches clamp resources without healing or changing earned progress',()=>{
+test('allocation and reset clamp resources without healing or changing earned progress',()=>{
   const {w,p}=fixture();p.level=5;p.hp=31;p.mana=7;p.gold=150;p.xp=83;
   allocate(w,p,{vitality:12,energy:13});
   assert.equal(p.hp,31);assert.equal(p.mana,7);
@@ -80,20 +80,29 @@ test('allocation, reset and class switches clamp resources without healing or ch
   p.hp=31;p.mana=7;const revision=p.statRevision;
   reset(w,p);assert.equal(p.statRevision,revision);assert.equal(result(w).ok,false);
   allocate(w,p,{vitality:5,energy:5});
-  w.command(p,{type:'class',classId:'mage'});
-  assert.equal(p.classId,'mage');assert.equal(stats(p).unspentPoints,25);
+  reset(w,p);
+  assert.equal(p.classId,'warrior');assert.equal(stats(p).unspentPoints,25);
   assert.equal(p.hp,31);assert.equal(p.mana,7);assert.equal(p.gold,150);assert.equal(p.xp,83);
-  const same=persistentHero(p);w.command(p,{type:'class',classId:'mage'});assert.deepEqual(persistentHero(p),same);
-  w.command(p,{type:'class',classId:'warrior'});assert.equal(p.hp,31);assert.equal(p.mana,7);
 });
 
-test('full-bag class change preserves allocations and revision until replacement weapon can be created',()=>{
-  const {w,p}=fixture();allocate(w,p,{strength:4});
-  while(p.items.length<16)p.items.push(makeLoot('warrior',1,0,'ring'));
-  const before=persistentHero(p);w.command(p,{type:'class',classId:'mage'});
-  assert.deepEqual(persistentHero(p),before);
-  p.items.pop();w.command(p,{type:'class',classId:'mage'});
-  assert.equal(p.statRevision,before.statRevision+1);assert.equal(stats(p).unspentPoints,5);
+test('class changes never alter identity, stats, resources or gear in any character state',()=>{
+  for(const classId of Object.keys(CLASS_PROGRESSION)){
+    const {w,p}=fixture(classId);allocate(w,p,{strength:2,energy:2});
+    p.hp=31;p.mana=7;p.gold=101;
+    const initial=persistentHero(p);
+    for(const state of [{},{x:8,z:2},{dead:2},{attack:{id:1}},{combatUntil:w.t+15000}]){
+      Object.assign(p,structuredClone(initial),state);
+      for(const target of [...Object.keys(CLASS_PROGRESSION),'unknown',null]){
+        const before=persistentHero(p);w.command(p,{type:'class',classId:target});
+        assert.deepEqual(persistentHero(p),before);
+        assert.equal(w.events.at(-1).text,'Класс выбирается при создании героя и не меняется');
+      }
+    }
+    Object.assign(p,structuredClone(initial));
+    while(p.items.length<16)p.items.push(makeLoot(classId,1,0,'ring'));
+    const before=persistentHero(p);w.command(p,{type:'class',classId:'mage'});
+    assert.deepEqual(persistentHero(p),before);
+  }
 });
 
 test('real kills advance the existing XP curve, award five points per level and survive a save round trip',()=>{

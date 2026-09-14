@@ -107,6 +107,7 @@ export class World{
   }
   command(p,msg){
     if(!msg||typeof msg!=='object')return;
+    if(msg.type==='class'){this.notice(p,'Класс выбирается при создании героя и не меняется');return;}
     if(msg.type==='allocateStats'||msg.type==='resetStats'){this.updateStats(p,msg);return;}
     if(msg.type==='input'){
       if(![msg.x,msg.z].every(Number.isFinite)||Math.abs(msg.x)>1||Math.abs(msg.z)>1||(!Number.isFinite(msg.aim)&&msg.aim!==null)||!Number.isSafeInteger(msg.seq)||msg.seq<=p.input.seq)return;
@@ -120,14 +121,8 @@ export class World{
       if(p.dead||p.combatUntil>this.t||this.mobs.some(m=>m.target===p.id&&['chase','windup','recover'].includes(m.state))){this.notice(p,'Сначала оторвитесь от врагов');return;}
       this.camp(p,false);return;
     }
-    if(['equip','sell','claim','class'].includes(msg.type)){
-      if(!safe(p)||p.dead||p.attack||p.combatUntil>this.t){this.notice(p,'Снаряжение и класс меняются у костра, вне боя');return;}
-      if(msg.type==='class'){
-        if(!Object.hasOwn(CLASSES,msg.classId)||p.classId===msg.classId||p.statRevision>=Number.MAX_SAFE_INTEGER)return;
-        const previousClass=p.classId;p.classId=msg.classId;let weapon=p.items.find(i=>i.slot==='weapon'&&canEquip(p,i));
-        if(!weapon){if(p.items.length>=BAG_CAPACITY){p.classId=previousClass;this.notice(p,'Освободите место для оружия');return;}weapon={...makeLoot(p.classId,1),bound:true};p.items.push(weapon);}
-        p.equipment.weapon=weapon.id;p.allocatedStats=normalizedAllocations(null,p.level);p.statRevision++;this.clampResources(p);this.notice(p,`Ваш класс: ${classFor(p.classId).name}. Очки характеристик возвращены`);return;
-      }
+    if(['equip','sell','claim'].includes(msg.type)){
+      if(!safe(p)||p.dead||p.attack||p.combatUntil>this.t){this.notice(p,'Снаряжение меняется у костра, вне боя');return;}
       if(msg.type==='claim'){while(p.pendingItems.length&&p.items.length<BAG_CAPACITY)p.items.push(p.pendingItems.shift());return;}
       const item=p.items.find(i=>i.id===msg.id);if(!item)return;
       if(msg.type==='equip'&&canEquip(p,item)){p.equipment[item.slot]=item.id;this.clampResources(p);}

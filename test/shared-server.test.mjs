@@ -66,3 +66,50 @@ test('real WebSockets share movement/boss rewards and keep identity, loot and co
     assert.equal(new Set(Object.values(JSON.parse(await readFile(path.join(dir,'heroes.json'),'utf8'))).map(p=>p.id)).size,3);
   }finally{for(const c of clients)await close(c);await stop(server);await rm(dir,{recursive:true,force:true});}
 });
+
+test('stat allocation is atomic over WebSocket and migrates, saves and restores an existing v2 hero',async()=>{
+  const dir=await mkdtemp(path.join(tmpdir(),'ashen-stat-network-'));let server;const clients=[];
+  try{
+    const old=persistentHero(newHero('Наследник','archer'));
+    Object.assign(old,{schemaVersion:2,level:7,xp:173,gold:842,questKills:5,boss:true,questClaimed:true});
+    for(const field of ['allocatedStats','statRevision','mana'])delete old[field];
+    const token='d'.repeat(48);
+    await writeFile(path.join(dir,'heroes.json'),JSON.stringify({[token]:old}));
+    server=await start(dir);
+    const owner=await connect(server,{token}),observer=await connect(server,{name:'Наблюдатель',classId:'mage'});clients.push(owner,observer);
+    const p=owner.state.self;
+    assert.equal(p.schemaVersion,3);assert.equal(p.unspentPoints,35);
+    for(const field of ['id','classId','level','xp','gold','questKills','boss','questClaimed','items','equipment','x','z'])assert.deepEqual(p[field],old[field],field);
+    assert((await readdir(dir)).some(name=>name.startsWith('heroes-before-')));
+
+    async function command(message,ok){
+      owner.events.length=0;owner.send(message);
+      await until(()=>owner.events.some(e=>e.type==='statResult'));
+      const result=owner.events.find(e=>e.type==='statResult');assert.equal(result.ok,ok);
+      return structuredClone(owner.state.self);
+    }
+    const revision=p.statRevision,request={type:'allocateStats',points:{strength:3,vitality:2},revision};
+    const allocated=await command(request,true);
+    assert.equal(allocated.unspentPoints,30);assert.equal(allocated.allocatedStats.strength,3);assert.equal(allocated.allocatedStats.vitality,2);
+    assert.equal(allocated.statRevision,revision+1);assert(allocated.maxHp>p.maxHp);assert(allocated.attackPower>p.attackPower);
+    const replay=await command(request,false);assert.deepEqual(replay.allocatedStats,allocated.allocatedStats);assert.equal(replay.statRevision,allocated.statRevision);
+    for(const points of [{strength:31},{strength:-1},{energy:.5},{dexterity:1,admin:1}]){
+      const rejected=await command({type:'allocateStats',points,revision:allocated.statRevision},false);
+      assert.equal(rejected.unspentPoints,30);assert.deepEqual(rejected.allocatedStats,allocated.allocatedStats);
+    }
+    await until(()=>observer.state.players.some(peer=>peer.id===old.id));
+    const peer=observer.state.players.find(peer=>peer.id===old.id);
+    for(const privateField of ['allocatedStats','attributes','unspentPoints','statRevision','items','token'])assert(!(privateField in peer),privateField);
+    assert(!observer.events.some(e=>e.type==='statResult'));
+
+    await close(owner);
+    const rejoined=await connect(server,{token});clients.push(rejoined);
+    assert.deepEqual(rejoined.state.self.allocatedStats,allocated.allocatedStats);assert.equal(rejoined.state.self.unspentPoints,30);
+    await stop(server);server=await start(dir);
+    const restored=await connect(server,{token});clients.push(restored);
+    for(const field of ['id','classId','level','xp','gold','questKills','boss','questClaimed','items','equipment','allocatedStats','statRevision'])assert.deepEqual(restored.state.self[field],allocated[field],field);
+    assert.equal(restored.state.self.unspentPoints,30);
+    const disk=JSON.parse(await readFile(path.join(dir,'heroes.json'),'utf8'))[token];
+    assert.equal(disk.schemaVersion,3);assert.deepEqual(disk.allocatedStats,allocated.allocatedStats);
+  }finally{for(const client of clients)await close(client);await stop(server);await rm(dir,{recursive:true,force:true});}
+});

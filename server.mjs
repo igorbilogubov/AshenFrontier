@@ -31,7 +31,8 @@ try{
   saves=JSON.parse(await fs.readFile(saveFile,'utf8'));
   if(!saves||Array.isArray(saves)||typeof saves!=='object')throw new Error('Invalid save root');
   if(Object.values(saves).some(p=>p.schemaVersion!==SAVE_VERSION)){
-    const backup=path.join(dataDir,`heroes-before-3d-${Date.now()}.json`);await fs.copyFile(saveFile,backup);await fs.chmod(backup,0o600);
+    const migration=Object.values(saves).some(p=>!Number.isInteger(p.schemaVersion)||p.schemaVersion<2)?'3d':`stats-v${SAVE_VERSION}`;
+    const backup=path.join(dataDir,`heroes-before-${migration}-${Date.now()}.json`);await fs.copyFile(saveFile,backup);await fs.chmod(backup,0o600);
   }
 }catch(e){if(e.code!=='ENOENT')throw new Error(`Cannot read saved heroes: ${e.message}`);}
 const world=new World(),sessions=new Map(),connections=new Map(),chat=[];

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {World,newHero,safeHero,persistentHero,stats,makeLoot,EQUIPMENT_SLOTS} from '../world.mjs';
 import {safe,stand,moveHero,MOB_TYPES} from '../public/game/location.js';
-const setup=(classId='warrior')=>{const w=new World(),p=newHero('Тест',classId);w.add(p);return {w,p};};
+const setup=(classId='warrior')=>{const w=new World({random:()=>0}),p=newHero('Тест',classId);w.add(p);return {w,p};};
 const step=(w,count=1)=>{for(let i=0;i<count;i++)w.tick(.05,w.t+50);};
 function isolated(w,p){const m=w.mobs[0];w.mobs=[m];Object.assign(m,{x:8,z:1.8,homeX:8,homeZ:1.8,state:'idle',hp:60});Object.assign(p,{x:6.6,z:1.8,yaw:Math.PI/2,targetYaw:Math.PI/2});return m;}
 

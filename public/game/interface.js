@@ -188,7 +188,8 @@ export function bindInterface(game,toast,clearInput){
   function update(){
     const p=game.player,c=CLASSES[p.classId];if(!c)return;
     write($('hero-name'),`${p.name} · ${c.name} ${p.level}`);write($('xp'),p.xpNeeded>0?`${p.xp} / ${p.xpNeeded} XP`:'Макс. уровень');
-    write($('mana-text'),`${Math.floor(p.mana||0)} / ${p.maxMana||0}`);$('mana-fill').style.transform=`scaleX(${clampRatio(p.mana,p.maxMana)})`;$('hud-xp-fill').style.transform=`scaleX(${clampRatio(p.xp,p.xpNeeded)})`;
+    write($('mana-text'),`${Math.floor(p.mana||0)} / ${p.maxMana||0}`);$('mana-fill').style.height=`${clampRatio(p.mana,p.maxMana)*100}%`;
+    $('mana-orb').setAttribute('aria-valuemax',p.maxMana||0);$('mana-orb').setAttribute('aria-valuenow',Math.floor(p.mana||0));$('hud-xp-fill').style.transform=`scaleX(${clampRatio(p.xp,p.xpNeeded)})`;
     const special=$('special'),manaCost=p.specialManaCost||0;write(special,p.specialCooldown>0?`${c.special} ${Math.ceil(p.specialCooldown)}с`:`${c.special} · Q`);special.disabled=!game.connected||!!p.dead||p.specialCooldown>0||(p.mana||0)<manaCost;special.title=`${c.special} · Q · ${manaCost} маны`;
     document.querySelector('.weapon-controls').hidden=p.classId!=='warrior';write($('unspent-badge'),p.unspentPoints||0);$('unspent-badge').hidden=!p.unspentPoints;$('character-toggle').title=`Характеристики · C${p.unspentPoints?` · ${p.unspentPoints} свободных очков`:''}`;
     write($('save-status'),!game.connected?'Восстанавливаем соединение…':!game.save?.ok?'Ошибка сохранения — оставьте игру открытой':game.save?.at?'Общий мир · прогресс сохранён на сервере':'Общий мир · сохраняем героя…');

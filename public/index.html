@@ -7,6 +7,7 @@
   <title>Пепельный рубеж · Пепельная опушка</title>
   <link rel="stylesheet" href="game/scene.css">
   <link rel="stylesheet" href="game/panels.css">
+  <link rel="stylesheet" href="game/hud.css">
 </head>
 <body>
   <canvas id="scene" tabindex="0" aria-label="Пепельная опушка. Камера с постоянным углом, колёсико мыши — приближение и отдаление. Удерживайте левую кнопку мыши — идти за курсором; отпустите — остановиться. Над мобом удерживайте левую кнопку для атаки. Shift — переключить ходьбу и бег, пробел или правая кнопка — удар к курсору, R — зелье, 1 и 2 — оружие."></canvas>
@@ -30,23 +31,33 @@
   <div id="target-panel" hidden><span id="target-name"></span><small id="target-health"></small><div class="bar"><i id="target-fill"></i></div></div>
   <div id="notice" role="status" aria-live="polite"></div>
   <footer>
-    <div class="hero-status">
-      <div class="health"><div class="health-line"><b id="hero-name">Воин</b><span id="hp-text">100 / 100</span></div><div class="bar" aria-label="Здоровье"><i id="hp-fill"></i></div><div class="mana-line"><span>Мана</span><span id="mana-text">0 / 0</span></div><div class="bar mana-bar" aria-label="Мана"><i id="mana-fill"></i></div></div>
-      <div class="resources"><span id="gold">0 золота</span><span id="xp">0 опыта</span></div>
-      <button id="movement" type="button" aria-pressed="false" aria-label="Бег" title="Перейти на бег · Shift"><span id="movement-label">Ходьба</span><kbd>Shift</kbd></button>
-    </div>
-    <div class="hud-experience" aria-label="Опыт до следующего уровня"><i id="hud-xp-fill"></i></div>
-    <div class="dock">
-      <div class="weapon-controls" role="group" aria-label="Оружие воина">
-        <button type="button" class="weapon selected" data-weapon="sword" aria-pressed="true"><kbd>1</kbd><span class="weapon-icon" aria-hidden="true">⚔</span><span>Меч</span></button>
-        <button type="button" class="weapon" data-weapon="axe" aria-pressed="false"><kbd>2</kbd><span class="weapon-icon" aria-hidden="true">⛏</span><span>Топор</span></button>
+    <div class="combat-hud">
+      <div id="hp-orb" class="resource-orb health-orb" role="progressbar" aria-label="Здоровье" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
+        <div class="orb-frame"><div class="orb-glass"><i id="hp-fill" class="orb-liquid"></i></div><div class="orb-readout"><span class="orb-label">Здоровье</span><span id="hp-text">100 / 100</span></div></div>
       </div>
-      <button id="attack" type="button"><span class="attack-icon" aria-hidden="true">↗</span><span>Ударить<small>Пробел / ПКМ</small></span><i id="cooldown"></i></button>
-      <button id="special" type="button" title="Особый навык · Q">Вихрь <kbd>Q</kbd></button>
-      <button id="character-toggle" type="button" title="Характеристики · C" aria-controls="character-panel" aria-expanded="false">Герой <kbd>C</kbd><b id="unspent-badge" hidden>0</b></button>
-      <button id="inventory-toggle" type="button" title="Снаряжение · I" aria-controls="inventory-panel" aria-expanded="false">Вещи <kbd>I</kbd></button>
-      <button id="potion" type="button"><span aria-hidden="true">✚</span><span>Зелье <b id="potions">3</b><small>R · +45 здоровья</small></span></button>
-      <button id="reset" type="button" title="Вернуться в безопасный лагерь">К костру</button>
+      <div class="hud-core">
+        <div class="hero-status">
+          <b id="hero-name">Воин</b>
+          <div class="resources"><span id="gold">0 золота</span><span id="xp">0 опыта</span></div>
+          <button id="movement" type="button" aria-pressed="false" aria-label="Бег" title="Перейти на бег · Shift"><span id="movement-label">Ходьба</span><kbd>Shift</kbd></button>
+        </div>
+        <div class="dock">
+          <div class="weapon-controls" role="group" aria-label="Оружие воина">
+            <button type="button" class="weapon selected" data-weapon="sword" aria-pressed="true"><kbd>1</kbd><span class="weapon-icon" aria-hidden="true">⚔</span><span>Меч</span></button>
+            <button type="button" class="weapon" data-weapon="axe" aria-pressed="false"><kbd>2</kbd><span class="weapon-icon" aria-hidden="true">⛏</span><span>Топор</span></button>
+          </div>
+          <button id="attack" type="button"><span class="attack-icon" aria-hidden="true">↗</span><span>Ударить<small>Пробел / ПКМ</small></span><i id="cooldown"></i></button>
+          <button id="special" type="button" title="Особый навык · Q">Вихрь <kbd>Q</kbd></button>
+          <button id="character-toggle" type="button" title="Характеристики · C" aria-controls="character-panel" aria-expanded="false">Герой <kbd>C</kbd><b id="unspent-badge" hidden>0</b></button>
+          <button id="inventory-toggle" type="button" title="Снаряжение · I" aria-controls="inventory-panel" aria-expanded="false">Вещи <kbd>I</kbd></button>
+          <button id="potion" type="button"><span aria-hidden="true">✚</span><span>Зелье <b id="potions">3</b><small>R · +45 здоровья</small></span></button>
+          <button id="reset" type="button" title="Вернуться в безопасный лагерь">К костру</button>
+        </div>
+        <div class="hud-experience" aria-label="Опыт до следующего уровня"><i id="hud-xp-fill"></i></div>
+      </div>
+      <div id="mana-orb" class="resource-orb mana-orb" role="progressbar" aria-label="Мана" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
+        <div class="orb-frame"><div class="orb-glass"><i id="mana-fill" class="orb-liquid" style="height:0%"></i></div><div class="orb-readout"><span class="orb-label">Мана</span><span id="mana-text">0 / 0</span></div></div>
+      </div>
     </div>
     <div class="controls-hint"><span>Удерживайте ЛКМ — идти / бить · отпустите — стоять · колёсико — зум</span><span id="performance" aria-label="Частота кадров">— FPS</span></div>
     <p id="save-status" class="prototype-note">Общий мир · прогресс сохраняется на сервере</p>

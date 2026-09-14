@@ -137,7 +137,8 @@ function drawMap(){
 function updateUI(){
   const hero=game.player,camp=safe(hero),mob=selectedMob();
   $('zone-state').textContent=camp?'Безопасный лагерь':hero.x>21?'Старые руины · вожак':'Пепельная опушка · опасная зона';$('zone-state').classList.toggle('safe',camp);
-  $('hp-text').textContent=`${Math.ceil(hero.hp)} / ${hero.maxHp}`;$('hp-fill').style.transform=`scaleX(${hero.hp/hero.maxHp})`;
+  $('hp-text').textContent=`${Math.ceil(hero.hp)} / ${hero.maxHp}`;$('hp-fill').style.height=`${Math.max(0,Math.min(1,hero.hp/hero.maxHp||0))*100}%`;
+  $('hp-orb').setAttribute('aria-valuemax',hero.maxHp);$('hp-orb').setAttribute('aria-valuenow',Math.ceil(hero.hp));
   $('gold').textContent=`${hero.coins} золота`;$('xp').textContent=`${hero.xp} опыта`;$('potions').textContent=String(hero.potions);
   $('movement-label').textContent=hero.running?'Бег':'Ходьба';$('movement').setAttribute('aria-pressed',String(hero.running));$('movement').disabled=!!hero.dead;
   $('movement').title=hero.running?'Перейти на ходьбу · Shift':'Перейти на бег · Shift';

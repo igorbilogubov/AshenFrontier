@@ -1,0 +1,74 @@
+/* Resource vessels flank the action bar, in the same bronze and forest stone as the panels. */
+.combat-hud{
+  --orb-size:124px;
+  width:min(940px,100%);
+  display:grid;
+  grid-template-columns:var(--orb-size) minmax(0,1fr) var(--orb-size);
+  align-items:center;
+  gap:14px;
+}
+.hud-core{min-width:0;display:flex;flex-direction:column;gap:5px}
+.hud-core .hero-status{
+  width:100%;max-width:none;min-width:0;gap:12px;
+  padding:6px 10px;border-radius:3px;border-bottom:0;
+  background:linear-gradient(90deg,#14211ddd,#1c2922f0,#14211ddd);
+}
+#hero-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;font-weight:500;color:#d8d5bc}
+.hud-core .resources{font-size:10px;min-width:0;flex-shrink:0;text-align:right}
+.hud-core #movement{min-width:58px;padding:3px 7px}
+.hud-core .dock{width:100%;max-width:none;flex-wrap:wrap;justify-content:center;gap:6px;padding:9px 8px;border-radius:3px;border-color:#ac925650;background:linear-gradient(#28352beb,#111e19f5);box-shadow:inset 0 1px #e7c68c12,0 8px 20px #040d0b66}
+.hud-core .hud-experience{width:100%;max-width:none;height:4px;margin-top:1px}
+.resource-orb{position:relative;width:var(--orb-size);height:var(--orb-size);pointer-events:auto;user-select:none}
+.orb-frame{
+  position:absolute;inset:0;border-radius:50%;padding:9px;
+  background:conic-gradient(from 25deg,#4b4130,#b79b65 12%,#433d2d 26%,#1c241e 42%,#9b8357 58%,#514b37 73%,#c4a875 88%,#4b4130);
+  border:1px solid #c4ac756e;
+  box-shadow:0 5px 20px #020a08a8,inset 0 0 0 3px #152019,inset 0 0 0 4px #b39b674a;
+}
+.orb-frame::before,.orb-frame::after{content:'';position:absolute;z-index:3;left:calc(50% - 4px);width:8px;height:8px;background:#88734a;border:1px solid #c2a774;transform:rotate(45deg);box-shadow:0 1px 3px #0009}
+.orb-frame::before{top:-2px}.orb-frame::after{bottom:-2px}
+.orb-glass{position:relative;width:100%;height:100%;border-radius:50%;overflow:hidden;isolation:isolate;background:radial-gradient(ellipse at 50% 80%,#243331,#060d0ef5 80%);border:1px solid #0b1619;box-shadow:0 0 0 1px #c5ab6e75}
+.orb-glass::after{content:'';position:absolute;inset:0;z-index:2;border-radius:50%;background:radial-gradient(ellipse at 30% 16%,#ffffff57,transparent 30%),radial-gradient(ellipse at 65% 90%,#ffffff13,transparent 45%);box-shadow:inset 0 0 13px 5px #03080a95,inset 1px 2px 2px #ffffff4d;pointer-events:none}
+.orb-liquid{position:absolute;display:block;bottom:0;left:0;width:100%;height:100%;transition:height .2s ease-out;background:radial-gradient(ellipse at 35% 18%,#ed6c53,transparent 60%),linear-gradient(#ac332c,#751d26 70%,#410d1b)}
+.orb-liquid::before{content:'';position:absolute;left:0;right:0;top:0;height:3px;border-radius:50%;background:#ffc5a87a;box-shadow:0 2px 9px #f87c5340}
+.mana-orb .orb-liquid{background:radial-gradient(ellipse at 35% 18%,#75b6e6,transparent 60%),linear-gradient(#3473b3,#244978 70%,#12253e)}
+.mana-orb .orb-liquid::before{background:#b9e7ff99;box-shadow:0 2px 9px #73c6ff40}
+.orb-readout{position:absolute;inset:0;z-index:4;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;text-align:center;color:#fff0da;text-shadow:0 1px 3px #000,0 0 7px #000;font-variant-numeric:tabular-nums;pointer-events:none}
+.orb-label{font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#ead6bd}
+.mana-orb .orb-label{color:#c5def1}
+#hp-text,#mana-text{font:600 14px/1.2 Georgia,serif;white-space:nowrap;letter-spacing:-.3px}
+body.panel-open .resource-orb{display:none}
+body.panel-open .combat-hud{grid-template-columns:minmax(0,1fr)}
+@media(max-width:1000px){.combat-hud{--orb-size:106px;gap:10px}.hud-core .dock{gap:4px;padding:7px 6px}}
+@media(max-width:850px){
+  .combat-hud{--orb-size:94px;gap:8px}
+  .hud-core .hero-status{padding:5px 7px;gap:8px}
+  .hud-core #attack,.hud-core #potion{padding:6px 7px;font-size:10px}
+  .hud-core .weapon{width:38px}
+  .hud-core .attack-icon,.hud-core #potion>span:first-child{font-size:21px}
+  #hp-text,#mana-text{font-size:12px}.orb-label{font-size:7px;letter-spacing:.5px}
+}
+@media(max-width:600px){
+  footer{left:10px;right:10px}
+  .combat-hud{--orb-size:76px;gap:6px}
+  .orb-frame{padding:7px}
+  .hud-core .hero-status{flex-wrap:wrap;gap:3px 6px;padding:5px 7px}
+  #hero-name{flex-basis:100%;font-size:9px}
+  .hud-core .resources{flex:1;font-size:9px;text-align:left}
+  .hud-core #movement{min-width:48px;font-size:9px;padding:3px}
+  .hud-core .dock{gap:4px;padding:7px 5px}
+  .orb-label{font-size:6px;letter-spacing:.3px}
+  #hp-text,#mana-text{font-size:10px}
+  #chat-panel{bottom:285px}
+}
+@media(max-width:420px){
+  .combat-hud{--orb-size:60px;gap:5px}
+  .orb-frame{padding:5px}.orb-frame::before,.orb-frame::after{width:6px;height:6px;left:calc(50% - 3px)}
+  .orb-label{font-size:5px;letter-spacing:.1px}
+  #hp-text,#mana-text{font-size:8px}
+  .hud-core .weapon{width:31px}.hud-core .weapon-controls{gap:2px}
+  .hud-core #attack,.hud-core #potion{padding:5px;font-size:9px}
+  .hud-core .attack-icon,.hud-core #potion>span:first-child{display:none}
+}
+@media(max-height:590px) and (min-width:601px){.combat-hud{--orb-size:88px}.hud-core .hero-status{padding:3px 7px}.hud-core .dock{padding:5px}}
+@media(prefers-reduced-motion:reduce){.orb-liquid{transition:none}}

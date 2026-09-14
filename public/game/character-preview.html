@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Воин · мастерская</title><link rel="stylesheet" href="./character-preview.css"></head>
+<body><canvas id="portrait" aria-label="3D-модель воина" tabindex="0"></canvas>
+<header><a href="/">← В локацию</a><p>ПЕПЕЛЬНЫЙ РУБЕЖ / МАСТЕРСКАЯ</p><h1>Страж опушки</h1><p>Модель и снаряжение в Blender · анимации Mixamo</p></header>
+<aside><h2>Движение</h2><div id="clips"></div>
+<label>Оружие<select id="weapon"><option value="sword">Меч и щит</option><option value="axe">Топор и щит</option></select></label>
+<label>Ракурс<input id="angle" type="range" min="-180" max="180" value="25"></label>
+<label>Кадр<input id="timeline" type="range" min="0" max="1000" value="0"></label>
+<button id="pause" type="button">Пауза</button><p id="status" role="status">Загружаем модель…</p><small>Поворот здесь нужен для осмотра модели. В игре угол камеры фиксирован.</small></aside>
+<script type="module" src="./character-preview.js"></script></body></html>

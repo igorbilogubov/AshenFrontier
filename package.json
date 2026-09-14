@@ -1,0 +1,22 @@
+{
+  "name": "ashen-frontier",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "art:preview": "node scripts/serve-art-test.mjs",
+    "test": "node --test test/*.test.mjs",
+    "check": "node scripts/check.mjs"
+  },
+  "dependencies": {
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "three": "0.186.0"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "description": "Shared browser 3D RPG"
+}

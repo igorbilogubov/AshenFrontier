@@ -1,0 +1,40 @@
+name: ashen-frontier
+services:
+  game:
+    build: ..
+    image: ashen-frontier:${ASHEN_RELEASE:-local}
+    container_name: ashen-frontier
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 15s
+    environment:
+      NODE_ENV: production
+      GAME_HOST: 0.0.0.0
+      PORT: 4731
+      GAME_DATA_DIR: /data
+      NODE_OPTIONS: --max-old-space-size=192
+    volumes:
+      - /opt/ashen-frontier/data:/data
+    networks:
+      - proxy
+    expose:
+      - "4731"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    cpus: 0.50
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+networks:
+  proxy:
+    external: true
+    name: n8n_default

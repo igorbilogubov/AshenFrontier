@@ -1,0 +1,6 @@
+# Append this block to the existing Caddyfile; preserve all existing sites.
+ashen-frontier.91.99.21.123.sslip.io {
+    encode zstd gzip
+    header X-Robots-Tag "noindex, nofollow"
+    reverse_proxy ashen-frontier:4731
+}

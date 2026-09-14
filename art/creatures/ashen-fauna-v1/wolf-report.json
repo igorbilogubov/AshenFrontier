@@ -1,0 +1,18 @@
+{
+  "type": "wolf",
+  "bones": 24,
+  "vertices": 9165,
+  "triangles": 18154,
+  "unweighted": 0,
+  "clips": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Hit",
+    "Death",
+    "Turn_Left",
+    "Turn_Right"
+  ],
+  "bytes": 1150224
+}

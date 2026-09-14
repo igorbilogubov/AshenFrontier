@@ -1,0 +1,16 @@
+{
+  "type": "boar",
+  "bones": 24,
+  "vertices": 12735,
+  "triangles": 25210,
+  "unweighted": 0,
+  "clips": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Hit",
+    "Death"
+  ],
+  "bytes": 1428292
+}

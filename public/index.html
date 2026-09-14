@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Пепельный рубеж · Пепельная опушка</title>
+  <link rel="stylesheet" href="game/scene.css">
+</head>
+<body>
+  <canvas id="scene" tabindex="0" aria-label="Пепельная опушка. Камера с постоянным углом, колёсико мыши — приближение и отдаление. WASD или клик — движение, Shift — переключить ходьбу и бег, клик по мобу — подойти и атаковать, пробел или правая кнопка — удар к курсору, R — зелье, 1 и 2 — оружие."></canvas>
+  <div id="world-ui" aria-hidden="true"></div>
+  <div id="hurt-vignette" aria-hidden="true"></div>
+  <header>
+    <div class="brand"><span class="mark" aria-hidden="true">✦</span><div><p>ПЕПЕЛЬНЫЙ РУБЕЖ</p><h1>Пепельная опушка</h1></div></div>
+    <span id="connection" class="badge">Подключение…</span><span id="zone-state" class="badge safe">Безопасный лагерь</span>
+  </header>
+  <aside class="quest" aria-label="Задание">
+    <p class="eyebrow">ПЕРВАЯ ВЫЛАЗКА</p>
+    <h2>Верните лесу покой</h2>
+    <p id="quest-hint">Идите по тропе направо, за указатель.</p>
+    <ul><li id="kills-goal">Победите существ: <b>0 / 5</b></li><li id="boss-goal">Одолейте Седого вожака</li><li id="camp-goal">Вернитесь к костру</li></ul>
+    <p class="reward">Награда: 50 золота</p>
+  </aside>
+  <aside class="map-panel" aria-label="Карта локации">
+    <canvas id="minimap" width="240" height="126" tabindex="0" aria-label="Карта: лагерь слева, опушка в центре, руины справа. Клик по карте задаёт точку движения."></canvas>
+    <div class="map-legend"><span>ЛАГЕРЬ</span><span>ОПУШКА</span><span>РУИНЫ</span></div>
+  </aside>
+  <div id="target-panel" hidden><span id="target-name"></span><small id="target-health"></small><div class="bar"><i id="target-fill"></i></div></div>
+  <div id="notice" role="status" aria-live="polite"></div>
+  <footer>
+    <div class="hero-status">
+      <div class="health"><div class="health-line"><b id="hero-name">Воин</b><span id="hp-text">100 / 100</span></div><div class="bar"><i id="hp-fill"></i></div></div>
+      <div class="resources"><span id="gold">0 золота</span><span id="xp">0 опыта</span></div>
+      <button id="movement" type="button" aria-pressed="false" aria-label="Бег" title="Перейти на бег · Shift"><span id="movement-label">Ходьба</span><kbd>Shift</kbd></button>
+    </div>
+    <div class="dock">
+      <div class="weapon-controls" role="group" aria-label="Оружие воина">
+        <button type="button" class="weapon selected" data-weapon="sword" aria-pressed="true"><kbd>1</kbd><span class="weapon-icon" aria-hidden="true">⚔</span><span>Меч</span></button>
+        <button type="button" class="weapon" data-weapon="axe" aria-pressed="false"><kbd>2</kbd><span class="weapon-icon" aria-hidden="true">⛏</span><span>Топор</span></button>
+      </div>
+      <button id="attack" type="button"><span class="attack-icon" aria-hidden="true">↗</span><span>Ударить<small>Пробел / ПКМ</small></span><i id="cooldown"></i></button>
+      <button id="special" type="button" title="Особый навык · Q">Вихрь <kbd>Q</kbd></button>
+      <button id="inventory-toggle" type="button" title="Снаряжение · I">Вещи <kbd>I</kbd></button>
+      <button id="potion" type="button"><span aria-hidden="true">✚</span><span>Зелье <b id="potions">3</b><small>R · +45 здоровья</small></span></button>
+      <button id="reset" type="button" title="Вернуться в безопасный лагерь">К костру</button>
+    </div>
+    <div class="controls-hint"><span>WASD / клик — идти · клик по мобу — бить · колёсико — зум</span><span id="performance" aria-label="Частота кадров">— FPS</span></div>
+    <p id="save-status" class="prototype-note">Общий мир · прогресс сохраняется на сервере</p>
+  </footer>
+  <div id="death-screen" hidden><p class="eyebrow">ВЫ ПАЛИ В БОЮ</p><h2>Костёр ещё горит</h2><p>Возвращаемся в лагерь…</p><small>Опыт и золото этой вылазки сохраняются.</small></div>
+  <div id="loading" role="status"><span class="mark">✦</span><h2>Открываем лесную тропу…</h2><p id="load-progress">Готовим локацию и её обитателей</p><button id="retry" type="button" hidden>Повторить</button></div>
+  <section id="join-panel" class="panel-overlay" hidden aria-label="Вход в мир">
+    <form id="join-form" class="join-card">
+      <span class="mark">✦</span><p class="eyebrow">ПЕПЕЛЬНЫЙ РУБЕЖ</p><h2>У каждого огня — своя история</h2>
+      <p>Общий мир, совместная охота и герой, который остаётся с вами.</p>
+      <label>Имя героя<input id="join-name" name="name" maxlength="18" required autocomplete="nickname" value="Странник"></label>
+      <label>Класс<select id="join-class"><option value="warrior">Воин</option><option value="archer">Лучник</option><option value="mage">Маг</option></select></label>
+      <details><summary>У меня уже есть герой</summary><label>Ключ героя<input id="join-key" type="password" autocomplete="off" spellcheck="false" placeholder="Вставьте ключ этого сервера"></label></details>
+      <p id="join-error" role="alert"></p><button id="join-submit" type="submit">Войти в мир</button>
+      <small>Герой сохраняется автоматически. Ключ для другого устройства доступен в окне вещей.</small>
+    </form>
+  </section>
+  <aside id="inventory-panel" class="inventory-panel" hidden aria-label="Снаряжение и рюкзак">
+    <div class="panel-title"><h2>Снаряжение</h2><button id="inventory-close" aria-label="Закрыть снаряжение">×</button></div>
+    <p id="hero-details"></p><div id="equipment-slots" class="equipment-grid"></div>
+    <h3>Рюкзак <span id="bag-count"></span></h3><div id="bag-items"></div>
+    <button id="claim-items" hidden>Забрать ожидающие вещи</button>
+    <label>Класс у костра<select id="change-class"><option value="warrior">Воин</option><option value="archer">Лучник</option><option value="mage">Маг</option></select></label>
+    <button id="copy-key">Скопировать ключ героя</button><small>Ключ открывает доступ к герою на этом сервере. Храните его как пароль.</small>
+  </aside>
+  <aside id="chat-panel" aria-label="Чат мира"><div id="chat-lines" aria-live="polite"></div><form id="chat-form"><input id="chat-input" placeholder="Чат мира · Enter" maxlength="180" aria-label="Сообщение в чат"><button type="submit" aria-label="Отправить сообщение">↗</button></form></aside>
+  <script type="module" src="game/scene.js"></script>
+</body>
+</html>

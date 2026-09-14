@@ -1,0 +1,13 @@
+* text=auto
+*.js text eol=lf
+*.mjs text eol=lf
+*.py text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.blend binary
+*.fbx binary
+*.glb binary
+*.png binary
+*.jpg binary
+public/game/vendor/** -whitespace

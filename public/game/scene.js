@@ -3,23 +3,24 @@ import {mesh} from './models.js';
 import {loadWarrior} from './character.js';
 import {createMob,loadMobAssets} from './mobs.js';
 import {createEnvironment} from './environment.js';
-import {angleDelta,screenDirection,gaitProfile} from './motion.js';
+import {angleDelta,gaitProfile} from './motion.js';
 import {CAMERA,BOUNDS,CAMP,WEAPONS,MOB_TYPES,safe} from './location.js';
 
 import {NetworkGame} from './network.js';
 import {bindInterface} from './interface.js';
 import {classFor} from '../rules.js';
+import {heldMouseInput} from './mouse-input.js';
 
 const $=id=>document.getElementById(id),canvas=$('scene');
 let renderer,scene,camera,sun,world,warrior,game,ready=false,last=0,time=0,accumulator=0;
-let width=innerWidth,height=innerHeight,destination=null,selected=null,autoTarget=null,pendingWeapon=null;
+let width=innerWidth,height=innerHeight,selected=null,autoTarget=null,pendingWeapon=null;
 let noticeTimer=0,lastSafeToast=0,uiTimer=0,frames=[],frameCounter=0,paused=false;
 let targetZoom=1,interfaceUI;
 const remoteModels=new Map(),loadingPlayers=new Set(),visualHeroes=new Map(),visualMobs=new Map(),shots=new Map();
 const ZOOM={min:.7,max:1.9,sensitivity:.0015};
 const keys=new Set(),models=new Map(),drops=new Map(),particles=[],floats=[];
 const raycaster=new T.Raycaster(),ndc=new T.Vector2(),groundPlane=new T.Plane(new T.Vector3(0,1,0),0),cameraTarget=new T.Vector3(.5,.3,2);
-const mouse={x:0,y:0,active:false,point:null};
+const mouse={x:0,y:0,active:false,point:null,held:false,pointerId:null,pickPending:false};
 const marker=new T.Group();
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
 const mini=$('minimap'),map=mini.getContext('2d');
@@ -65,7 +66,7 @@ function toggleRun(){
   game.toggleRun(); // The movement button updates when the server confirms the mode.
 }
 function chooseWeapon(id){
-  if(!ready||!WEAPONS[id]||game.player.dead)return;autoTarget=null;destination=null;pendingWeapon=null;
+  if(!ready||!WEAPONS[id]||game.player.dead)return;autoTarget=null;pendingWeapon=null;
   if(id===game.player.weapon)return;if(game.player.attack){pendingWeapon=id;return;}
   game.weapon(id);toast(WEAPONS[id].name);updateUI();
 }
@@ -73,7 +74,13 @@ function attackAt(point=null){
   if(!ready)return;const hero=game.player,p=point||mouse.point;
   game.attack(p?Math.atan2(p.x-hero.x,p.z-hero.z):hero.yaw);
 }
-function clearInput(){keys.clear();destination=null;autoTarget=null;mouse.active=false;mouse.point=null;game?.stopInput();}
+function releaseMovement(){
+  const id=mouse.pointerId,wasHeld=mouse.held;
+  mouse.held=false;mouse.pointerId=null;mouse.pickPending=false;autoTarget=null;
+  if(id!==null&&canvas.hasPointerCapture(id))canvas.releasePointerCapture(id);
+  if(wasHeld)game?.stopInput();
+}
+function clearInput(){keys.clear();releaseMovement();mouse.active=false;mouse.point=null;game?.stopInput();}
 function returnToCamp(){
   if(!ready)return;
   if(!safe(game.player)&&game.mobs.some(m=>['chase','windup','recover'].includes(m.state)&&distance(m,game.player)<8)){toast('Сначала оторвитесь от врагов');return;}
@@ -107,22 +114,13 @@ function processEvents(){
 function tick(dt){
   if(!game.connected){processEvents();return;}
   if(interfaceUI?.isPanelOpen?.()){game.update(dt,{x:0,z:0,aim:null});processEvents();return;}
-  const hero=game.player;let x=(keys.has('KeyD')||keys.has('ArrowRight')?1:0)-(keys.has('KeyA')||keys.has('ArrowLeft')?1:0),z=(keys.has('KeyS')||keys.has('ArrowDown')?1:0)-(keys.has('KeyW')||keys.has('ArrowUp')?1:0);
-  let aim=mouse.point?Math.atan2(mouse.point.x-hero.x,mouse.point.z-hero.z):null;
-  if(hero.dead){x=z=0;}
-  else if(x||z){const direction=screenDirection(x,z,CAMERA.azimuth);x=direction.x;z=direction.z;destination=null;autoTarget=null;}
-  else {
-    const mob=autoTarget===null?null:game.mobs[autoTarget];
-    if(mob&&(mob.state==='dead'||mob.state==='return'))autoTarget=null;
-    const goal=autoTarget===null?destination:mob;
-    if(goal){const d=distance(hero,goal),stop=autoTarget===null?.16:(hero.classId==='warrior'?1.45:classFor(hero.classId).range-.5);aim=Math.atan2(goal.x-hero.x,goal.z-hero.z);
-      if(d>stop||(autoTarget!==null&&safe(hero))){x=(goal.x-hero.x)/d;z=(goal.z-hero.z)/d;}
-      else if(autoTarget!==null){if(Math.abs(angleDelta(hero.yaw,aim))<.22)attackAt(mob);}
-      else destination=null;
-    }
-  }
-  if(keys.has('Space')&&!safe(hero))attackAt();
-  game.update(dt,{x,z,aim});
+  const hero=game.player;
+  let mob=autoTarget===null?null:game.mobs[autoTarget];
+  if(mob&&(mob.state==='dead'||mob.state==='return')){autoTarget=null;mob=null;}
+  const input=heldMouseInput(hero,mouse.point,{held:mouse.held,target:mob,reach:hero.classId==='warrior'?1.45:classFor(hero.classId).range-.5,inCamp:safe(hero)});
+  if(input.attack&&Math.abs(angleDelta(hero.yaw,input.aim))<.22)attackAt(mob);
+  if(keys.has('Space')&&!safe(hero)){input.x=input.z=0;attackAt();}
+  game.update(dt,input);
   if(pendingWeapon&&!hero.attack)chooseWeapon(pendingWeapon);
   processEvents();
 }
@@ -134,7 +132,6 @@ function drawMap(){
   const ruin=mapPosition({x:25,z:-1.2});map.strokeStyle='#81745a';map.lineWidth=1.5;map.strokeRect(ruin.x-10,ruin.y-10,20,20);
   for(const m of game.mobs){if(m.state==='dead')continue;const p=mapPosition(m);map.fillStyle=m.type==='alpha'?'#edba70':'#c27461';map.beginPath();map.arc(p.x,p.y,m.type==='alpha'?3:2.2,0,Math.PI*2);map.fill();}
   for(const other of game.players){if(other.id===game.id)continue;const p=mapPosition(other);map.fillStyle='#80cddd';map.beginPath();map.arc(p.x,p.y,2.8,0,Math.PI*2);map.fill();}
-  if(destination){const p=mapPosition(destination);map.strokeStyle='#dfc99b';map.beginPath();map.arc(p.x,p.y,3.5,0,Math.PI*2);map.stroke();}
   const p=mapPosition(game.player);map.fillStyle='#f4e5bb';map.beginPath();map.arc(p.x,p.y,3,0,Math.PI*2);map.fill();map.strokeStyle='#eff3d0';map.beginPath();map.moveTo(p.x,p.y);map.lineTo(p.x+Math.sin(game.player.yaw)*7,p.y+Math.cos(game.player.yaw)*7);map.stroke();
 }
 function updateUI(){
@@ -196,10 +193,11 @@ function renderShots(){
 }
 function render(dt){
   const hero=visualActor(game.player,dt);time+=dt;updateCamera(dt);mouse.point=pickGround();
+  if(mouse.held&&mouse.pickPending&&mouse.point){autoTarget=pickMob();selected=autoTarget;mouse.pickPending=false;}
   warrior.root.position.set(hero.x,0,hero.z);warrior.root.rotation.set(0,hero.yaw,0);
   warrior.animate(dt,hero);
   marker.position.set(hero.x,.03,hero.z);marker.rotation.y=hero.yaw;marker.visible=!hero.dead;
-  world.marker.visible=!!destination;if(destination)world.marker.position.set(destination.x,.025,destination.z);world.animate(time);
+  world.marker.visible=false;world.animate(time);
   renderPlayers(dt);renderShots();
   for(const mob of game.mobs){
     let v=visualMobs.get(mob.id);if(!v){v={...mob};visualMobs.set(mob.id,v);}
@@ -245,13 +243,27 @@ async function start(){
     $('load-progress').textContent='Загружаем материалы леса…';await world.ready;ready=true;render(1/60);$('load-progress').textContent='Готовим свет и тени…';await renderer.compileAsync(scene,camera);$('loading').hidden=true;canvas.focus({preventScroll:true});updateUI();renderer.setAnimationLoop(loop);
   }catch(error){console.error(error);ready=false;$('loading').hidden=false;$('loading').querySelector('h2').textContent='Локацию не удалось открыть';$('load-progress').textContent=error.message;$('retry').hidden=false;}
 }
-canvas.addEventListener('pointermove',event=>{mouse.x=event.clientX;mouse.y=event.clientY;mouse.active=true;});canvas.addEventListener('pointerleave',()=>{mouse.active=false;mouse.point=null;});
-canvas.addEventListener('pointerdown',event=>{
-  if(!ready||!game.connected||game.player.dead||interfaceUI?.isPanelOpen?.())return;canvas.focus({preventScroll:true});mouse.x=event.clientX;mouse.y=event.clientY;mouse.active=true;mouse.point=pickGround();
-  if(event.button===2){autoTarget=null;destination=null;attackAt();return;}if(event.button!==0)return;
-  const id=pickMob();if(id!==null){selected=id;autoTarget=id;destination=null;return;}
-  autoTarget=null;selected=null;if(mouse.point&&game.stand(mouse.point.x,mouse.point.z))destination={x:mouse.point.x,z:mouse.point.z};else toast('Здесь препятствие. Обойдите его по тропе');
+canvas.addEventListener('pointermove',event=>{
+  if(mouse.pointerId!==null&&event.pointerId!==mouse.pointerId)return;
+  mouse.x=event.clientX;mouse.y=event.clientY;mouse.active=true;
+  if(mouse.held){
+    // Capture guarantees release outside the canvas, but UI is never a steering surface.
+    if(!(event.buttons&1)||document.elementFromPoint(event.clientX,event.clientY)!==canvas){releaseMovement();mouse.active=false;mouse.point=null;return;}
+    mouse.pickPending=true;
+  }
 });
+canvas.addEventListener('pointerleave',()=>{releaseMovement();mouse.active=false;mouse.point=null;});
+canvas.addEventListener('pointerdown',event=>{
+  if(!ready||!game.connected||game.player.dead||interfaceUI?.isPanelOpen?.()||event.isPrimary===false)return;
+  if(event.button!==0&&event.button!==2)return;
+  event.preventDefault();canvas.focus({preventScroll:true});mouse.x=event.clientX;mouse.y=event.clientY;mouse.active=true;mouse.point=pickGround();
+  if(event.button===2){autoTarget=null;attackAt();return;}
+  mouse.held=true;mouse.pointerId=event.pointerId;canvas.setPointerCapture(event.pointerId);
+  autoTarget=mouse.point?pickMob():null;selected=autoTarget;mouse.pickPending=false;
+});
+addEventListener('pointerup',event=>{if(event.pointerId===mouse.pointerId&&!(event.buttons&1))releaseMovement();});
+addEventListener('pointercancel',event=>{if(event.pointerId===mouse.pointerId)clearInput();});
+canvas.addEventListener('lostpointercapture',event=>{if(event.pointerId===mouse.pointerId)clearInput();});
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
 canvas.addEventListener('wheel',event=>{
   if(!ready||event.ctrlKey||event.metaKey)return;
@@ -260,14 +272,13 @@ canvas.addEventListener('wheel',event=>{
   const delta=T.MathUtils.clamp(event.deltaY*unit,-160,160);
   targetZoom=T.MathUtils.clamp(targetZoom*Math.exp(-delta*ZOOM.sensitivity),ZOOM.min,ZOOM.max);
 },{passive:false});
-mini.addEventListener('pointerdown',e=>{if(!ready||game.player.dead||interfaceUI?.isPanelOpen?.())return;const r=mini.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*mini.width,z=(e.clientY-r.top)/r.height*mini.height;const point={x:BOUNDS.minX+(x-10)/(mini.width-20)*(BOUNDS.maxX-BOUNDS.minX),z:BOUNDS.minZ+(z-8)/(mini.height-16)*(BOUNDS.maxZ-BOUNDS.minZ)};if(game.stand(point.x,point.z)){destination=point;autoTarget=null;canvas.focus({preventScroll:true});}});
 addEventListener('keydown',event=>{
   if(!ready||event.metaKey||event.ctrlKey||event.altKey||['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName))return;
   if(interfaceUI?.isPanelOpen?.())return;
   if(document.activeElement.tagName==='BUTTON'&&['Space','Enter'].includes(event.code))return;
-  if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(event.code))event.preventDefault();keys.add(event.code);if(event.repeat)return;
+  if(event.code==='Space'){event.preventDefault();keys.add(event.code);}if(event.repeat)return;
   if(['ShiftLeft','ShiftRight'].includes(event.code)&&[canvas,document.body].includes(document.activeElement))toggleRun();
-  if(event.code==='Space'){autoTarget=null;destination=null;attackAt();}if(event.code==='Digit1')chooseWeapon('sword');if(event.code==='Digit2')chooseWeapon('axe');if(event.code==='KeyR')game.potion();if(event.code==='KeyQ')game.attack(mouse.point?Math.atan2(mouse.point.x-game.player.x,mouse.point.z-game.player.z):game.player.yaw,true);if(event.code==='Escape')clearInput();
+  if(event.code==='Space'){autoTarget=null;attackAt();}if(event.code==='Digit1')chooseWeapon('sword');if(event.code==='Digit2')chooseWeapon('axe');if(event.code==='KeyR')game.potion();if(event.code==='KeyQ')game.attack(mouse.point?Math.atan2(mouse.point.x-game.player.x,mouse.point.z-game.player.z):game.player.yaw,true);if(event.code==='Escape')clearInput();
 });
 addEventListener('keyup',e=>keys.delete(e.code));addEventListener('blur',clearInput);document.addEventListener('visibilitychange',()=>{paused=document.hidden;if(paused)clearInput();last=0;accumulator=0;});addEventListener('resize',fitCamera);
 canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();ready=false;clearInput();$('loading').hidden=false;$('loading').querySelector('h2').textContent='3D-изображение приостановлено';$('load-progress').textContent='Нажмите «Повторить», чтобы открыть локацию снова.';$('retry').hidden=false;});

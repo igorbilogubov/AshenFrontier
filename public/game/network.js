@@ -6,7 +6,7 @@ export class NetworkGame{
     this.mobs=[];this.players=[];this.projectiles=[];this.loot=[];this.events=[];this.pending=[];this.connected=false;this.seq=0;this.accumulator=0;this.stand=stand;this.receivedAt=0;this.lastAttack=0;this.retryDelay=600;this.closed=false;
     const session=new URLSearchParams(location.search).get('session');
     this.storage=session?sessionStorage:localStorage;this.tokenKey=`frontier-token:${location.origin}${session?':'+session:''}`;
-    this.onStatus=()=>{};this.onChat=()=>{};
+    this.onStatus=()=>{};this.onChat=()=>{};this.serverTime=0;
   }
   send(message){if(this.socket?.readyState===WebSocket.OPEN)this.socket.send(JSON.stringify(message));}
   connect(options={}){
@@ -33,6 +33,7 @@ export class NetworkGame{
       if(m.type==='state'&&welcomed){
         clearTimeout(deadline);this.connected=true;this.retryDelay=600;this.receivedAt=performance.now();
         this.pending=this.pending.filter(input=>input.seq>m.self.ack);
+        this.serverTime=m.t;
         const next=m.self;next.coins=next.gold;
         for(const input of this.pending)moveHero(next,.05,input);
         this.player=next;this.mobs=m.mobs;this.players=m.players;this.projectiles=m.projectiles;this.save=m.save;

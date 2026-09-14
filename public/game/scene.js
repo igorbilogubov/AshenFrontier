@@ -79,12 +79,14 @@ function returnToCamp(){
   if(!safe(game.player)&&game.mobs.some(m=>['chase','windup','recover'].includes(m.state)&&distance(m,game.player)<8)){toast('Сначала оторвитесь от врагов');return;}
   clearInput();game.returnToCamp();selected=null;
 }
-function number(event,kind=''){const element=document.createElement('span');element.className='damage-number '+kind;element.textContent=(kind==='heal'?'+':kind==='loot'?'+':'')+String(event.amount);$('world-ui').append(element);floats.push({element,x:event.x,z:event.z,y:kind==='hurt'?2.2:1.5,life:.95});}
+function number(event,kind=''){const element=document.createElement('span');element.className='damage-number '+kind;element.textContent=kind==='miss'?'Промах':(kind==='heal'?'+':kind==='loot'?'+':'')+String(event.amount);$('world-ui').append(element);floats.push({element,x:event.x,z:event.z,y:kind==='hurt'?2.2:1.5,life:.95});}
 function processEvents(){
   for(const event of game.events.splice(0)){
+    interfaceUI.onEvent?.(event);
     if(event.type==='notice')toast(event.text);
     if(event.type==='item')toast(`Получено: ${event.name}${event.pending?' · ожидает в рюкзаке':''}`);
-    if(event.type==='level')toast(`Новый уровень: ${event.level}`);
+    if(event.type==='level')toast(`Новый уровень: ${event.level} · +5 очков характеристик · C`);
+    if(event.type==='miss')number(event,'miss');
     if(event.type==='hit'){
       number(event);for(let i=0;i<6;i++){const p=mesh(scene,lootGeometry,new T.MeshBasicMaterial({color:i%2?'#edc387':'#e6a17e'}),event.x,.7,event.z);p.castShadow=false;particles.push({mesh:p,v:new T.Vector3((Math.random()-.5)*3,1+Math.random()*2,(Math.random()-.5)*3),life:.25+Math.random()*.18});}
     }
@@ -95,12 +97,13 @@ function processEvents(){
     if(event.type==='kill'){toast(`${event.name} повержен · +${event.xp} опыта`);if(autoTarget===event.id)autoTarget=null;}
     if(event.type==='safe'&&time-lastSafeToast>1.5){lastSafeToast=time;toast('Лагерь безопасен. Выйдите на лесную тропу');}
     if(event.type==='death'){clearInput();pendingWeapon=null;selected=null;}
-    if(event.type==='camp'){clearInput();selected=null;toast('У костра восстанавливаются здоровье и зелья');}
+    if(event.type==='camp'){clearInput();selected=null;toast('У костра восстанавливаются здоровье, мана и зелья');}
     if(event.type==='quest')toast('Опушка очищена! Награда: 50 золота');
   }
 }
 function tick(dt){
   if(!game.connected){processEvents();return;}
+  if(interfaceUI?.isPanelOpen?.()){game.update(dt,{x:0,z:0,aim:null});processEvents();return;}
   const hero=game.player;let x=(keys.has('KeyD')||keys.has('ArrowRight')?1:0)-(keys.has('KeyA')||keys.has('ArrowLeft')?1:0),z=(keys.has('KeyS')||keys.has('ArrowDown')?1:0)-(keys.has('KeyW')||keys.has('ArrowUp')?1:0);
   let aim=mouse.point?Math.atan2(mouse.point.x-hero.x,mouse.point.z-hero.z):null;
   if(hero.dead){x=z=0;}
@@ -241,7 +244,7 @@ async function start(){
 }
 canvas.addEventListener('pointermove',event=>{mouse.x=event.clientX;mouse.y=event.clientY;mouse.active=true;});canvas.addEventListener('pointerleave',()=>{mouse.active=false;mouse.point=null;});
 canvas.addEventListener('pointerdown',event=>{
-  if(!ready||!game.connected||game.player.dead)return;canvas.focus({preventScroll:true});mouse.x=event.clientX;mouse.y=event.clientY;mouse.active=true;mouse.point=pickGround();
+  if(!ready||!game.connected||game.player.dead||interfaceUI?.isPanelOpen?.())return;canvas.focus({preventScroll:true});mouse.x=event.clientX;mouse.y=event.clientY;mouse.active=true;mouse.point=pickGround();
   if(event.button===2){autoTarget=null;destination=null;attackAt();return;}if(event.button!==0)return;
   const id=pickMob();if(id!==null){selected=id;autoTarget=id;destination=null;return;}
   autoTarget=null;selected=null;if(mouse.point&&game.stand(mouse.point.x,mouse.point.z))destination={x:mouse.point.x,z:mouse.point.z};else toast('Здесь препятствие. Обойдите его по тропе');
@@ -254,9 +257,10 @@ canvas.addEventListener('wheel',event=>{
   const delta=T.MathUtils.clamp(event.deltaY*unit,-160,160);
   targetZoom=T.MathUtils.clamp(targetZoom*Math.exp(-delta*ZOOM.sensitivity),ZOOM.min,ZOOM.max);
 },{passive:false});
-mini.addEventListener('pointerdown',e=>{if(!ready||game.player.dead)return;const r=mini.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*mini.width,z=(e.clientY-r.top)/r.height*mini.height;const point={x:BOUNDS.minX+(x-10)/(mini.width-20)*(BOUNDS.maxX-BOUNDS.minX),z:BOUNDS.minZ+(z-8)/(mini.height-16)*(BOUNDS.maxZ-BOUNDS.minZ)};if(game.stand(point.x,point.z)){destination=point;autoTarget=null;canvas.focus({preventScroll:true});}});
+mini.addEventListener('pointerdown',e=>{if(!ready||game.player.dead||interfaceUI?.isPanelOpen?.())return;const r=mini.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*mini.width,z=(e.clientY-r.top)/r.height*mini.height;const point={x:BOUNDS.minX+(x-10)/(mini.width-20)*(BOUNDS.maxX-BOUNDS.minX),z:BOUNDS.minZ+(z-8)/(mini.height-16)*(BOUNDS.maxZ-BOUNDS.minZ)};if(game.stand(point.x,point.z)){destination=point;autoTarget=null;canvas.focus({preventScroll:true});}});
 addEventListener('keydown',event=>{
   if(!ready||event.metaKey||event.ctrlKey||event.altKey||['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName))return;
+  if(interfaceUI?.isPanelOpen?.())return;
   if(document.activeElement.tagName==='BUTTON'&&['Space','Enter'].includes(event.code))return;
   if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(event.code))event.preventDefault();keys.add(event.code);if(event.repeat)return;
   if(['ShiftLeft','ShiftRight'].includes(event.code)&&[canvas,document.body].includes(document.activeElement))toggleRun();

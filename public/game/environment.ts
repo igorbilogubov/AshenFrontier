@@ -163,5 +163,5 @@ export function createEnvironment(scene:T.Scene){
     mesh(scene,combined,batch.material);for(const object of batch.objects){object.removeFromParent();object.geometry.dispose();}for(const g of batch.geometries)g.dispose();
   }
   function animate(time:number){breeze.value=time;flames.forEach((flame,i)=>{flame.scale.set(.8+Math.sin(time*9+i)*.2,.85+Math.sin(time*11+i*4)*.25,.9+Math.sin(time*8+i)*.15);flame.rotation.z=Math.sin(time*5+i)*.15;});fireLight.intensity=32+Math.sin(time*12)*3+Math.sin(time*19)*2;}
-  return {ground,obstacles,animate,marker,ready};
+  return {ground,obstacles,animate,marker,ready,setTreesVisible:(visible:boolean)=>{trunks.visible=visible;foliage.visible=visible;}};
 }

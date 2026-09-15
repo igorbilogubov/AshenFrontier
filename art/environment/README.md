@@ -2,7 +2,7 @@
 
 Сверено 14 сентября 2026 для приватного репозитория. Запуск и параллельные рабочие папки: [WORKFLOW.md](../../WORKFLOW.md).
 
-Окружение строится в `public/game/environment.js`, общие препятствия и деревья — в `public/game/terrain.js`.
+Окружение строится в `public/game/environment.ts`, общие препятствия и деревья — в `public/game/terrain.ts`.
 
 ## Новый материал
 

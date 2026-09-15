@@ -9,6 +9,7 @@ import {CAMERA,BOUNDS,CAMP,WEAPONS,MOB_TYPES,safe} from './location.js';
 import {NetworkGame} from './network.js';
 import {bindInterface} from './interface.js';
 import {classFor} from '../rules.js';
+import {Benchmark,stressEnabled} from './benchmark.js';
 import {heldMouseInput} from './mouse-input.js';
 import {element as $,errorMessage} from './ui-types.js';
 import type {Point,PublicPlayer,PublicMob,WeaponId} from '../../shared/types.js';
@@ -20,6 +21,7 @@ interface FloatingNumber {element:HTMLSpanElement;x:number;z:number;y:number;lif
 interface Particle {mesh:T.Mesh<T.IcosahedronGeometry,T.MeshBasicMaterial>;v:T.Vector3;life:number}
 interface HeldMouse {x:number;y:number;active:boolean;point:T.Vector3|null;held:boolean;pointerId:number|null;pickPending:boolean}
 
+let benchmark:Benchmark|undefined;
 const canvas=$('scene');
 let renderer:T.WebGLRenderer,scene:T.Scene,camera:T.OrthographicCamera,sun:T.DirectionalLight,world:ReturnType<typeof createEnvironment>,warrior:Warrior,game:NetworkGame,ready=false,last=0,time=0,accumulator=0;
 let width=innerWidth,height=innerHeight,selected:number|null=null,autoTarget:number|null=null,pendingWeapon:WeaponId|null=null;
@@ -38,7 +40,7 @@ const lootGeometry=new T.IcosahedronGeometry(.11,0),lootMaterial=new T.MeshStand
 function toast(message:string){$('notice').textContent=message;$('notice').classList.add('visible');clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>$('notice').classList.remove('visible'),2400);}
 function fitCamera(){
   width=innerWidth;height=innerHeight;if(!renderer)return;
-  renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.25));renderer.setSize(width,height,false);
+  renderer.setPixelRatio(benchmark?.variant==='low-resolution'?.75:Math.min(devicePixelRatio||1,1.25));renderer.setSize(width,height,false);
   const half=7.1;camera.left=-half*width/height;camera.right=half*width/height;camera.top=half;camera.bottom=-half;camera.updateProjectionMatrix();
 }
 function updateCamera(dt:number){
@@ -183,13 +185,14 @@ function renderPlayers(dt:number){
       }).catch(error=>console.error(error));
     }
     const model=remoteModels.get(p.id);if(!model)continue;
-    const v=visualActor(p,dt);model.root.position.set(v.x,0,v.z);model.root.rotation.y=v.yaw;model.animate(dt,v);
+    const v=visualActor(p,dt);model.root.position.set(v.x,0,v.z);model.root.rotation.y=v.yaw;model.animate(dt,v,!benchmark?.freezeAnimations);
+    if(benchmark?.variant==='no-labels'){model.label.hidden=true;continue;}
     const projected=new T.Vector3(v.x,2.45,v.z).project(camera);
     model.label.textContent=`${p.name} · ${classFor(p.classId).name} ${p.level} · ${Math.ceil(p.hp)}/${p.maxHp}${p.connected?'':' · нет связи'}`;
     model.label.style.transform=`translate(${(projected.x*.5+.5)*width}px,${(-projected.y*.5+.5)*height}px) translate(-50%,-100%)`;
     model.label.hidden=Math.abs(projected.x)>1.2||Math.abs(projected.y)>1.2;
   }
-  for(const [id,model] of remoteModels)if(!present.has(id)){model.root.removeFromParent();model.label.remove();model.mixer.stopAllAction();model.model.traverse(o=>{if(o instanceof T.Mesh)for(const m of Array.isArray(o.material)?o.material:[o.material])m.dispose();});remoteModels.delete(id);visualHeroes.delete(id);}
+  for(const [id,model] of remoteModels)if(!present.has(id)){model.root.removeFromParent();model.label.remove();model.mixer.stopAllAction();const skeletons=new Set<T.Skeleton>();model.model.traverse(o=>{if(o instanceof T.SkinnedMesh)skeletons.add(o.skeleton);if(o instanceof T.Mesh)for(const m of Array.isArray(o.material)?o.material:[o.material])m.dispose();});for(const skeleton of skeletons)skeleton.dispose();remoteModels.delete(id);visualHeroes.delete(id);}
 }
 function renderShots(){
   const ids=new Set(game.projectiles.map(p=>p.id));
@@ -202,9 +205,11 @@ function renderShots(){
 }
 function render(dt:number){
   const hero=visualActor(game.player,dt);time+=dt;updateCamera(dt);mouse.point=pickGround();
+  if(benchmark?.variant==='picking'){mouse.active=true;mouse.x=width*.5+Math.sin(time*2)*width*.18;mouse.y=height*.5;mouse.point=pickGround();pickMob();}
   if(mouse.held&&mouse.pickPending&&mouse.point){autoTarget=pickMob();selected=autoTarget;mouse.pickPending=false;}
   warrior.root.position.set(hero.x,0,hero.z);warrior.root.rotation.set(0,hero.yaw,0);
-  warrior.animate(dt,hero);
+  benchmark?.mark('camera-picking');
+  warrior.animate(dt,hero,!benchmark?.freezeAnimations);
   marker.position.set(hero.x,.03,hero.z);marker.rotation.y=hero.yaw;marker.visible=!hero.dead;
   world.marker.visible=false;world.animate(time);
   renderPlayers(dt);renderShots();
@@ -214,19 +219,23 @@ function render(dt:number){
     if(Math.hypot(x-mob.x,z-mob.z)<3){v.x=x+(mob.x-x)*blend;v.z=z+(mob.z-z)*blend;}
     v.yaw=yaw+angleDelta(yaw,mob.yaw)*blend;
     const lag=Math.min(.1,(performance.now()-game.receivedAt)/1000);v.age+=lag;if(v.state==='windup')v.timer=Math.max(0,v.timer-lag);v.flash=Math.max(0,v.flash-lag);
-    models.get(mob.id)?.animate(v,time,selected===mob.id,camera);
+    models.get(mob.id)?.animate(v,time,selected===mob.id,camera,!benchmark?.freezeAnimations);
   }
+  benchmark?.mark('actors');
   for(const drop of game.loot){let model=drops.get(drop.id);if(!model){model=new T.Group();for(let i=0;i<3;i++)mesh(model,lootGeometry,lootMaterial,(i-1)*.12,.1,Math.sin(i*2)*.1);scene.add(model);drops.set(drop.id,model);}model.position.set(drop.x,.05+Math.sin(time*3+drop.id)*.04,drop.z);model.rotation.y=time*.7;}
   for(let i=particles.length-1;i>=0;i--){const p=particles[i];p.life-=dt;p.v.y-=8*dt;p.mesh.position.addScaledVector(p.v,dt);if(p.life<=0){p.mesh.removeFromParent();p.mesh.material.dispose();particles.splice(i,1);}}
   for(let i=floats.length-1;i>=0;i--){const f=floats[i];f.life-=dt;f.y+=dt*.6;const p=new T.Vector3(f.x,f.y,f.z).project(camera);f.element.style.transform=`translate(${(p.x*.5+.5)*width}px,${(-p.y*.5+.5)*height}px)`;f.element.style.opacity=String(Math.min(1,f.life*4));if(f.life<=0){f.element.remove();floats.splice(i,1);}}
   uiTimer+=dt;if(uiTimer>.1){uiTimer=0;updateUI();}
-  renderer.render(scene,camera);
+  benchmark?.mark('effects-ui');benchmark?.gpuBegin();
+  if(benchmark?.variant==='no-render'){renderer.info.reset();renderer.clear();}else renderer.render(scene,camera);benchmark?.end();
 }
 function loop(timestamp:number){
   if(!ready)return;const elapsed=last?(timestamp-last)/1000:1/60;last=timestamp;if(paused)return;
+  benchmark?.begin(timestamp);
+  if(benchmark?.variant==='scheduler'){renderer.info.reset();benchmark.end();return;}
   const dt=Math.min(elapsed,.15);accumulator+=dt;
   while(accumulator>=1/60){tick(1/60);accumulator-=1/60;}
-  render(dt);if(elapsed<.5){frames.push(elapsed);if(frames.length>90)frames.shift();}if(++frameCounter%30===0)$('performance').textContent=`${Math.round(frames.length/frames.reduce((a,b)=>a+b,0))} FPS`;
+  benchmark?.mark('simulation');render(dt);frames.push(elapsed);if(frames.length>90)frames.shift();if(++frameCounter%30===0)$('performance').textContent=`${Math.round(frames.length/frames.reduce((a,b)=>a+b,0))} FPS`;
 }
 async function start(){
   try{
@@ -246,10 +255,11 @@ async function start(){
     world=createEnvironment(scene);game=new NetworkGame();interfaceUI=bindInterface(game,toast,clearInput);
     $('load-progress').textContent='Загружаем персонажа и обитателей леса…';
     const loaded=await Promise.all([loadWarrior(),loadMobAssets()]);warrior=loaded[0];scene.add(warrior.root);
-    $('load-progress').textContent='Подключаем героя к общему миру…';await interfaceUI.join();
+    $('load-progress').textContent='Подключаем героя к общему миру…';const stressMode=await stressEnabled();if(stressMode){game.storage.removeItem(game.tokenKey);await game.connect({name:'Наблюдатель FPS',classId:'warrior'});}else await interfaceUI.join();
     for(const mob of game.mobs){const model=Object.assign(createMob(mob.type,loaded[1]),{pickMeshes:[] as T.Mesh[]});model.pickRoot.traverse(o=>{if(o instanceof T.Mesh){o.userData.mob=mob.id;model.pickMeshes.push(o);}});models.set(mob.id,model);scene.add(model.root);}
     const ring=mesh(marker,new T.RingGeometry(.43,.451,40),new T.MeshBasicMaterial({color:'#dac593',transparent:true,opacity:.62,side:T.DoubleSide,depthWrite:false}));ring.rotation.x=-Math.PI/2;ring.castShadow=false;ring.receiveShadow=false;scene.add(marker);
-    $('load-progress').textContent='Загружаем материалы леса…';await world.ready;ready=true;render(1/60);$('load-progress').textContent='Готовим свет и тени…';await renderer.compileAsync(scene,camera);$('loading').hidden=true;canvas.focus({preventScroll:true});updateUI();renderer.setAnimationLoop(loop);
+    $('load-progress').textContent='Загружаем материалы леса…';await world.ready;ready=true;if(stressMode){const link=document.createElement('link');link.rel='stylesheet';link.href='/game/benchmark.css';document.head.append(link);benchmark=new Benchmark({renderer,scene,camera,game,modelsReady:()=>remoteModels.size===game.players.length-1&&loadingPlayers.size===0,setVariant:variant=>{renderer.shadowMap.enabled=variant!=='no-shadows';fitCamera();world.setTreesVisible?.(variant!=='no-trees');}});}
+    render(1/60);$('load-progress').textContent='Готовим свет и тени…';await renderer.compileAsync(scene,camera);$('loading').hidden=true;canvas.focus({preventScroll:true});updateUI();renderer.setAnimationLoop(loop);
   }catch(error){console.error(error);ready=false;$('loading').hidden=false;$('loading').querySelector('h2')!.textContent='Локацию не удалось открыть';$('load-progress').textContent=errorMessage(error);$('retry').hidden=false;}
 }
 canvas.addEventListener('pointermove',event=>{

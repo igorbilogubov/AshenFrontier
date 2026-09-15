@@ -12,7 +12,7 @@
 | Волк, кабан и вожак, их риги/анимации | Созданы в Blender скриптом проекта | `art/creatures/ashen-fauna-v1/`, `scripts/blender/build_creatures.py` |
 | Волк до доработки, сравнение | Контрольная копия собственной модели и генератора | `art/creatures/wolf-v1-reference/`; по запросу загружается `public/game/creatures/wolf-before.glb` |
 | Лесная почва | Codex ImageGen; оригинальный PNG | `public/game/materials/forest-floor-v1.png` |
-| Окружение, лук и посох | Геометрия и материалы в коде проекта | `public/game/environment.js`, `character.js` |
+| Окружение, лук и посох | Геометрия и материалы в коде проекта | `public/game/environment.ts`, `character.ts` |
 | Three.js, GLTFLoader, SkeletonUtils | Three.js 0.186.0, MIT | `public/game/vendor/`, лицензия в каталоге |
 
 Mixamo — библиотечная основа с условиями Adobe, не CC0 и не модель, целиком созданная нами с нуля. Исходные FBX используются для работы над игрой; не распространять их отдельно как библиотеку или товар. В клиент включён собранный игровой GLB. Подробное происхождение, источник условий и названия клипов: [документ воина](art/characters/ashen-warrior-v1/README.md).

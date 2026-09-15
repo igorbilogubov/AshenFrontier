@@ -87,4 +87,4 @@ npm test
 
 ## Порты пробы Godot в текущей задаче
 
-В `AshenFrontier-character-stats` / `codex/character-stats` дополнительно запущен согласованный Godot-эксперимент: backend 4733, Web 4741, данные `data/godot-prototype/`. Порт 4732 принадлежит основному клиенту этой ветки. Другие задачи выбирают и проверяют другие свободные порты. `godot:server` не меняет серверные правила и не выполняет deployment; [инструкции](godot-prototype/README.md).
+В `AshenFrontier-character-stats` / `codex/character-stats` сохранён согласованный Godot-эксперимент: backend 4733, Web 4741, данные `data/godot-prototype/`. Порт 4732 принадлежит основному клиенту этой ветки. 15 сентября процессы Godot-пробы остановлены для изолированных замеров; код и данные сохранены. Для FPS есть `npm run stress`, отдельный порт 4742 и временные данные; [методика](PERFORMANCE.md). Другие задачи выбирают и проверяют другие свободные порты. `godot:server` не меняет серверные правила и не выполняет deployment; [инструкции](godot-prototype/README.md).

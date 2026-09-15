@@ -12,3 +12,5 @@
 !public/**
 !scripts/
 !scripts/build.mjs
+!stress/
+!stress/**

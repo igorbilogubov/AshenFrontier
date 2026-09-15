@@ -9,8 +9,8 @@ import {setTimeout as delay} from 'node:timers/promises';
 import {WebSocket} from 'ws';
 import {newHero,persistentHero,makeLoot} from '../dist/world.js';
 const until=async(predicate,timeout=6000)=>{const end=Date.now()+timeout;while(!predicate()){assert(Date.now()<end,'Timed out waiting for server state');await delay(20);}};
-async function start(dir){
-  const child=spawn(process.execPath,['server.mjs'],{cwd:new URL('..',import.meta.url),env:{...process.env,PORT:'0',GAME_HOST:'127.0.0.1',GAME_DATA_DIR:dir},stdio:['ignore','pipe','pipe']});let output='';child.stdout.on('data',b=>output+=b);child.stderr.on('data',b=>output+=b);
+async function start(dir,environment={}){
+  const child=spawn(process.execPath,['server.mjs'],{cwd:new URL('..',import.meta.url),env:{...process.env,PORT:'0',GAME_HOST:'127.0.0.1',GAME_DATA_DIR:dir,GAME_PREVIEW_ALIAS:'0',...environment},stdio:['ignore','pipe','pipe']});let output='';child.stdout.on('data',b=>output+=b);child.stderr.on('data',b=>output+=b);
   await until(()=>/http:\/\/127\.0\.0\.1:\d+/.test(output)||child.exitCode!==null);assert.equal(child.exitCode,null,output);return {child,url:output.match(/http:\/\/127\.0\.0\.1:\d+/)[0]};
 }
 async function stop(server){if(!server||server.child.exitCode!==null)return;const ended=once(server.child,'exit');server.child.kill('SIGTERM');await ended;}
@@ -25,7 +25,7 @@ test('HTTP serves only the 3D client, models and public rules; save files and le
   const dir=await mkdtemp(path.join(tmpdir(),'ashen-http-'));let server;
   try{server=await start(dir);
     const page=await fetch(server.url);assert.equal(page.status,200);const html=await page.text();assert(html.includes('game/scene.js'));assert(!html.includes('src="game.js"'));
-    for(const file of ['/data/heroes.json','/../data/heroes.json','/world.mjs','/world.ts','/server.ts','/game/scene.ts','/game/scene.js.map','/dist/server.js','/game.js','/world.json','/assets/tiny-dungeon/tilemap.png','/game/../../data/heroes.json'])assert.equal((await fetch(server.url+file)).status,404,file);
+    for(const file of ['/data/heroes.json','/../data/heroes.json','/world.mjs','/__stress/info','/__stress/report','/world.ts','/server.ts','/game/scene.ts','/game/scene.js.map','/dist/server.js','/game.js','/world.json','/assets/tiny-dungeon/tilemap.png','/game/../../data/heroes.json'])assert.equal((await fetch(server.url+file)).status,404,file);
     const module=await fetch(server.url+'/game/scene.js');assert.equal(module.status,200);assert.match(module.headers.get('content-type'),/javascript/);assert((await module.text()).includes('WebGLRenderer'));
     const model=await fetch(server.url+'/game/characters/ashen-warrior-v1.glb',{method:'HEAD'});assert.equal(model.status,200);assert.equal(model.headers.get('content-type'),'model/gltf-binary');
     assert.equal((await fetch(server.url+'/game/creature-preview.html')).status,200);
@@ -120,4 +120,22 @@ test('stat allocation is atomic over WebSocket and migrates, saves and restores 
     const disk=JSON.parse(await readFile(path.join(dir,'heroes.json'),'utf8'))[token];
     assert.equal(disk.schemaVersion,3);assert.deepEqual(disk.allocatedStats,allocated.allocatedStats);
   }finally{for(const client of clients)await close(client);await stop(server);await rm(dir,{recursive:true,force:true});}
+});
+
+
+test('isolated stress controller creates 16 real sessions and cleans up; ordinary servers cannot access it',async()=>{
+  const dir=await mkdtemp(path.join(tmpdir(),'ashen-stress-'));let server;const clients=[];
+  try{
+    await writeFile(path.join(dir,'.stress-sandbox'),'temporary benchmark world\n');
+    server=await start(dir,{GAME_STRESS:'1',GAME_STRESS_REPORTS:dir,NODE_ENV:'development'});
+    const viewer=await connect(server,{name:'Benchmark viewer',classId:'warrior'});clients.push(viewer);
+    const post=(route,body,origin=server.url)=>fetch(server.url+'/__stress/'+route,{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify(body)});
+    assert.equal((await post('scenario',{players:16,mode:'camp'},'https://unrelated.example')).status,403);
+    assert.equal((await post('scenario',{players:64,mode:'camp'})).status,400);
+    const crowd=await post('scenario',{players:16,mode:'camp'});assert.equal(crowd.status,200);assert.equal((await crowd.json()).players,16);
+    await until(()=>viewer.state.players.length===16);
+    const extra=await connect(server,{name:'Capacity check',classId:'warrior'});clients.push(extra);assert.equal(extra.error.code,'full');
+    const cleanup=await post('scenario',{players:1,mode:'camp'});assert.equal(cleanup.status,200);assert.equal((await cleanup.json()).players,1);
+    const info=await (await fetch(server.url+'/__stress/info')).json();assert.equal(info.server.bots,0);assert.deepEqual(info.server.errors,[]);
+  }finally{for(const c of clients)await close(c);await stop(server);await rm(dir,{recursive:true,force:true});}
 });

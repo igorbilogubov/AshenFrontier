@@ -17,6 +17,8 @@ interface Session { token: string; p: Hero; ws: WebSocket | null }
 const dataDir=process.env.GAME_DATA_DIR||path.join(root,'data'),saveFile=path.join(dataDir,'heroes.json');
 const port=Number(process.env.PORT||4731),host=process.env.GAME_HOST||'127.0.0.1';
 const allowedOrigins=new Set((process.env.GAME_ALLOWED_ORIGINS||'').split(',').filter(Boolean));
+const stressModule=process.env.GAME_STRESS==='1'?await import('./stress/controller.js'):null;
+await stressModule?.assertStressSandbox(dataDir,host);
 await fs.mkdir(dataDir,{recursive:true,mode:0o700});
 // Docker already enforces the unique game container; local commands also take a PID lock.
 if(process.env.NODE_ENV!=='production'){
@@ -44,6 +46,7 @@ try{
   }
 }catch(e){if(errorCode(e)!=='ENOENT')throw new Error(`Cannot read saved heroes: ${errorMessage(e)}`);}
 const world=new World(),sessions=new Map<string,Session>(),connections=new Map<WebSocket,Session>(),chat: ChatEntry[]=[];
+const stress=stressModule?await stressModule.createStressController(world,dataDir,host):null;
 const alive=new WeakMap<WebSocket,boolean>();
 let dirty=false,lastSavedAt=0,saveHealthy=true,shuttingDown=false,saveChain=Promise.resolve();
 function save(){
@@ -62,6 +65,7 @@ function save(){
 const mime: Record<string,string>={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.json':'application/json; charset=utf-8','.glb':'model/gltf-binary'};
 const server=http.createServer(async(req,res)=>{
   try{
+    if(stress&&await stress.http(req,res))return;
     if(req.method!=='GET'&&req.method!=='HEAD'){res.writeHead(405);res.end();return;}
     const url=new URL(req.url||'/','http://localhost');
     if(url.pathname==='/health'){
@@ -91,7 +95,7 @@ server.on('upgrade',(req,socket,head)=>{
   if(shuttingDown||pathname!=='/ws'||(origin&&origin!==`http://${req.headers.host}`&&origin!==`https://${req.headers.host}`&&!allowedOrigins.has(origin))){socket.write('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');socket.destroy();return;}
   wss.handleUpgrade(req,socket,head,ws=>wss.emit('connection',ws,req));
 });
-const send=(ws: WebSocket,msg: ServerMessage)=>{if(ws.readyState===WebSocket.OPEN&&ws.bufferedAmount<256000)ws.send(JSON.stringify(msg));};
+const send=(ws: WebSocket,msg: ServerMessage)=>{if(ws.readyState===WebSocket.OPEN&&ws.bufferedAmount<256000){const data=JSON.stringify(msg);stress?.recordBytes(Buffer.byteLength(data));ws.send(data);}};
 function release(ws: WebSocket){
   const entry=connections.get(ws);if(!entry)return;
   connections.delete(ws);entry.ws=null;entry.p.connected=false;entry.p.input={...entry.p.input,x:0,z:0,aim:null};
@@ -133,10 +137,11 @@ wss.on('connection',ws=>{
 });
 let last=Date.now();
 const tick=setInterval(()=>{
-  const now=Date.now(),dt=Math.min(.1,(now-last)/1000);last=now;world.tick(dt,now);
+  const tickStart=performance.now(),now=Date.now(),interval=now-last,dt=Math.min(.1,interval/1000);last=now;world.tick(dt,now);const simulationEnd=performance.now();
   for(const [token,entry] of sessions)if(!entry.ws&&entry.p.disconnectAt<=now){saves[token]=persistentHero(entry.p);world.remove(entry.p.id);sessions.delete(token);dirty=true;}
   for(const [ws,{p}] of connections)send(ws,{type:'state',...world.snapshot(p.id),save:{at:lastSavedAt,ok:saveHealthy}});
   world.events=[];if(sessions.size)dirty=true;
+  stress?.recordTick(simulationEnd-tickStart,performance.now()-simulationEnd,performance.now()-tickStart,interval);
 },50);
 const saveTimer=setInterval(()=>void save(),2000);
 const heartbeat=setInterval(()=>{for(const ws of wss.clients){if(!alive.get(ws)){release(ws);ws.terminate();continue;}alive.set(ws,false);ws.ping();}},5000);
@@ -149,7 +154,7 @@ server.listen(port,host,()=>{
   }
 });
 async function shutdown(){
-  if(shuttingDown)return;shuttingDown=true;clearInterval(tick);clearInterval(saveTimer);clearInterval(heartbeat);
+  if(shuttingDown)return;shuttingDown=true;stress?.close();clearInterval(tick);clearInterval(saveTimer);clearInterval(heartbeat);
   dirty=true;await save();for(const ws of wss.clients)ws.close(1012,'Server restarting');
   previewServer?.close();server.close();wss.close();setTimeout(()=>{for(const ws of wss.clients)ws.terminate();process.exit(saveHealthy?0:1);},500);
 }

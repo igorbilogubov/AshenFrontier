@@ -17,7 +17,9 @@
     "godot:export": "npm run godot:import && node scripts/godot/tool.mjs export",
     "godot:server": "npm run build && node scripts/godot/serve.mjs",
     "godot:test": "node scripts/godot/test.mjs",
-    "godot:export:macos": "npm run godot:import && node scripts/godot/tool.mjs export-macos"
+    "godot:export:macos": "npm run godot:import && node scripts/godot/tool.mjs export-macos",
+    "stress": "npm run build && node scripts/stress.mjs",
+    "stress:report": "node scripts/performance-report.mjs"
   },
   "dependencies": {
     "ws": "^8.18.3"

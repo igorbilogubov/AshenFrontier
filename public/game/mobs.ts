@@ -55,7 +55,7 @@ export function createMob(type:MobType,assets:MobAssets){
     gait=runBlend=moveBlend=turnGait=turnBlend=0;lastPosition=null;lastYaw=null;lastFlash=0;hitAge=1;reaction.weight=0;
     for(const name of clipNames){weights[name]=name==='Idle'?1:0;actions[name].time=0;actions[name].setEffectiveWeight(weights[name]);}
   }
-  function animate(mob:PublicMob,time:number,selected:boolean,camera:T.Camera){
+  function animate(mob:PublicMob,time:number,selected:boolean,camera:T.Camera,sampleAnimation=true){
     if(preview)return;
     const dt=lastTime===null?1/60:T.MathUtils.clamp(time-lastTime,0,.15);lastTime=time;
     if(lastState==='dead'&&mob.state!=='dead')reset();
@@ -100,7 +100,7 @@ export function createMob(type:MobType,assets:MobAssets){
     reaction.weight=mob.state==='dead'||mob.state==='windup'||mob.state==='recover'?0:Math.sin(Math.min(hitAge/additive.duration,1)*Math.PI)*.75;
     const blend=1-Math.exp(-dt*(mob.state==='dead'?35:20));
     for(const name of clipNames){weights[name]+=(target[name]-weights[name])*blend;actions[name].setEffectiveWeight(weights[name]);}
-    mixer.update(0);lastState=mob.state;lastFlash=mob.flash;lastPosition={x:mob.x,z:mob.z};lastYaw=mob.yaw;
+    if(sampleAnimation)mixer.update(0);lastState=mob.state;lastFlash=mob.flash;lastPosition={x:mob.x,z:mob.z};lastYaw=mob.yaw;
   }
   function previewClip(name:string){
     if(!clips[name])return;

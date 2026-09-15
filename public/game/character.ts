@@ -19,10 +19,29 @@ export async function loadWarrior(){
 }
 
 
+// SkeletonUtils creates a Skeleton for every skinned primitive, even when all
+// primitives use the same bones. Share only identical palettes inside this model;
+// another character owns different Bone objects and can never enter this group.
+function shareCharacterSkeletons(model:T.Object3D){
+  const palettes:T.Skeleton[]=[];
+  model.traverse(object=>{
+    if(!(object instanceof T.SkinnedMesh))return;
+    const skeleton=object.skeleton;
+    const shared=palettes.find(candidate=>candidate===skeleton||(
+      candidate.bones.length===skeleton.bones.length&&
+      candidate.boneInverses.length===skeleton.boneInverses.length&&
+      candidate.bones.every((bone,i)=>bone===skeleton.bones[i]&&candidate.boneInverses[i].equals(skeleton.boneInverses[i]))
+    ));
+    // Keep each mesh's bind matrices intact; only the common bone palette changes.
+    if(shared)object.skeleton=shared;
+    else palettes.push(skeleton);
+  });
+}
+
 // Exported separately so animation/respawn transitions can be tested on the real asset.
 export function createAnimatedWarrior(gltf:{scene:T.Object3D;animations:T.AnimationClip[]}){
   const root=new T.Group();root.name='Warrior';
-  const model=gltf.scene;model.scale.setScalar(1.12);root.add(model);
+  const model=gltf.scene;shareCharacterSkeletons(model);model.scale.setScalar(1.12);root.add(model);
   contactShadow(root,1.05,.84);
   const tuned=new Set<T.Material>();
   model.traverse(o=>{if(o instanceof T.Mesh){o.material=Array.isArray(o.material)?o.material.map(m=>m.clone()):o.material.clone();o.castShadow=true;o.receiveShadow=true;
@@ -75,7 +94,7 @@ export function createAnimatedWarrior(gltf:{scene:T.Object3D;animations:T.Animat
     lastAttack=null;wasDead=false;deathAge=0;hitAge=1;lastHurt=0;hitAction.weight=0;
     for(const name of CLIP_NAMES){weights[name]=name==='Idle'?1:0;actions[name].time=0;actions[name].setEffectiveWeight(weights[name]);}
   }
-  function animate(dt:number,hero:WarriorPose){
+  function animate(dt:number,hero:WarriorPose,sampleAnimation=true){
     if(preview)return;
     equipment(hero.weapon,hero.classId);
     if(wasDead&&!hero.dead)reset();
@@ -107,7 +126,7 @@ export function createAnimatedWarrior(gltf:{scene:T.Object3D;animations:T.Animat
     hitAction.weight=hero.dead||hero.attack?0:Math.sin(Math.min(hitAge/.48,1)*Math.PI)*.55;
     const blend=1-Math.exp(-dt*(hero.dead?22:hero.attack?30:16));
     for(const name of CLIP_NAMES){weights[name]+=(target[name]-weights[name])*blend;actions[name].setEffectiveWeight(weights[name]);}
-    mixer.update(dt);lastAttack=hero.attack;lastHurt=hero.hurt;wasDead=!!hero.dead;
+    if(sampleAnimation)mixer.update(dt);lastAttack=hero.attack;lastHurt=hero.hurt;wasDead=!!hero.dead;
   }
   function previewClip(name:WarriorClip){
     if(!clips[name])return;

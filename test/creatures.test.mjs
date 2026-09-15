@@ -20,6 +20,40 @@ function bone(model,name){const b=model.model.getObjectByName(name);assert.ok(b?
 function point(model,name){model.root.updateMatrixWorld(true);return bone(model,name).getWorldPosition(new T.Vector3());}
 function actor(type){return {id:0,type,x:4,z:3,yaw:0,targetYaw:0,state:'idle',hp:MOB_TYPES[type].hp,timer:1,age:0,speed:0,flash:0};}
 
+test('fixed skinned-mesh culling bounds cover every exported animal pose and allow camera rejection',()=>{
+  for(const type of Object.keys(MOB_TYPES)){
+    const m=createMob(type,assets),range=new T.Box3(),skins=[];
+    m.model.traverse(o=>{if(o.isSkinnedMesh)skins.push(o);});
+    assert(skins.length>0,`${type}: no skinned meshes`);
+    for(const skin of skins){
+      assert.equal(skin.frustumCulled,true,`${type}: culling disabled`);
+      assert(skin.boundingBox&&!skin.boundingBox.isEmpty(),`${type}: missing fixed box`);
+      assert(skin.boundingSphere&&Number.isFinite(skin.boundingSphere.radius),`${type}: missing fixed sphere`);
+    }
+    for(const name of Object.keys(m.clips)){
+      m.previewClip(name);
+      for(let frame=0;frame<=24;frame++){
+        m.samplePreview(m.clips[name].duration*frame/24);
+        for(const skin of skins){
+          const fixedBox=skin.boundingBox.clone(),fixedSphere=skin.boundingSphere.clone();
+          skin.skeleton.update();skin.computeBoundingBox();const actual=skin.boundingBox.clone();
+          assert(fixedBox.containsBox(actual),`${type} ${name} frame ${frame}: pose outside fixed box`);
+          for(const x of [actual.min.x,actual.max.x])for(const y of [actual.min.y,actual.max.y])for(const z of [actual.min.z,actual.max.z])
+            assert(fixedSphere.containsPoint(new T.Vector3(x,y,z)),`${type} ${name} frame ${frame}: pose outside fixed sphere`);
+          range.union(actual);skin.boundingBox=fixedBox;
+        }
+      }
+    }
+    if(process.env.MOB_BOUNDS_VERBOSE==='1')console.log('MOB_LOCAL_RANGE',type,[...range.min],[...range.max]);
+    const camera=new T.PerspectiveCamera(60,1,.1,50);camera.position.set(0,2,6);camera.lookAt(0,.7,0);camera.updateMatrixWorld(true);
+    const frustum=new T.Frustum().setFromProjectionMatrix(new T.Matrix4().multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse));
+    m.root.position.set(0,0,0);m.root.updateMatrixWorld(true);
+    assert(skins.some(skin=>frustum.intersectsObject(skin)),`${type}: visible mob rejected`);
+    m.root.position.set(100,0,0);m.root.updateMatrixWorld(true);
+    assert(skins.every(skin=>!frustum.intersectsObject(skin)),`${type}: distant mob not rejected`);
+  }
+});
+
 test('creature assets carry their animations, a complete skin and actual coat colors in COLOR_0',()=>{
   for(const [type,{bytes,json,binary}] of Object.entries(files)){
     assert.equal(json.skins[0].joints.length,24);

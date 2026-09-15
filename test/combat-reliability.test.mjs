@@ -18,8 +18,12 @@ test('combat chase is wider than patrol; wounded animals return without instant 
   assert.equal(m.state,'return');assert.equal(m.hp,20);
   Object.assign(p,{x:m.x+2,z:m.z});step(w);
   assert.equal(m.state,'chase');assert.equal(m.target,p.id);assert.equal(m.hp,20);
+  Object.assign(p,{x:50,z:30});step(w);assert.equal(m.state,'return');
+  Object.assign(p,{x:m.x+2,z:m.z});
+  assert(w.hurtMob(p,m,1),'returning mob should take real damage and reengage');
+  assert.equal(m.state,'chase');assert.equal(m.hp,19);
   Object.assign(p,{x:50,z:30});step(w,20);
-  assert.equal(m.hp,20,'return travel and grace preserve damage');
+  assert.equal(m.hp,19,'return travel and grace preserve damage');
   for(let i=0;i<500&&m.state!=='idle';i++)step(w);
   assert.equal(m.state,'idle');assert.equal(m.hp,60);
 });

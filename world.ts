@@ -16,7 +16,7 @@ const finite=(value: unknown,fallback=0)=>typeof value==='number'&&Number.isFini
 const nonnegative=(value: unknown,fallback=0)=>Math.max(0,finite(value,fallback));
 const CHASE_HOME_LIMIT=28,CHASE_TARGET_LIMIT=30,HOME_REST_SECONDS=3;
 const CAMP_SPAWN={x:.5,z:4};
-const liveMob=(m:Mob)=>m.state!=='dead'&&m.state!=='return';
+const liveMob=(m:Mob)=>m.state!=='dead';
 const validPoint=(value:unknown):value is Point=>isRecord(value)&&typeof value.x==='number'&&Number.isFinite(value.x)&&typeof value.z==='number'&&Number.isFinite(value.z);
 const bodyStrike=(origin:Point,m:Mob,yaw:number,range:number,halfAngle:number)=>{
   const d=distance(origin,m),radius=MOB_TYPES[m.type].radius;
@@ -397,19 +397,19 @@ export class World{
     if(!p.hp){this.stopAfk(p);this.stopInteraction(p);p.shopActive=false;p.dead=2.5;p.attack=null;p.vx=p.vz=p.moveBlend=p.runBlend=0;this.emit('death',{},p.id);}
   }
   hurtMob(p: Hero,m: Mob,amount: number,automatic=false){
-    if(p.dead||safe(p)||m.state==='dead'||m.state==='return'||!clearPath(p,m))return false;
+    if(p.dead||safe(p)||m.state==='dead'||safe(m)||!sameLocation(p,m)||!clearPath(p,m))return false;
     const dealt=Math.min(m.hp,Math.max(0,Math.round(amount)));if(!dealt)return false;
     const earlier=m.contributors.get(p.id);
     m.hp-=dealt;m.flash=.2;p.combatUntil=this.t+15000;m.contributors.set(p.id,{at:this.t,damage:(earlier?.damage||0)+dealt,automatic:(earlier?.automatic??automatic)&&automatic});
     this.emit('hit',{x:m.x,z:m.z,amount:dealt,id:m.id});
-    if(!m.hp)this.kill(m);else if(m.state==='idle'){m.state='chase';m.target=p.id;}
+    if(!m.hp)this.kill(m);else if(m.state==='idle'||m.state==='return'){m.state='chase';m.target=p.id;m.timer=0;m.age=0;}
     return true;
   }
   strikeMob(p: Hero,m: Mob,amount: number,automatic=false){
-    if(p.dead||safe(p)||m.state==='dead'||m.state==='return'||!clearPath(p,m))return false;
+    if(p.dead||safe(p)||m.state==='dead'||safe(m)||!sameLocation(p,m)||!clearPath(p,m))return false;
     if(this.random()>=stats(p).hitChance){
       p.combatUntil=this.t+15000;
-      if(m.state==='idle'){m.state='chase';m.target=p.id;}
+      if(m.state==='idle'||m.state==='return'){m.state='chase';m.target=p.id;m.timer=0;m.age=0;}
       this.emit('miss',{x:m.x,z:m.z,id:m.id},p.id);return false;
     }
     return this.hurtMob(p,m,amount,automatic);

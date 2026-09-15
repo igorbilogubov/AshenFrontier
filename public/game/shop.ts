@@ -1,5 +1,6 @@
 import type {ClassId,EquipmentSlot,Item} from '../../shared/types.js';
 import {CLASS_ITEMS} from './equipment-items.js';
+import {CONSUMABLES} from './consumables.js';
 
 export const SHOP=Object.freeze({id:'camp-vendor',name:'Торговец',x:2,z:-2,range:2.4});
 export interface ShopListing {definitionId:string;name:string;classId:ClassId;slot:EquipmentSlot;price:number}
@@ -10,6 +11,7 @@ const basics=Object.values(CLASS_ITEMS).flatMap(items=>{
 });
 const listings:readonly ShopListing[]=Object.freeze(basics.map(item=>Object.freeze({definitionId:item.id,name:item.name,classId:item.classId,slot:item.slot,price:PRICES[item.slot]})));
 export const shopItems=()=>listings;
+export const shopConsumables=()=>Object.values(CONSUMABLES);
 export const shopPrice=(definitionId:unknown)=>typeof definitionId==='string'?listings.find(item=>item.definitionId===definitionId)?.price:undefined;
 export function sellPrice(item:Item){
   const power=Number.isFinite(item.power)?Math.max(0,item.power):0;

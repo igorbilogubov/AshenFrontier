@@ -22,18 +22,18 @@ export interface CharacterStats {
 }
 export interface PersistentHero extends Point {
   schemaVersion: number; id: string; name: string; classId: ClassId; level: number; xp: number; gold: number; kills: number;
-  items: Item[]; pendingItems: Item[]; equipment: Equipment; allocatedStats: Attributes; statRevision: number;
-  yaw: number; weapon: WeaponId; hp: number; mana: number; potions: number; potionCooldown: number;
+  items: Item[]; pendingItems: Item[]; stash: string[]; equipment: Equipment; allocatedStats: Attributes; statRevision: number;
+  yaw: number; weapon: WeaponId; hp: number; mana: number; potions: number; potionCooldown: number; manaPotions:number; manaPotionCooldown:number;
   specialCooldown: number; skillCooldowns?: SkillCooldowns; dead: number; combatUntil: number; attack: HeroAttack | null; attackSerial: number;
   running: boolean; questKills: number; boss: boolean; questClaimed: boolean;
 }
 export interface AfkState { spotId: string; targetId: number | null }
 export interface GroundDrop extends Point { id:string; kind:'item'|'gold'; item?:Item; amount?:number; expiresAt:number }
-export interface InteractionTarget { kind:'loot'|'vendor'|'portal'; id:string }
+export interface InteractionTarget { kind:'loot'|'vendor'|'portal'|'chest'; id:string }
 export interface Hero extends PersistentHero {
   targetYaw: number; vx: number; vz: number; hurt: number; gait: number; moveBlend: number; runBlend: number;
   input: HeroInput; inputAt: number; ack: number; connected: boolean; disconnectAt: number; speedScale?: number; afk: AfkState | null;
-  interactionTarget:InteractionTarget|null; shopActive:boolean;
+  interactionTarget:InteractionTarget|null; shopActive:boolean; stashActive:boolean;
 }
 export type MobType = 'wolf' | 'boar' | 'alpha' | 'bear';
 export type MobState = 'idle' | 'chase' | 'windup' | 'recover' | 'return' | 'dead';
@@ -49,7 +49,7 @@ export interface Mob extends PublicMob {
 export interface PublicProjectile extends Point { id: string; owner: string; yaw: number; remaining: number; speed: number; kind: 'archer' | 'mage'; skillId?: SkillId; attackId?: number }
 export interface Projectile extends PublicProjectile { damage: number; aoe: number; maxTargets?: number; hitIds?: number[]; pierce?: boolean; damageScaleOnPierce?: number; slowMs?: number; automatic?: boolean; targetId?:number }
 export type PublicPlayer = Pick<Hero, 'id' | 'name' | 'classId' | 'x' | 'z' | 'yaw' | 'weapon' | 'hp' | 'level' | 'dead' | 'hurt' | 'attack' | 'moveBlend' | 'runBlend' | 'gait' | 'vx' | 'vz' | 'connected'> & { maxHp: number; appearance?:ItemAppearance };
-export type SelfSnapshot = PersistentHero & {appearance?:ItemAppearance;afk?:AfkState|null;interactionTarget?:InteractionTarget|null;shopActive?:boolean} & Omit<CharacterStats, 'attack'> & Pick<Hero, 'targetYaw' | 'vx' | 'vz' | 'hurt' | 'gait' | 'moveBlend' | 'runBlend' | 'ack'>;
+export type SelfSnapshot = PersistentHero & {appearance?:ItemAppearance;afk?:AfkState|null;interactionTarget?:InteractionTarget|null;shopActive?:boolean;stashActive?:boolean} & Omit<CharacterStats, 'attack'> & Pick<Hero, 'targetYaw' | 'vx' | 'vz' | 'hurt' | 'gait' | 'moveBlend' | 'runBlend' | 'ack'>;
 export interface EventPayloads {
   notice: { text: string }; statResult: { ok: boolean; revision: number; message?: string };
   safe: Record<never, never>; camp: Record<never, never>; death: Record<never, never>; quest: Record<never, never>;
@@ -57,6 +57,7 @@ export interface EventPayloads {
   miss: Point & { id: number }; level: { level: number; points: number }; item: { name: string; pending: boolean };
   kill: { id: number; name: string; xp: number }; loot: Point & { id: number; amount: number };
   shopOpen:{npcId:string};
+  stashOpened:{npcId:string};
   portal:{portalId:string;location:'forest'|'stadium'};
   skillImpact: Point & { skillId: SkillId; caster: string; attackId: number; yaw: number; phase?: 'warning' | 'impact'; delay?: number; radius?: number; from?: Point };
 }
@@ -66,10 +67,11 @@ export interface WorldSnapshot { t: number; players: PublicPlayer[]; mobs: Publi
 export interface ChatEntry { name: string; text: string; t: number }
 export type ClientCommand =
   | ({ type: 'input' } & HeroInput) | { type: 'attack'; yaw: number; special?: boolean; targetId?:number } | { type: 'skill'; skillId: SkillId; yaw: number; targetId?:number; target?:Point } | { type: 'afk'; enabled: boolean }
-  | { type: 'potion' | 'camp' | 'claim' } | { type: 'run'; running: boolean } | { type: 'weapon'; weapon: WeaponId }
+  | { type: 'potion'; kind?:'hp'|'mana' } | {type:'camp'|'claim'|'stashOpen'|'stashClose'} | {type:'stashDeposit'|'stashWithdraw';id:string} | { type: 'run'; running: boolean } | { type: 'weapon'; weapon: WeaponId }
   | { type: 'equip' | 'unequip' | 'sell'; id: string } | { type: 'allocateStats'; revision: number; points: Partial<Attributes> }
   | {type:'pickup';id:string} | {type:'interact';npcId:string} | {type:'cancelInteraction'}
   | {type:'buy';definitionId:string;requestId?:string}
+  | {type:'buyConsumable';kind:'hp'|'mana';requestId?:string}
   | {type:'portal';portalId:string}
   | { type: 'resetStats'; revision: number };
 export type ClientMessage = ClientCommand | { type: 'join'; protocol: 2; name: string; classId: ClassId; token?: string | null } | { type: 'chat'; text: string } | { type: 'ping'; t: number };

@@ -126,6 +126,23 @@ CREATE TRIGGER immutable_item_roll BEFORE INSERT OR UPDATE OR DELETE ON item_rol
 CREATE TRIGGER immutable_item_identity BEFORE UPDATE OR DELETE ON item_identity FOR EACH ROW EXECUTE FUNCTION reject_item_mutation();
 `;
 
+// Additive: the old hero rows and immutable item identities remain untouched.
+const personalStashSchema=`
+ALTER TABLE heroes ADD COLUMN mana_potions integer NOT NULL DEFAULT 3 CHECK (mana_potions BETWEEN 0 AND 50);
+ALTER TABLE heroes ADD COLUMN mana_potion_cooldown double precision NOT NULL DEFAULT 0 CHECK (mana_potion_cooldown >= 0 AND mana_potion_cooldown < 1000000000);
+ALTER TABLE heroes ADD CONSTRAINT hp_potion_limit CHECK (potions BETWEEN 0 AND 50);
+ALTER TABLE inventory_locations DROP CONSTRAINT inventory_locations_kind_check;
+ALTER TABLE inventory_locations DROP CONSTRAINT inventory_locations_check;
+ALTER TABLE inventory_locations ADD CONSTRAINT inventory_locations_kind_check CHECK (kind IN ('bag','equipped','pending','stash'));
+ALTER TABLE inventory_locations ADD CONSTRAINT inventory_locations_check CHECK (
+  (kind='bag' AND position BETWEEN 0 AND 15 AND equipped_slot IS NULL) OR
+  (kind='pending' AND position BETWEEN 0 AND 15 AND equipped_slot IS NULL) OR
+  (kind='stash' AND position BETWEEN 0 AND 31 AND equipped_slot IS NULL) OR
+  (kind='equipped' AND position IS NULL AND equipped_slot IN ('weapon','armor','helmet','boots','ring','amulet'))
+);
+CREATE UNIQUE INDEX one_stash_position ON inventory_locations(hero_id,position) WHERE kind='stash';
+`;
+
 export async function migrate(client:PoolClient):Promise<void>{
   await client.query('BEGIN');
   try{
@@ -133,6 +150,8 @@ export async function migrate(client:PoolClient):Promise<void>{
     await client.query('CREATE TABLE IF NOT EXISTS schema_migrations (version integer PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())');
     const existing=await client.query<{version:number}>('SELECT version FROM schema_migrations WHERE version=1');
     if(!existing.rowCount){await client.query(initialSchema);await client.query('INSERT INTO schema_migrations(version) VALUES (1)');}
+    const second=await client.query<{version:number}>('SELECT version FROM schema_migrations WHERE version=2');
+    if(!second.rowCount){await client.query(personalStashSchema);await client.query('INSERT INTO schema_migrations(version) VALUES (2)');}
     await client.query('COMMIT');
   }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}
 }

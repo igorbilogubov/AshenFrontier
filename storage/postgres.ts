@@ -3,6 +3,8 @@ import pg from 'pg';
 import type {PoolClient} from 'pg';
 import type {EquipmentSlot,Item,PersistentHero} from '../shared/types.js';
 import {migrate} from './schema.js';
+import {BAG_CAPACITY,STASH_CAPACITY,backpackItems} from '../public/rules.js';
+import {CONSUMABLE_LIMIT} from '../public/game/consumables.js';
 
 const {Pool}=pg;
 const slots:readonly EquipmentSlot[]=['weapon','armor','helmet','boots','ring','amulet'];
@@ -34,6 +36,7 @@ export interface CommitReceipt {id:string;revision:number}
 export interface HeroStore{
   load(token:string):Promise<{hero:PersistentHero;revision:number}|null>;
   commit(entries:CommitEntry[],operationId:string,reason?:string):Promise<CommitReceipt[]>;
+  schemaVersion():Promise<number>;
   health():Promise<boolean>;
   close():Promise<void>;
 }
@@ -41,23 +44,26 @@ export interface HeroStore{
 function checkEntry(entry:CommitEntry):void{
   const {hero,expectedRevision}=entry;
   if(!hero||typeof hero.id!=='string'||!hero.id||!Number.isSafeInteger(expectedRevision)||expectedRevision<0)throw new Error('Invalid hero commit entry');
-  if(!Array.isArray(hero.items)||!Array.isArray(hero.pendingItems))throw new Error('Invalid hero inventory');
+  if(!Array.isArray(hero.items)||!Array.isArray(hero.pendingItems)||!Array.isArray(hero.stash))throw new Error('Invalid hero inventory');
   const all=[...hero.items,...hero.pendingItems],ids=new Set<string>();
-  if(hero.items.length>22||hero.pendingItems.length>16)throw new Error('Inventory capacity exceeded');
+  if(hero.items.length>22+STASH_CAPACITY||hero.pendingItems.length>16||hero.stash.length>STASH_CAPACITY)throw new Error('Inventory capacity exceeded');
   for(const item of all){if(!item||typeof item.id!=='string'||!item.id||ids.has(item.id)||!slots.includes(item.slot))throw new Error('Invalid or duplicate item');ids.add(item.id);}
   const worn=new Set<string>();
   for(const slot of slots){const id=hero.equipment?.[slot];if(id){const item=hero.items.find(item=>item.id===id);if(!item||item.slot!==slot||worn.has(id))throw new Error('Invalid equipped item');worn.add(id);}}
-  if(hero.items.length-worn.size>16)throw new Error('Backpack capacity exceeded');
+  const stashIds=new Set(hero.stash);
+  if(stashIds.size!==hero.stash.length||hero.stash.some(id=>typeof id!=='string'||!hero.items.some(item=>item.id===id)||worn.has(id)))throw new Error('Invalid stash references');
+  if(backpackItems(hero).length>BAG_CAPACITY)throw new Error('Backpack capacity exceeded');
+  if(!Number.isSafeInteger(hero.potions)||hero.potions<0||hero.potions>CONSUMABLE_LIMIT||!Number.isSafeInteger(hero.manaPotions)||hero.manaPotions<0||hero.manaPotions>CONSUMABLE_LIMIT||!Number.isFinite(hero.manaPotionCooldown)||hero.manaPotionCooldown<0)throw new Error('Invalid consumables');
 }
 function heroValues(hero:PersistentHero,hash:string):unknown[]{
   const a=hero.allocatedStats;
   return [hero.id,hash,hero.schemaVersion,hero.name,hero.classId,hero.level,hero.xp,hero.gold,hero.kills,hero.statRevision,
     a.strength,a.dexterity,a.vitality,a.energy,hero.x,hero.z,hero.yaw,hero.weapon,hero.hp,hero.mana,hero.potions,
-    hero.potionCooldown,hero.specialCooldown,hero.dead,hero.combatUntil,hero.attackSerial,hero.running,hero.questKills,
+    hero.potionCooldown,hero.manaPotions,hero.manaPotionCooldown,hero.specialCooldown,hero.dead,hero.combatUntil,hero.attackSerial,hero.running,hero.questKills,
     hero.boss,hero.questClaimed,JSON.stringify(hero.skillCooldowns??{}),hero.attack===null?null:JSON.stringify(hero.attack)];
 }
 const heroColumns=`id,token_hash,schema_version,name,class_id,level,xp,gold,kills,stat_revision,
-  strength,dexterity,vitality,energy,x,z,yaw,weapon,hp,mana,potions,potion_cooldown,special_cooldown,dead,
+  strength,dexterity,vitality,energy,x,z,yaw,weapon,hp,mana,potions,potion_cooldown,mana_potions,mana_potion_cooldown,special_cooldown,dead,
   combat_until,attack_serial,running,quest_kills,boss,quest_claimed,skill_cooldowns,attack`;
 const updateColumns=heroColumns.split(',').map(s=>s.trim()).filter(s=>s!=='id'&&s!=='token_hash');
 
@@ -94,10 +100,13 @@ async function writeInventory(client:PoolClient,hero:PersistentHero):Promise<{ga
     }
   }
   let bag=0;
+  const stashPositions=new Map(hero.stash.map((id,index)=>[id,index]));
   for(const item of hero.items){
     const equipped=hero.equipment?.[item.slot]===item.id;
+    const stashPosition=stashPositions.get(item.id);
+    const kind=equipped?'equipped':stashPosition===undefined?'bag':'stash';
     await client.query(`INSERT INTO inventory_locations(item_id,hero_id,kind,position,equipped_slot)
-      VALUES ($1,$2,$3,$4,$5)`,[item.id,hero.id,equipped?'equipped':'bag',equipped?null:bag++,equipped?item.slot:null]);
+      VALUES ($1,$2,$3,$4,$5)`,[item.id,hero.id,kind,equipped?null:stashPosition??bag++,equipped?item.slot:null]);
   }
   for(let position=0;position<hero.pendingItems.length;position++){
     const item=hero.pendingItems[position];
@@ -116,7 +125,7 @@ async function readHero(client:PoolClient,hash:string):Promise<{hero:PersistentH
   const rolls=itemIds.length?await client.query(`SELECT * FROM item_rolls WHERE item_id = ANY($1::text[]) ORDER BY item_id,ordinal`,[itemIds]):{rows:[]};
   const byItem=new Map<string,Item['rolls']>();
   for(const roll of rolls.rows){const list=byItem.get(roll.item_id)??[];list.push({key:roll.stat_key,value:numeric(roll.value),min:numeric(roll.min_value),max:numeric(roll.max_value),...(roll.step===null?{}:{step:numeric(roll.step)})});byItem.set(roll.item_id,list);}
-  const items:Item[]=[],pendingItems:Item[]=[],equipment:PersistentHero['equipment']={};
+  const items:Item[]=[],pendingItems:Item[]=[],equipment:PersistentHero['equipment']={},stashLocations:{id:string;position:number}[]=[];
   for(const slot of slots)equipment[slot]=null;
   for(const raw of inventory.rows){
     const item:Item={id:raw.id,name:raw.name,slot:raw.slot,rarity:raw.rarity,power:numeric(raw.power),
@@ -127,13 +136,15 @@ async function readHero(client:PoolClient,hash:string):Promise<{hero:PersistentH
       ...(raw.definition_id===null?{}:{rolls:byItem.get(raw.id)??[]})};
     if(raw.kind==='pending')pendingItems.push(item);else items.push(item);
     if(raw.kind==='equipped')equipment[raw.equipped_slot as EquipmentSlot]=item.id;
+    if(raw.kind==='stash')stashLocations.push({id:item.id,position:raw.position});
   }
+  const stash=stashLocations.sort((a,b)=>a.position-b.position).map(location=>location.id);
   const hero:PersistentHero={
     schemaVersion:row.schema_version,id:row.id,name:row.name,classId:row.class_id,level:row.level,
-    xp:numeric(row.xp),gold:numeric(row.gold),kills:row.kills,items,pendingItems,equipment,
+    xp:numeric(row.xp),gold:numeric(row.gold),kills:row.kills,items,pendingItems,stash,equipment,
     allocatedStats:{strength:row.strength,dexterity:row.dexterity,vitality:row.vitality,energy:row.energy},statRevision:row.stat_revision,
     x:row.x,z:row.z,yaw:row.yaw,weapon:row.weapon,hp:row.hp,mana:row.mana,potions:row.potions,
-    potionCooldown:row.potion_cooldown,specialCooldown:row.special_cooldown,skillCooldowns:row.skill_cooldowns,
+    potionCooldown:row.potion_cooldown,manaPotions:row.mana_potions,manaPotionCooldown:row.mana_potion_cooldown,specialCooldown:row.special_cooldown,skillCooldowns:row.skill_cooldowns,
     dead:row.dead,combatUntil:row.combat_until,attack:row.attack,attackSerial:row.attack_serial,
     running:row.running,questKills:row.quest_kills,boss:row.boss,questClaimed:row.quest_claimed
   };
@@ -235,8 +246,15 @@ class PostgresHeroStore implements HeroStore{
     try{return await this.withClient(async client=>{
       const result=await client.query<{locked?:boolean}> (this.writer?lockHealthSql:'SELECT 1 AS ok');
       if(this.writer&&!result.rows[0]?.locked){this.lost=true;return false;}
-      return !!result.rowCount;
+      const schema=await client.query<{version:number}>('SELECT max(version)::integer AS version FROM schema_migrations');
+      return !!result.rowCount&&schema.rows[0]?.version===2;
     });}catch{if(this.writer)this.lost=true;return false;}
+  }
+  async schemaVersion():Promise<number>{
+    return this.withClient(async client=>{
+      const result=await client.query<{version:number}>('SELECT max(version)::integer AS version FROM schema_migrations');
+      return result.rows[0]?.version??0;
+    });
   }
   async close():Promise<void>{
     if(this.closed)return;this.closed=true;

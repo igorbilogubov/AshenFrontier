@@ -1,3 +1,4 @@
+import {CAMP_SPAWN} from './public/game/camp-layout.js';
 import {CLASS_ITEMS,rollEquipment,validateEquipment,equipmentAppearance} from './public/game/equipment-items.js';
 import type {ClassId, EquipmentSlot, Item, Hero, PersistentHero, HeroAttack, Mob, Projectile, WorldEvent, EventPayloads, WorldSnapshot, SkillId, SkillCooldowns, GroundDrop, Point} from './shared/types.js';
 import {isRecord, isClassId, isEquipmentSlot, isWeaponId} from './shared/types.js';
@@ -10,12 +11,14 @@ import {LOOT_TTL_MS,MAX_GROUND_DROPS_PER_HERO,PICKUP_RANGE,gearDrops} from './pu
 import {portalById} from './public/game/stadium.js';
 import {locationAt,sameLocation} from './public/game/world-layout.js';
 import {SHOP,shopPrice,sellPrice} from './public/game/shop.js';
+import {PERSONAL_CHEST,CHEST_APPROACH,CHEST_DOOR_OUTSIDE,CHEST_DOOR_INSIDE,inChestRoom} from './public/game/personal-stash.js';
+import {consumable,CONSUMABLE_LIMIT,type ConsumableKind} from './public/game/consumables.js';
 export {CLASSES,EQUIPMENT_SLOTS,CAMP,BOUNDS};
 export const SAVE_VERSION=3;
 const finite=(value: unknown,fallback=0)=>typeof value==='number'&&Number.isFinite(value)?value:fallback;
 const nonnegative=(value: unknown,fallback=0)=>Math.max(0,finite(value,fallback));
 const CHASE_HOME_LIMIT=28,CHASE_TARGET_LIMIT=30,HOME_REST_SECONDS=3;
-const CAMP_SPAWN={x:.5,z:4};
+
 const liveMob=(m:Mob)=>m.state!=='dead';
 const validPoint=(value:unknown):value is Point=>isRecord(value)&&typeof value.x==='number'&&Number.isFinite(value.x)&&typeof value.z==='number'&&Number.isFinite(value.z);
 const bodyStrike=(origin:Point,m:Mob,yaw:number,range:number,halfAngle:number)=>{
@@ -30,7 +33,7 @@ export const stats=characterStats;
 export function newHero(name='Странник',classId: ClassId='warrior'): Hero{
   if(!Object.hasOwn(CLASSES,classId))classId='warrior';
   const weapon={...makeLoot(classId,1,0,'weapon'),bound:true},armor={...makeLoot(classId,1,0,'armor'),bound:true};
-  return safeHero({schemaVersion:SAVE_VERSION,id:randomUUID(),name,classId,level:1,xp:0,gold:0,kills:0,items:[weapon,armor],equipment:{weapon:weapon.id,armor:armor.id},...CAMP_SPAWN,hp:classFor(classId).hp,mana:CLASS_PROGRESSION[classId].mana,potions:3});
+  return safeHero({schemaVersion:SAVE_VERSION,id:randomUUID(),name,classId,level:1,xp:0,gold:0,kills:0,items:[weapon,armor],stash:[],equipment:{weapon:weapon.id,armor:armor.id},...CAMP_SPAWN,hp:classFor(classId).hp,mana:CLASS_PROGRESSION[classId].mana,potions:3,manaPotions:3});
 }
 // Disk saves may be legacy or damaged. Normalize primitive fields and check the
 // structured payloads before handing them to the strongly typed simulation.
@@ -59,6 +62,8 @@ export function safeHero(saved: unknown): Hero{
   for(const slot of Object.keys(EQUIPMENT_SLOTS) as EquipmentSlot[]){
     const id=rawEquipment[slot];equipment[slot]=typeof id==='string'&&items.some(i=>i.id===id&&i.slot===slot&&canEquip({classId,level},i))?id:null;
   }
+  const stash=raw.stash===undefined?[]:raw.stash;
+  if(!Array.isArray(stash)||stash.length>32||new Set(stash).size!==stash.length||stash.some(id=>typeof id!=='string'||!items.some(item=>item.id===id)||Object.values(equipment).includes(id)))throw new Error('Invalid saved stash');
   const x=finite(raw.x,CAMP_SPAWN.x),z=finite(raw.z,CAMP_SPAWN.z),position=legacy||typeof raw.x!=='number'||typeof raw.z!=='number'||!Number.isFinite(raw.x)||!Number.isFinite(raw.z)||!stand(x,z)?CAMP_SPAWN:{x,z};
   const yaw=finite(raw.yaw,Math.PI*.25),legacyId=legacySkillId(classId),specialCooldown=legacy?0:nonnegative(raw.specialCooldown);
   const skillCooldowns: SkillCooldowns={};
@@ -67,13 +72,13 @@ export function safeHero(saved: unknown): Hero{
   const restoredAttack=legacy?null:savedAttack(raw.attack,classId);
   const p: Hero={
     schemaVersion:SAVE_VERSION,id:typeof raw.id==='string'?raw.id:randomUUID(),name:String(raw.name||'Странник').replace(/[\p{C}<>]/gu,'').slice(0,18),
-    classId,level,xp:nonnegative(raw.xp),gold:nonnegative(raw.gold??raw.coins),kills:Math.floor(nonnegative(raw.kills)),items,pendingItems,equipment,
+    classId,level,xp:nonnegative(raw.xp),gold:nonnegative(raw.gold??raw.coins),kills:Math.floor(nonnegative(raw.kills)),items,pendingItems,stash,equipment,
     allocatedStats:normalizedAllocations(migrateStats?null:raw.allocatedStats,level),statRevision:!migrateStats&&typeof raw.statRevision==='number'&&Number.isSafeInteger(raw.statRevision)&&raw.statRevision>=0?raw.statRevision:0,
     ...position,yaw,targetYaw:yaw,weapon:raw.weapon==='axe'?'axe':'sword',
     questKills:legacy?0:nonnegative(raw.questKills),boss:legacy?false:!!raw.boss,questClaimed:legacy?false:!!raw.questClaimed,
-    potions:Math.min(3,Math.floor(nonnegative(raw.potions,3))),potionCooldown:legacy?0:nonnegative(raw.potionCooldown),specialCooldown:skillCooldowns[legacyId]??0,skillCooldowns,dead:legacy?0:nonnegative(raw.dead),combatUntil:legacy?0:nonnegative(raw.combatUntil),
+    potions:Math.min(CONSUMABLE_LIMIT,Math.floor(nonnegative(raw.potions,3))),potionCooldown:legacy?0:nonnegative(raw.potionCooldown),manaPotions:Math.min(CONSUMABLE_LIMIT,Math.floor(nonnegative(raw.manaPotions,3))),manaPotionCooldown:nonnegative(raw.manaPotionCooldown),specialCooldown:skillCooldowns[legacyId]??0,skillCooldowns,dead:legacy?0:nonnegative(raw.dead),combatUntil:legacy?0:nonnegative(raw.combatUntil),
     hp:0,mana:0,attack:restoredAttack?.automatic?null:restoredAttack,attackSerial:nonnegative(raw.attackSerial),
-    vx:0,vz:0,hurt:0,gait:0,moveBlend:0,runBlend:0,running:!!raw.running,input:{x:0,z:0,aim:null,seq:0},inputAt:0,ack:0,connected:true,disconnectAt:0,afk:null,interactionTarget:null,shopActive:false
+    vx:0,vz:0,hurt:0,gait:0,moveBlend:0,runBlend:0,running:!!raw.running,input:{x:0,z:0,aim:null,seq:0},inputAt:0,ack:0,connected:true,disconnectAt:0,afk:null,interactionTarget:null,shopActive:false,stashActive:false
   };
   p.hp=Math.min(stats(p).maxHp,nonnegative(raw.hp,stats(p).maxHp));if(!p.hp&&!p.dead)p.dead=2.5;
   // V2 had no mana. Grant its initial pool once; reconnecting V3 never refills it.
@@ -81,7 +86,7 @@ export function safeHero(saved: unknown): Hero{
   return p;
 }
 export function persistentHero(p: Hero): PersistentHero{
-  const fields=['schemaVersion','id','name','classId','level','xp','gold','kills','items','pendingItems','equipment','allocatedStats','statRevision','x','z','yaw','weapon','hp','mana','potions','potionCooldown','specialCooldown','skillCooldowns','dead','combatUntil','attack','attackSerial','running','questKills','boss','questClaimed'] as const;
+  const fields=['schemaVersion','id','name','classId','level','xp','gold','kills','items','pendingItems','stash','equipment','allocatedStats','statRevision','x','z','yaw','weapon','hp','mana','potions','potionCooldown','manaPotions','manaPotionCooldown','specialCooldown','skillCooldowns','dead','combatUntil','attack','attackSerial','running','questKills','boss','questClaimed'] as const;
   return structuredClone(Object.fromEntries(fields.map(k=>[k,p[k]]))) as unknown as PersistentHero;
 }
 export class World{
@@ -100,9 +105,9 @@ export class World{
     this.t=Date.now();this.age=0;this.players=new Map();this.events=[];this.projectiles=[];this.pendingAreas=[];this.groundLoot=[];this.purchaseReceipts=new Map();
     this.mobs=SPAWNS.map((s,id)=>({...s,id,homeX:s.x,homeZ:s.z,hp:MOB_TYPES[s.type].hp,state:'idle',timer:1,yaw:Math.PI,targetYaw:Math.PI,age:0,gait:0,speed:0,flash:0,target:null,contributors:new Map()}));
   }
-  add(p: Hero){this.stopAfk(p);this.stopInteraction(p);this.players.set(p.id,p);p.connected=true;p.disconnectAt=0;p.afk=null;p.shopActive=false;}
+  add(p: Hero){this.stopAfk(p);this.stopInteraction(p);this.players.set(p.id,p);p.connected=true;p.disconnectAt=0;p.afk=null;p.shopActive=false;p.stashActive=false;}
   emit<K extends keyof EventPayloads>(type: K,data: EventPayloads[K],owner?: string){this.events.push({type,...data,...(owner?{owner}:{})} as WorldEvent);}
-  remove(id: string){const p=this.players.get(id);if(p){this.stopAfk(p);this.stopInteraction(p);p.shopActive=false;}this.players.delete(id);this.purchaseReceipts.delete(id);}
+  remove(id: string){const p=this.players.get(id);if(p){this.stopAfk(p);this.stopInteraction(p);p.shopActive=false;p.stashActive=false;}this.players.delete(id);this.purchaseReceipts.delete(id);}
   notice(p: Hero,text: string){this.emit('notice',{text},p.id);}
   /** Crossing the authored safe boundary ends the local fight before interactions. */
   settleSafe(p:Hero){
@@ -170,6 +175,32 @@ export class World{
     if(distance(p,SHOP)<=SHOP.range)return this.openShop(p);
     this.stopInteraction(p);p.interactionTarget={kind:'vendor',id:SHOP.id};p.input={...p.input,x:0,z:0,aim:null};return true;
   }
+  chestAvailable(p:Hero){return p.connected&&!p.dead&&!p.attack&&p.combatUntil<=this.t&&locationAt(p)==='forest'&&inChestRoom(p)&&distance(p,PERSONAL_CHEST)<=PERSONAL_CHEST.range;}
+  openStash(p:Hero){
+    if(!this.chestAvailable(p))return false;
+    this.stopAfk(p);this.stopInteraction(p);p.shopActive=false;p.stashActive=true;
+    this.emit('stashOpened',{npcId:PERSONAL_CHEST.id},p.id);return true;
+  }
+  startChest(p:Hero,id:unknown){
+    if(id!==PERSONAL_CHEST.id||!p.connected||p.dead)return false;
+    if(p.attack||p.combatUntil>this.t){this.notice(p,'Сундук доступен вне боя');return false;}
+    this.stopAfk(p);p.shopActive=false;
+    if(this.chestAvailable(p))return this.openStash(p);
+    this.stopInteraction(p);p.interactionTarget={kind:'chest',id:PERSONAL_CHEST.id};p.input={...p.input,x:0,z:0,aim:null};return true;
+  }
+  transferStash(p:Hero,id:unknown,withdraw:boolean){
+    if(!p.stashActive||!this.chestAvailable(p)||typeof id!=='string')return false;
+    if(withdraw){
+      const index=p.stash.indexOf(id);
+      if(index<0)return false;
+      if(backpackItems(p).length>=BAG_CAPACITY){this.notice(p,'Рюкзак полон');return false;}
+      p.stash.splice(index,1);return true;
+    }
+    if(p.stash.includes(id)||p.stash.length>=32)return false;
+    const item=backpackItems(p).find(item=>item.id===id);
+    if(!item)return false;
+    p.stash.push(item.id);return true;
+  }
   portalAvailable(p:Hero){
     this.settleSafe(p);
     return p.connected&&!p.dead&&!p.attack&&p.combatUntil<=this.t&&!this.mobs.some(m=>m.target===p.id&&['chase','windup','recover'].includes(m.state));
@@ -211,13 +242,31 @@ export class World{
     }
     this.notice(p,`Куплено: ${item.name}`);return true;
   }
+  buyConsumable(p:Hero,kind:unknown,requestId:unknown){
+    if(!p.shopActive||!this.vendorAvailable(p))return false;
+    const listing=consumable(kind);if(!listing)return false;
+    if(typeof requestId==='string'){
+      if(!requestId.length||requestId.length>80||this.purchaseReceipts.get(p.id)?.includes(requestId))return false;
+    }else if(requestId!==undefined)return false;
+    const count=listing.kind==='hp'?p.potions:p.manaPotions;
+    if(count>=CONSUMABLE_LIMIT){this.notice(p,'Запас зелий полон');return false;}
+    if(p.gold<listing.price){this.notice(p,'Не хватает золота');return false;}
+    p.gold-=listing.price;if(listing.kind==='hp')p.potions++;else p.manaPotions++;
+    if(typeof requestId==='string'){
+      const receipts=this.purchaseReceipts.get(p.id)??[];receipts.push(requestId);
+      if(receipts.length>64)receipts.shift();this.purchaseReceipts.set(p.id,receipts);
+    }
+    this.notice(p,`Куплено: ${listing.name}`);return true;
+  }
   interactionInput(p:Hero){
     const target=p.interactionTarget;if(!target)return {x:0,z:0,aim:null};
-    const point=target.kind==='vendor'?SHOP:target.kind==='portal'?portalById(target.id):this.groundDrop(p,target.id);
-    if(!point||!p.connected||p.dead||p.attack||!clearPath(p,point)){this.stopInteraction(p);return {x:0,z:0,aim:null};}
+    const chestGoal=!inChestRoom(p)?distance(p,CHEST_DOOR_OUTSIDE)>.55?CHEST_DOOR_OUTSIDE:CHEST_DOOR_INSIDE:CHEST_APPROACH;
+    const point=target.kind==='vendor'?SHOP:target.kind==='portal'?portalById(target.id):target.kind==='chest'?chestGoal:this.groundDrop(p,target.id);
+    if(!point||!p.connected||p.dead||p.attack||(target.kind!=='chest'&&!clearPath(p,point))){this.stopInteraction(p);return {x:0,z:0,aim:null};}
     if(target.kind==='portal'&&(!sameLocation(p,point)||!this.portalAvailable(p))){this.stopInteraction(p);return {x:0,z:0,aim:null};}
-    const limit=target.kind==='vendor'?SHOP.range:target.kind==='portal'?portalById(target.id)!.range:PICKUP_RANGE,d=distance(p,point);
-    if(d<=limit){if(target.kind==='vendor')this.openShop(p);else if(target.kind==='portal')this.usePortal(p,target.id);else this.pickUp(p,target.id);return {x:0,z:0,aim:null};}
+    const limit=target.kind==='vendor'?SHOP.range:target.kind==='portal'?portalById(target.id)!.range:target.kind==='chest'?.12:PICKUP_RANGE,d=distance(p,point);
+    if(target.kind==='chest'&&this.chestAvailable(p)){this.openStash(p);return {x:0,z:0,aim:null};}
+    if(d<=limit){if(target.kind==='vendor')this.openShop(p);else if(target.kind==='portal')this.usePortal(p,target.id);else if(target.kind!=='chest')this.pickUp(p,target.id);return {x:0,z:0,aim:null};}
     const yaw=Math.atan2(point.x-p.x,point.z-p.z);
     return {x:Math.sin(yaw),z:Math.cos(yaw),aim:yaw};
   }
@@ -302,21 +351,25 @@ export class World{
     }
     if(msg.type==='input'){
       if(typeof msg.x!=='number'||typeof msg.z!=='number'||!Number.isFinite(msg.x)||!Number.isFinite(msg.z)||Math.abs(msg.x)>1||Math.abs(msg.z)>1||(msg.aim!==null&&(typeof msg.aim!=='number'||!Number.isFinite(msg.aim)))||typeof msg.seq!=='number'||!Number.isSafeInteger(msg.seq)||msg.seq<=p.input.seq)return;
-      if(Math.hypot(msg.x,msg.z)>.01){this.stopAfk(p);this.stopInteraction(p);}
+      if(Math.hypot(msg.x,msg.z)>.01){this.stopAfk(p);this.stopInteraction(p);p.stashActive=false;}
       p.input={x:msg.x,z:msg.z,aim:msg.aim,seq:msg.seq};p.inputAt=this.t;return;
     }
-    if(msg.type==='attack'){this.stopAfk(p);this.stopInteraction(p);if(typeof msg.yaw==='number'&&Number.isFinite(msg.yaw))this.attack(p,msg.yaw,msg.special===true,msg.targetId);return;}
-    if(msg.type==='skill'){this.stopAfk(p);this.stopInteraction(p);if(typeof msg.yaw==='number'&&Number.isFinite(msg.yaw)&&typeof msg.skillId==='string'&&Object.hasOwn(SKILLS,msg.skillId))this.castSkill(p,msg.skillId as SkillId,msg.yaw,msg.targetId,msg.target);return;}
-    if(msg.type==='potion'){this.stopInteraction(p);this.potion(p);return;}
+    if(msg.type==='attack'){this.stopAfk(p);this.stopInteraction(p);p.stashActive=false;if(typeof msg.yaw==='number'&&Number.isFinite(msg.yaw))this.attack(p,msg.yaw,msg.special===true,msg.targetId);return;}
+    if(msg.type==='skill'){this.stopAfk(p);this.stopInteraction(p);p.stashActive=false;if(typeof msg.yaw==='number'&&Number.isFinite(msg.yaw)&&typeof msg.skillId==='string'&&Object.hasOwn(SKILLS,msg.skillId))this.castSkill(p,msg.skillId as SkillId,msg.yaw,msg.targetId,msg.target);return;}
+    if(msg.type==='potion'){this.stopInteraction(p);if(msg.kind===undefined||msg.kind==='hp'||msg.kind==='mana')this.potion(p,msg.kind??'hp');return;}
     if(msg.type==='pickup'){this.startPickup(p,msg.id);return;}
-    if(msg.type==='interact'){this.startVendor(p,msg.npcId);return;}
+    if(msg.type==='interact'){if(msg.npcId===PERSONAL_CHEST.id)this.startChest(p,msg.npcId);else this.startVendor(p,msg.npcId);return;}
+    if(msg.type==='stashOpen'){this.openStash(p);return;}
+    if(msg.type==='stashClose'){p.stashActive=false;this.stopInteraction(p);return;}
+    if(msg.type==='stashDeposit'||msg.type==='stashWithdraw'){this.transferStash(p,msg.id,msg.type==='stashWithdraw');return;}
     if(msg.type==='cancelInteraction'){this.stopInteraction(p);return;}
     if(msg.type==='portal'){this.startPortal(p,msg.portalId);return;}
     if(msg.type==='buy'){this.buy(p,msg.definitionId,msg.requestId);return;}
+    if(msg.type==='buyConsumable'){this.buyConsumable(p,msg.kind,msg.requestId);return;}
     if(msg.type==='run'&&typeof msg.running==='boolean'&&!p.dead){p.running=msg.running;return;}
     if(msg.type==='weapon'&&isWeaponId(msg.weapon)&&!p.attack&&!p.dead){const weapon=p.items.find(item=>item.id===p.equipment.weapon);if(weapon?.definitionId){this.notice(p,'Вид оружия определяется надетым предметом');return;}p.weapon=msg.weapon;return;}
     if(msg.type==='camp'){
-      this.stopAfk(p);this.stopInteraction(p);p.shopActive=false;
+      this.stopAfk(p);this.stopInteraction(p);p.shopActive=false;p.stashActive=false;
       this.settleSafe(p);
       if(p.dead||p.combatUntil>this.t||this.mobs.some(m=>m.target===p.id&&['chase','windup','recover'].includes(m.state))){this.notice(p,'Сначала оторвитесь от врагов');return;}
       this.camp(p,false);return;
@@ -324,7 +377,7 @@ export class World{
     if(typeof msg.type==='string'&&['equip','unequip','sell','claim'].includes(msg.type)){
       if(!safe(p)||p.dead||p.attack||p.combatUntil>this.t){this.notice(p,'Снаряжение меняется у костра, вне боя');return;}
       if(msg.type==='claim'){while(p.pendingItems.length&&backpackItems(p).length<BAG_CAPACITY)p.items.push(p.pendingItems.shift()!);return;}
-      const item=p.items.find(i=>i.id===msg.id);if(!item)return;
+      const item=backpackItems(p).find(i=>i.id===msg.id)??(msg.type==='unequip'?p.items.find(i=>i.id===msg.id&&p.equipment[i.slot]===i.id):undefined);if(!item)return;
       if(msg.type==='equip'&&canEquip(p,item)){p.equipment[item.slot]=item.id;if(item.definitionId&&item.slot==='weapon')p.weapon='sword';this.clampResources(p);}
       if(msg.type==='unequip'&&p.equipment[item.slot]===item.id){if(backpackItems(p).length>=BAG_CAPACITY){this.notice(p,'Рюкзак полон. Освободите ячейку, чтобы снять вещь.');return;}p.equipment[item.slot]=null;this.clampResources(p);}
       if(msg.type==='sell'&&p.shopActive&&this.vendorAvailable(p)&&!item.bound&&!Object.values(p.equipment).includes(item.id)){p.gold+=sellPrice(item);p.items=p.items.filter(i=>i.id!==item.id);}
@@ -380,21 +433,26 @@ export class World{
     if(skillId===legacySkillId(p.classId))p.specialCooldown=skill.cooldown;
     return true;
   }
-  potion(p: Hero){
-    if(p.dead||p.potionCooldown>0||p.potions<=0||p.hp>=stats(p).maxHp)return false;
-    const amount=Math.min(45,stats(p).maxHp-p.hp);p.potions--;p.hp+=amount;p.potionCooldown=4;this.emit('heal',{amount,x:p.x,z:p.z},p.id);return true;
+  potion(p: Hero,kind:ConsumableKind='hp'){
+    const listing=consumable(kind);if(!listing||p.dead)return false;
+    if(kind==='mana'){
+      if(p.manaPotionCooldown>0||p.manaPotions<=0||p.mana>=stats(p).maxMana)return false;
+      p.mana=Math.min(stats(p).maxMana,p.mana+listing.restore);p.manaPotions--;p.manaPotionCooldown=listing.cooldown;return true;
+    }
+    if(p.potionCooldown>0||p.potions<=0||p.hp>=stats(p).maxHp)return false;
+    const amount=Math.min(listing.restore,stats(p).maxHp-p.hp);p.potions--;p.hp+=amount;p.potionCooldown=listing.cooldown;this.emit('heal',{amount,x:p.x,z:p.z},p.id);return true;
   }
   camp(p: Hero,respawn: boolean){
     this.stopAfk(p);
     Object.assign(p,{...CAMP_SPAWN,yaw:Math.PI*.25,targetYaw:Math.PI*.25,vx:0,vz:0,dead:0,attack:null,moveBlend:0,runBlend:0,gait:0,input:{...p.input,x:0,z:0,aim:null}});
-    if(respawn){p.hp=stats(p).maxHp;p.mana=stats(p).maxMana;p.potions=3;}
+    if(respawn){p.hp=stats(p).maxHp;p.mana=stats(p).maxMana;}
     this.emit('camp',{},p.id);
   }
   damagePlayer(p: Hero,amount: number){
     if(p.dead||safe(p))return;
     const damage=Math.max(1,Math.round(amount*(1-stats(p).damageReduction)));
     p.hp=Math.max(0,p.hp-damage);p.hurt=.35;p.combatUntil=this.t+15000;this.emit('hurt',{x:p.x,z:p.z,amount:damage},p.id);
-    if(!p.hp){this.stopAfk(p);this.stopInteraction(p);p.shopActive=false;p.dead=2.5;p.attack=null;p.vx=p.vz=p.moveBlend=p.runBlend=0;this.emit('death',{},p.id);}
+    if(!p.hp){this.stopAfk(p);this.stopInteraction(p);p.shopActive=false;p.stashActive=false;p.dead=2.5;p.attack=null;p.vx=p.vz=p.moveBlend=p.runBlend=0;this.emit('death',{},p.id);}
   }
   hurtMob(p: Hero,m: Mob,amount: number,automatic=false){
     if(p.dead||safe(p)||m.state==='dead'||safe(m)||!sameLocation(p,m)||!clearPath(p,m))return false;
@@ -558,7 +616,8 @@ export class World{
     this.groundLoot=this.groundLoot.filter(drop=>drop.expiresAt>this.t);
     for(const p of this.players.values()){
       if(p.shopActive&&!this.vendorAvailable(p))p.shopActive=false;
-      p.hurt=Math.max(0,p.hurt-dt);p.potionCooldown=Math.max(0,p.potionCooldown-dt);
+      if(p.stashActive&&!this.chestAvailable(p))p.stashActive=false;
+      p.hurt=Math.max(0,p.hurt-dt);p.potionCooldown=Math.max(0,p.potionCooldown-dt);p.manaPotionCooldown=Math.max(0,p.manaPotionCooldown-dt);
       for(const id of Object.keys(p.skillCooldowns??{}) as SkillId[])p.skillCooldowns![id]=Math.max(0,(p.skillCooldowns![id]??0)-dt);
       const legacyId=legacySkillId(p.classId);
       p.specialCooldown=Math.max(0,p.specialCooldown-dt,p.skillCooldowns?.[legacyId]??0);
@@ -595,7 +654,6 @@ export class World{
       if(p.combatUntil<=this.t)p.hp=Math.min(s.maxHp,p.hp+(s.hpRegen+(atCamp?18:0))*dt);
       p.mana=Math.min(s.maxMana,p.mana+(s.manaRegen+(atCamp?12:0))*dt);
       if(atCamp){
-        p.potions=3;
         if(p.questKills>=5&&p.boss&&!p.questClaimed){p.questClaimed=true;p.gold+=50;this.emit('quest',{},p.id);}
       }
     }
@@ -689,6 +747,6 @@ export class World{
   }
   snapshot(forId: string): WorldSnapshot{
     const p=this.players.get(forId);
-    return {t:this.t,players:[...this.players.values()].filter(other=>!p||sameLocation(p,other)).map(p=>({id:p.id,name:p.name,classId:p.classId,x:p.x,z:p.z,yaw:p.yaw,weapon:p.weapon,hp:p.hp,maxHp:stats(p).maxHp,level:p.level,dead:p.dead,hurt:p.hurt,attack:p.attack,moveBlend:p.moveBlend,runBlend:p.runBlend,gait:p.gait,vx:p.vx,vz:p.vz,connected:p.connected,appearance:equipmentAppearance(p)})),mobs:this.mobs.filter(m=>!p||sameLocation(p,m)).map(({contributors,patrol,slowUntil,slow,...m})=>({...m,slow:Math.max(0,((slowUntil??0)-this.t)/1000)})),projectiles:this.projectiles.filter(b=>!p||sameLocation(p,b)).map(({damage,aoe,maxTargets,hitIds,pierce,damageScaleOnPierce,slowMs,automatic,...b})=>b),groundLoot:this.groundLoot.filter(drop=>drop.owner===forId&&(!p||sameLocation(p,drop))).map(({owner,...drop})=>drop),self:p?{...stats(p),...persistentHero(p),appearance:equipmentAppearance(p),attackPower:stats(p).attack,targetYaw:p.targetYaw,vx:p.vx,vz:p.vz,hurt:p.hurt,gait:p.gait,moveBlend:p.moveBlend,runBlend:p.runBlend,ack:p.ack,afk:p.afk,interactionTarget:p.interactionTarget,shopActive:p.shopActive}:null,events:this.events.filter(e=>(!e.owner||e.owner===forId)&&(!p||!('x' in e&&'z' in e)||sameLocation(p,e)))};
+    return {t:this.t,players:[...this.players.values()].filter(other=>!p||sameLocation(p,other)).map(p=>({id:p.id,name:p.name,classId:p.classId,x:p.x,z:p.z,yaw:p.yaw,weapon:p.weapon,hp:p.hp,maxHp:stats(p).maxHp,level:p.level,dead:p.dead,hurt:p.hurt,attack:p.attack,moveBlend:p.moveBlend,runBlend:p.runBlend,gait:p.gait,vx:p.vx,vz:p.vz,connected:p.connected,appearance:equipmentAppearance(p)})),mobs:this.mobs.filter(m=>!p||sameLocation(p,m)).map(({contributors,patrol,slowUntil,slow,...m})=>({...m,slow:Math.max(0,((slowUntil??0)-this.t)/1000)})),projectiles:this.projectiles.filter(b=>!p||sameLocation(p,b)).map(({damage,aoe,maxTargets,hitIds,pierce,damageScaleOnPierce,slowMs,automatic,...b})=>b),groundLoot:this.groundLoot.filter(drop=>drop.owner===forId&&(!p||sameLocation(p,drop))).map(({owner,...drop})=>drop),self:p?{...stats(p),...persistentHero(p),appearance:equipmentAppearance(p),attackPower:stats(p).attack,targetYaw:p.targetYaw,vx:p.vx,vz:p.vz,hurt:p.hurt,gait:p.gait,moveBlend:p.moveBlend,runBlend:p.runBlend,ack:p.ack,afk:p.afk,interactionTarget:p.interactionTarget,shopActive:p.shopActive,stashActive:p.stashActive}:null,events:this.events.filter(e=>(!e.owner||e.owner===forId)&&(!p||!('x' in e&&'z' in e)||sameLocation(p,e)))};
   }
 }

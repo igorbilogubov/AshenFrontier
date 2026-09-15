@@ -48,7 +48,7 @@ const world=new World(),sessions=new Map<string,Session>(),connections=new Map<W
 const alive=new WeakMap<WebSocket,boolean>();
 const joining=new Set<string>();
 const commands=new Map<WebSocket,{move:unknown|null; actions:unknown[]}>();
-const economy=(p:PersistentHero)=>JSON.stringify([p.gold,p.xp,p.level,p.kills,p.items,p.pendingItems,p.equipment,p.allocatedStats,p.statRevision,p.potions,p.questKills,p.questClaimed,p.boss]);
+const economy=(p:PersistentHero)=>JSON.stringify([p.gold,p.xp,p.level,p.kills,p.items,p.pendingItems,p.stash,p.equipment,p.allocatedStats,p.statRevision,p.potions,p.manaPotions,p.questKills,p.questClaimed,p.boss]);
 let lastSavedAt=Date.now(),lastCheckpoint=Date.now(),saveHealthy=true,shuttingDown=false,busy=false,pending:PendingCommit|null=null,retryTimer:ReturnType<typeof setTimeout>|null=null,writerLost=false,noticeSent=false;
 const stress=stressModule?await stressModule.createStressController(world,dataDir,host,async()=>{
   // Test-only scenario reset: old camp inputs must not cancel freshly placed AFK
@@ -120,9 +120,10 @@ const server=http.createServer(async(req,res)=>{
     const url=new URL(req.url||'/','http://localhost');
     if(url.pathname==='/health'){
       const dbHealthy=!writerLost&&await store.health().catch(()=>false);
+      const dbSchemaVersion=await store.schemaVersion().catch(()=>0);
       const ok=saveHealthy&&dbHealthy&&!pending;
       if(!dbHealthy){writerLost=true;saveHealthy=false;for(const ws of connections.keys())ws.close(1013,'Storage unavailable');}
-      res.writeHead(ok?200:503,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(req.method==='HEAD'?undefined:JSON.stringify({ok,world:'ashen-opushka-3d',players:connections.size,entities:world.players.size,saveVersion:SAVE_VERSION,storage:{backend:'postgresql',schemaVersion:1,writer:dbHealthy,pending:!!pending}}));return;
+      res.writeHead(ok?200:503,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(req.method==='HEAD'?undefined:JSON.stringify({ok,world:'ashen-opushka-3d',players:connections.size,entities:world.players.size,saveVersion:SAVE_VERSION,storage:{backend:'postgresql',schemaVersion:dbSchemaVersion,writer:dbHealthy,pending:!!pending}}));return;
     }
     // Keep previously bookmarked workshops reachable, without serving the obsolete app.
     if(url.pathname==='/art-test.html'||url.pathname.startsWith('/art-test/')){

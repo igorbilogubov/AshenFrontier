@@ -1,9 +1,7 @@
 import {skillsForClass} from './skills.js';
 import {actionIcon} from './action-icons.js';
 import {bindInventoryInteractions} from './inventory-interactions.js';
-import {sellPrice} from './shop.js';
-import {renderItemRolls} from './item-details.js';
-import {CLASSES,EQUIPMENT_SLOTS,BAG_CAPACITY,backpackItems,canEquip,itemBonus,STAT_KEYS,STAT_DEFINITIONS,CLASS_PROGRESSION,characterStats} from '../rules.js';
+import {CLASSES,EQUIPMENT_SLOTS,BAG_CAPACITY,backpackItems,itemBonus,STAT_KEYS,STAT_DEFINITIONS,CLASS_PROGRESSION,characterStats} from '../rules.js';
 import {safe} from './location.js';
 import {itemIcon,itemArtwork,itemArtKey,heroSilhouette} from './item-icons.js';
 import {element as $,errorMessage} from './ui-types.js';
@@ -25,10 +23,9 @@ const displayRegen=new Intl.NumberFormat('ru-RU',{maximumFractionDigits:3});
 const format=(value:number)=>displayNumber.format(value);
 const percent=(value:number)=>`${format(Math.round(value*1000)/10)}%`;
 const clampRatio=(value:number,max:number)=>Math.max(0,Math.min(1,max?value/max:1));
-const rarityNames=['Обычный предмет','Необычный предмет','Редкий предмет'];
 
 export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clearInput:()=>void){
-  let inventoryKey='',statsKey='',selectedItemId:string|null=null,draft=emptyDraft(),draftOwner='',pending:{revision:number;classId:ClassId;sentAt:number}|null=null,statusMessage='',lastPanel:PanelName='character';
+  let inventoryKey='',statsKey='',draft=emptyDraft(),draftOwner='',pending:{revision:number;classId:ClassId;sentAt:number}|null=null,statusMessage='',lastPanel:PanelName='character';
   const compact=matchMedia('(max-width: 900px)'),panels={character:$('character-panel'),inventory:$('inventory-panel')};
   const statNodes=new Map<StatKey,StatNodes>(),derivedNodes=new Map<DerivedStat,DerivedNodes>(),slotNodes=new Map<EquipmentSlot,SlotNodes>(),bagNodes:BagNodes[]=[];
   const isPanelOpen=()=>!panels.character.hidden||!panels.inventory.hidden;
@@ -36,9 +33,9 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
   function syncPanels(){
     const open=isPanelOpen();document.body.classList.toggle('panel-open',open);
     $('character-toggle').setAttribute('aria-expanded',String(!panels.character.hidden));$('inventory-toggle').setAttribute('aria-expanded',String(!panels.inventory.hidden));
-    if(open)clearInput();
   }
   function openPanel(name:PanelName){
+    if(panels[name].hidden)clearInput();
     lastPanel=name;if(compact.matches)Object.values(panels).forEach(panel=>{panel.hidden=true;});
     panels[name].hidden=false;syncPanels();update();$(name+'-close').focus({preventScroll:true});
   }
@@ -94,24 +91,20 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
   for(const [slot,info] of Object.entries(EQUIPMENT_SLOTS) as [EquipmentSlot,typeof EQUIPMENT_SLOTS[EquipmentSlot]][]){
     const button=document.createElement('button'),icon=document.createElement('span'),caption=document.createElement('small');
     button.type='button';button.className='equipment-slot';button.dataset.slot=slot;caption.className='slot-caption';caption.textContent=info.name;
-    button.append(icon,caption);button.onclick=()=>{const id=game.player.equipment[slot];if(id){selectedItemId=id;inventoryKey='';updateInventory();$('item-detail').scrollIntoView({block:'nearest'});}};
+    button.append(icon,caption);
     $('equipment-slots').append(button);slotNodes.set(slot,{button,icon});
   }
   for(let index=0;index<BAG_CAPACITY;index++){
     const button=document.createElement('button'),icon=document.createElement('span');
     button.type='button';button.className='bag-cell empty';button.append(icon);
-    button.onclick=()=>{if(button.dataset.itemId){selectedItemId=button.dataset.itemId;inventoryKey='';updateInventory();$('item-detail').scrollIntoView({block:'nearest'});}};
     $('bag-items').append(button);bagNodes.push({button,icon});
   }
-  const selectedItem=()=>game.player.items.find(item=>item.id===selectedItemId);
-  $('item-equip').onclick=()=>{const item=selectedItem();if(item&&canEdit()&&canEquip(game.player,item))game.send({type:game.player.equipment[item.slot]===item.id?'unequip':'equip',id:item.id});};
   const interactions=bindInventoryInteractions(game,toast,()=>{panels.character.hidden=true;openPanel('inventory');});
-  $('item-sell').onclick=()=>{const item=selectedItem();if(item)interactions.sell(item);};
   function setIcon(element:HTMLElement,slot:EquipmentSlot,classId:ClassId,item?:Item,weapon:WeaponId='sword'){const key=item?'art:'+itemArtKey(item,classId,weapon):slot+':'+classId;if(element.dataset.icon!==key){element.innerHTML=item?itemArtwork(item,classId,weapon):itemIcon(slot,classId);element.dataset.icon=key;}}
   game.onStatus=(status,message)=>{
     write($('connection'),status==='online'?`${game.players.filter(p=>p.connected).length} в локации`:message);
     $('connection').classList.toggle('offline',status!=='online');
-    if(status!=='online'){clearInput();if(pending||total(draft))clearDraft(status==='error'?message:'Соединение потеряно. Распределение не отправлялось повторно.');write($('save-status'),message);}
+    if(status!=='online'){clearInput();if(pending||total(draft))clearDraft(status==='error'?message:'Соединение потеряно. Распределение не отправлялось повторно.');}
   };
   game.onChat=(entries,replace=false)=>{
     if(replace)$('chat-lines').replaceChildren();
@@ -174,29 +167,18 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
   function updateInventory(){
     if(panels.inventory.hidden)return;
     const p=game.player,c=CLASSES[p.classId];if(!c)return;
-    const editable=canEdit(),wornIds=Object.values(p.equipment),bag=backpackItems(p),key=JSON.stringify([p.items,p.pendingItems,p.equipment,p.weapon,p.classId,p.level,p.gold,editable,interactions.canTrade(),selectedItemId]);if(key===inventoryKey)return;inventoryKey=key;
-    if(!p.items.some(item=>item.id===selectedItemId))selectedItemId=p.equipment.weapon||p.items[0]?.id||null;
+    const editable=canEdit(),bag=backpackItems(p),key=JSON.stringify([p.items,p.pendingItems,p.equipment,p.weapon,p.classId,p.level,p.gold,editable]);if(key===inventoryKey)return;inventoryKey=key;
     write($('hero-details'),`${c.name} · уровень ${p.level} · 6 слотов снаряжения`);write($('inventory-gold'),`${p.gold} золота`);write($('inventory-status'),editable?'Можно менять снаряжение':!game.connected?'Нет соединения':'Изменение в безопасной зоне, вне боя');
     for(const [slot,nodes] of slotNodes){
-      const item=p.items.find(value=>value.id===p.equipment[slot]);nodes.button.className=`equipment-slot${item?' rarity-'+(item.rarity||0):' empty'}${item?.id===selectedItemId?' selected':''}`;
-      nodes.button.dataset.itemId=item?.id||'';nodes.button.setAttribute('aria-label',`${EQUIPMENT_SLOTS[slot].name}: ${item?item.name+' · '+itemBonus(item):'Пусто'}`);nodes.button.setAttribute('aria-pressed',String(!!item&&item.id===selectedItemId));setIcon(nodes.icon,slot,item?.classId||p.classId,item,p.weapon);
+      const item=p.items.find(value=>value.id===p.equipment[slot]);nodes.button.className=`equipment-slot${item?' rarity-'+(item.rarity||0):' empty'}`;
+      nodes.button.dataset.itemId=item?.id||'';nodes.button.setAttribute('aria-label',`${EQUIPMENT_SLOTS[slot].name}: ${item?item.name+' · '+itemBonus(item):'Пусто'}`);setIcon(nodes.icon,slot,item?.classId||p.classId,item,p.weapon);
     }
     write($('bag-count'),`${bag.length} / ${BAG_CAPACITY}`);
     bagNodes.forEach((nodes,index)=>{
-      const item=bag[index];nodes.button.dataset.itemId=item?.id||'';nodes.button.className=`bag-cell${item?' rarity-'+(item.rarity||0):' empty'}${item?.id===selectedItemId?' selected':''}`;
-      nodes.button.setAttribute('aria-label',item?`${item.name}, ${itemBonus(item)}`:`Пустая ячейка ${index+1}`);nodes.button.setAttribute('aria-pressed',String(!!item&&item.id===selectedItemId));nodes.button.disabled=false;
+      const item=bag[index];nodes.button.dataset.itemId=item?.id||'';nodes.button.className=`bag-cell${item?' rarity-'+(item.rarity||0):' empty'}`;
+      nodes.button.setAttribute('aria-label',item?`${item.name}, ${itemBonus(item)}`:`Пустая ячейка ${index+1}`);nodes.button.disabled=false;
       if(item){nodes.icon.hidden=false;setIcon(nodes.icon,item.slot,item.classId||p.classId,item);}else nodes.icon.hidden=true;
     });
-    const item=selectedItem(),worn=item&&wornIds.includes(item.id);
-    if(item){
-      setIcon($('item-detail-icon'),item.slot,item.classId||p.classId,item,worn?p.weapon:'sword');$('item-detail-icon').className='item-detail-icon rarity-'+(item.rarity||0);$('item-detail-icon').hidden=false;
-      write($('item-rarity'),`${rarityNames[item.rarity]||rarityNames[0]} · ${EQUIPMENT_SLOTS[item.slot].name}`);write($('item-name'),item.name);write($('item-bonus'),item.rolls?'Значения этого экземпляра':itemBonus(item));write($('item-restriction'),item.classId||item.slot==='weapon'?`Класс: ${CLASSES[item.classId||'warrior'].name}`:'Для всех классов');write($('item-worn'),worn?'◆ Надето':item.bound?'Привязано к герою':'Можно продать торговцу');
-    }else{
-      $('item-detail-icon').hidden=true;write($('item-rarity'),'РЮКЗАК ПУСТ');write($('item-name'),'Впереди первая добыча');write($('item-bonus'),'Предметы можно найти в опушке.');write($('item-restriction'),'');write($('item-worn'),'');
-    }
-    renderItemRolls($('item-rolls'),item,p.items.find(other=>other.id===p.equipment[item?.slot??'weapon']));
-    $('item-equip').disabled=!item||!editable||!canEquip(p,item)||!!worn&&bag.length>=BAG_CAPACITY;$('item-equip').title=worn&&bag.length>=BAG_CAPACITY?'Освободите ячейку рюкзака, чтобы снять вещь.':'';write($('item-equip'),worn?'Снять':'Надеть');
-    $('item-sell').disabled=!item||!!worn||!interactions.canTrade()||!!item.bound;write($('item-sell'),item&&!item.bound?`Продать · ${sellPrice(item)} зол.`:'Продать');
     $('claim-items').hidden=!p.pendingItems?.length;write($('claim-items'),`Забрать ожидающие вещи · ${p.pendingItems?.length||0}`);$('claim-items').disabled=!editable||bag.length>=BAG_CAPACITY;
   }
   function onEvent(event:WorldEvent){
@@ -206,22 +188,23 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
   }
   function update(){
     const p=game.player,c=CLASSES[p.classId];if(!c)return;
-    write($('hero-name'),`${p.name} · ${c.name} ${p.level}`);write($('xp'),p.xpNeeded>0?`${p.xp} / ${p.xpNeeded} XP`:'Макс. уровень');
+    write($('hero-name'),`${p.name} · ${c.name} ${p.level}`);write($('hud-xp-text'),p.xpNeeded>0?`${p.xp} / ${p.xpNeeded} XP`:'Макс. уровень');
+    $('hud-experience').setAttribute('aria-valuemax',String(p.xpNeeded||0));$('hud-experience').setAttribute('aria-valuenow',String(p.xp||0));
     write($('mana-text'),`${Math.floor(p.mana||0)} / ${p.maxMana||0}`);$('mana-fill').style.height=`${clampRatio(p.mana,p.maxMana)*100}%`;
     $('mana-orb').setAttribute('aria-valuemax',String(p.maxMana||0));$('mana-orb').setAttribute('aria-valuenow',String(Math.floor(p.mana||0)));$('hud-xp-fill').style.transform=`scaleX(${clampRatio(p.xp,p.xpNeeded)})`;
     for(const [index,skill] of skillsForClass(p.classId).entries()){
-      const button=$((['special','skill-secondary','skill-tertiary','skill-quaternary'] as const)[index]),remaining=p.skillCooldowns?.[skill.id]||0;
+      const button=$((['special','skill-secondary','skill-tertiary','skill-quaternary'] as const)[index]),rawRemaining=p.skillCooldowns?.[skill.id]??0,remaining=Number.isFinite(rawRemaining)?Math.max(0,rawRemaining):0;
       if(button.dataset.skill!==skill.id)button.querySelector('.skill-sigil')!.innerHTML=actionIcon(skill.id);
-      write(button.querySelector('kbd')!,skill.slot);button.dataset.skill=skill.id;button.style.setProperty('--cooldown',`${Math.min(1,remaining/skill.cooldown)*100}%`);
+      write(button.querySelector('kbd')!,skill.slot);button.dataset.skill=skill.id;button.style.setProperty('--cooldown',`${skill.cooldown>0?Math.min(1,remaining/skill.cooldown)*100:0}%`);
       write(button.querySelector('.skill-name')!,skill.name);write(button.querySelector('.skill-meta')!,remaining>0?`${remaining.toFixed(1)}с`:`${skill.manaCost} маны`);
       button.disabled=!game.connected||!!p.dead||!!p.attack||safe(p)||remaining>0||p.mana<skill.manaCost;
-      button.title=`${skill.name} · ${skill.slot} · ${skill.manaCost} маны · ${skill.cooldown}с\n${skill.description}`;
+      button.title=`${skill.name} · ${skill.slot} · ${skill.manaCost} маны${skill.cooldown>0?` · откат ${skill.cooldown}с`:''}\n${skill.description}`;
       button.setAttribute('aria-label',button.title);
     }
     if($('attack').dataset.classId!==p.classId){$('attack').dataset.classId=p.classId;$('attack').querySelector('.attack-icon')!.innerHTML=actionIcon(p.classId);}
-    for(const [id,selector,key] of [['potion','.potion-icon','potion'],['character-toggle','.shortcut-icon','character'],['inventory-toggle','.shortcut-icon','inventory']]){const icon=$(id).querySelector(selector)!;if(!icon.childElementCount)icon.innerHTML=actionIcon(key);}
-    document.querySelector<HTMLElement>('.weapon-controls')!.hidden=p.classId!=='warrior'||p.items.some(item=>item.id===p.equipment.weapon&&item.definitionId);write($('unspent-badge'),p.unspentPoints||0);$('unspent-badge').hidden=!p.unspentPoints;$('character-toggle').title=`Характеристики · C${p.unspentPoints?` · ${p.unspentPoints} свободных очков`:''}`;
-    write($('save-status'),!game.connected?'Восстанавливаем соединение…':!game.save?.ok?'Ошибка сохранения — оставьте игру открытой':game.save?.at?'Общий мир · прогресс сохранён на сервере':'Общий мир · сохраняем героя…');
+    for(const [id,selector,key] of [['potion','.potion-icon','potion'],['mana-potion','.potion-icon','mana-potion'],['character-toggle','.shortcut-icon','character'],['inventory-toggle','.shortcut-icon','inventory']]){const icon=$(id).querySelector(selector)!;if(!icon.childElementCount)icon.innerHTML=actionIcon(key);}
+    write($('unspent-badge'),p.unspentPoints||0);$('unspent-badge').hidden=!p.unspentPoints;$('character-toggle').title=`Характеристики · C${p.unspentPoints?` · ${p.unspentPoints} свободных очков`:''}`;
+    $('connection').title=!game.connected?'Восстанавливаем соединение…':!game.save?.ok?'Ошибка сохранения — оставьте игру открытой':game.save?.at?'Прогресс сохранён на сервере':'Сохраняем героя…';
     updateStats();updateInventory();interactions.update();
   }
   return {join,update,isPanelOpen,onEvent};

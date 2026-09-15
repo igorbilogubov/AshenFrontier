@@ -51,8 +51,10 @@ export function createStadiumEnvironment(scene:T.Scene){
       const banner=mesh(pens,new T.PlaneGeometry(.66,.92),new T.MeshStandardMaterial({color:pen.tint,side:T.DoubleSide}),pen.x+side*2.63,1.18,2.38);banner.castShadow=false;
       box(pens,.06,.54,.018,bronze,pen.x+side*2.63,1.18,2.397);
     }
-    const label=makeLabel(`${pen.rank}  ${pen.name.toUpperCase()}`,pen.subtitle,5.4,.94);
-    label.position.set(pen.x,2.5,2.2);label.rotation.y=.55;pens.add(label);
+    // Keep the open gateway and combat silhouettes free of the nameplate.
+    const label=makeLabel(`${pen.rank}  ${pen.name.toUpperCase()}`,pen.subtitle,3.2,.64,true);
+    label.position.set(pen.x-4.6,1.7,2.2);label.rotation.y=.55;pens.add(label);
+    cylinder(pens,.045,.055,.58,iron,pen.x-4.6,1.3,2,6);
     // Broken inset pavers and sparse small stones read as worn training ground.
     for(let i=0;i<15;i++){
       const angle=i*2.399963,r=2.0+(i%5)*.65;
@@ -97,20 +99,20 @@ export function createStadiumEnvironment(scene:T.Scene){
     const glow=mesh(group,new T.CircleGeometry(.85,48),new T.MeshBasicMaterial({color:'#6dc9ba',transparent:true,opacity:.2,side:T.DoubleSide,depthWrite:false}),0,1.18,0);
     glow.scale.y=1.16;glow.castShadow=false;glow.receiveShadow=false;glows.push(glow);
     const rim=mesh(group,new T.TorusGeometry(.77,.025,5,64),new T.MeshBasicMaterial({color:'#9de2c7',transparent:true,opacity:.7}),0,1.18,.025);rim.scale.y=1.21;rim.castShadow=false;
-    const label=makeLabel(portal.name.toUpperCase(),'ЛКМ · перейти',3.7,.85);label.position.set(0,2.78,.12);group.add(label);
+    // The interactive DOM label names this portal; avoid a duplicate 3D sign.
     portalGroups.push({portal,object:group});
     bake(group);
   }
   bake(pens);bake(arena);
   return {ground,portals:portalGroups,animate(time:number){glows.forEach((glow,i)=>{glow.material.opacity=.18+Math.sin(time*1.7+i)*.035;});}};
 }
-function makeLabel(title:string,subtitle:string,width:number,height:number){
+function makeLabel(title:string,subtitle:string,width:number,height:number,compact=false){
   const canvas=document.createElement('canvas');canvas.width=1024;canvas.height=192;
   const ctx=canvas.getContext('2d');if(!ctx)throw new Error('Canvas 2D is unavailable');
   ctx.fillStyle='rgba(24,32,30,.91)';ctx.fillRect(3,3,1018,186);
   ctx.strokeStyle='#8b8065';ctx.lineWidth=3;ctx.strokeRect(7,7,1010,178);
-  ctx.textAlign='center';ctx.fillStyle='#e2d4b1';ctx.font='600 53px Georgia';ctx.fillText(title,512,82,950);
-  ctx.fillStyle='#b6c3b9';ctx.font='34px Georgia';ctx.fillText(subtitle,512,143,950);
+  ctx.textAlign='center';ctx.fillStyle='#e2d4b1';ctx.font=compact?'600 72px Georgia':'600 53px Georgia';ctx.fillText(title,512,82,950);
+  ctx.fillStyle='#b6c3b9';ctx.font=compact?'44px Georgia':'34px Georgia';ctx.fillText(subtitle,512,143,950);
   const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;
   const label=new T.Mesh(new T.PlaneGeometry(width,height),new T.MeshBasicMaterial({map:texture,transparent:true,depthWrite:false,side:T.DoubleSide}));label.userData.dynamic=true;return label;
 }

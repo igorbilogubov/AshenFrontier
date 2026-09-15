@@ -12,6 +12,15 @@ export const CREATURE_CLIPS=['Idle','Walk','Run','Attack','Hit','Death'] as cons
 export const WOLF_CLIPS=[...CREATURE_CLIPS,'Turn_Left','Turn_Right'] as const;
 export const ATTACK_CONTACT=.68;
 export const STRIDES={wolf:{walk:.72,run:1.12},boar:{walk:.52,run:.82},alpha:{walk:.70,run:1.12}};
+// Mesh-local bind-space bounds, sampled from the shipped GLBs throughout every
+// exported clip (including lunge and death), with at least .12 m clearance.
+// Three.js transforms these fixed boxes/spheres with each skinned mesh; no
+// per-frame vertex or bone-bound scan is needed for camera/shadow culling.
+const CULLING_BOUNDS:Readonly<Record<MobType,Readonly<{min:readonly [number,number,number];max:readonly [number,number,number]}>>>=Object.freeze({
+  wolf:{min:[-1.5,-.2,-1.45],max:[.6,1.65,1.5]},
+  boar:{min:[-1.5,-.2,-1.1],max:[.6,1.5,1.4]},
+  alpha:{min:[-1.65,-.2,-1.45],max:[.5,1.75,1.5]}
+});
 let assetPromise:Promise<MobAssets>|undefined;
 export function loadMobAssets(){
   return assetPromise??=Promise.all((Object.keys(MOB_TYPES) as MobType[]).map(async type=>{
@@ -27,10 +36,12 @@ export function createMob(type:MobType,assets:MobAssets){
   const root=new T.Group(),body=clone(asset.scene);root.name=`Creature_${type}`;body.scale.setScalar(cfg.scale);root.add(body);
   const contact=contactShadow(root,1.25*cfg.scale,2.45*cfg.scale);
   body.traverse(o=>{if(o instanceof T.Mesh){
-    o.castShadow=true;o.receiveShadow=true;o.frustumCulled=false;
-    // Bounds cover living poses and the short lunge, avoiding a per-frame vertex scan.
-    if(o instanceof T.SkinnedMesh)o.boundingBox=new T.Box3(new T.Vector3(-.48,-.05,-1.38),new T.Vector3(.48,1.7,1.48));
-    if(o instanceof T.SkinnedMesh)o.boundingSphere=new T.Sphere(new T.Vector3(0,.65,0),2.1);
+    o.castShadow=true;o.receiveShadow=true;o.frustumCulled=true;
+    if(o instanceof T.SkinnedMesh){
+      const {min,max}=CULLING_BOUNDS[type];
+      o.boundingBox=new T.Box3(new T.Vector3(...min),new T.Vector3(...max));
+      o.boundingSphere=new T.Sphere(o.boundingBox.getCenter(new T.Vector3()),o.boundingBox.getSize(new T.Vector3()).length()/2+.05);
+    }
     for(const mat of Array.isArray(o.material)?o.material:[o.material])if(mat instanceof T.MeshStandardMaterial&&mat.map)mat.map.anisotropy=4;
   }});
   const clips=Object.fromEntries(asset.animations.map(c=>[c.name,c]));

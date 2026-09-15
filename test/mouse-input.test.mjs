@@ -38,10 +38,10 @@ test('deadzone slows close steering and invalid pointers or death cannot issue m
   for(const point of [null,{x:NaN,z:2},{x:4,z:Infinity}])assert.equal(heldMouseInput(p,point,{held:true}).x,0);
   p.dead=1;assert.equal(heldMouseInput(p,{x:8,z:2},{held:true}).aim,null);
 });
-test('a held enemy is approached and attacked in range, with no chase after release',()=>{
+test('left steering over an enemy only follows the cursor and never attacks or chases the enemy',()=>{
   const p=hero(),point={x:8,z:2},target={x:2,z:2};
-  const near=heldMouseInput(p,point,{held:true,target,reach:5.5});assert(near.attack);assert.equal(near.x,0);
+  const near=heldMouseInput(p,point,{held:true,target,reach:5.5});assert.equal(near.attack,false);assert(near.x>0);
   const camp=heldMouseInput(p,point,{held:true,target,reach:5.5,inCamp:true});assert(!camp.attack);assert(camp.x>0);
   assert(!heldMouseInput(p,point,{target,reach:5.5}).attack);
-  const overlap=heldMouseInput(p,point,{held:true,target:{x:p.x,z:p.z},reach:1.45});assert(overlap.attack);assert.equal(overlap.aim,p.yaw);
+  const overlap=heldMouseInput(p,point,{held:true,target:{x:p.x,z:p.z},reach:1.45});assert.equal(overlap.attack,false);assert.equal(overlap.aim,Math.PI/2);assert(overlap.x>0);
 });

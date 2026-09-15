@@ -26,7 +26,7 @@ interface HeldMouse {x:number;y:number;active:boolean;point:T.Vector3|null;held:
 let benchmark:Benchmark|undefined,skillEffects:ReturnType<typeof createSkillEffects>|undefined;
 const canvas=$('scene');
 let renderer:T.WebGLRenderer,scene:T.Scene,camera:T.OrthographicCamera,sun:T.DirectionalLight,world:ReturnType<typeof createEnvironment>,warrior:Warrior,game:NetworkGame,ready=false,last=0,time=0,accumulator=0;
-let width=innerWidth,height=innerHeight,selected:number|null=null,autoTarget:number|null=null,pendingWeapon:WeaponId|null=null;
+let width=innerWidth,height=innerHeight,selected:number|null=null,pendingWeapon:WeaponId|null=null;
 let noticeTimer:ReturnType<typeof setTimeout>|undefined=undefined,lastSafeToast=0,uiTimer=0,frames:number[]=[],frameCounter=0,paused=false;
 let targetZoom=1,interfaceUI:ReturnType<typeof bindInterface>;
 const remoteModels=new Map<string,RemoteWarrior>(),loadingPlayers=new Set<string>(),visualHeroes=new Map<string,VisualHero>(),visualMobs=new Map<number,PublicMob>(),shots=new Map<string,T.Mesh<T.BufferGeometry,T.MeshBasicMaterial>>();
@@ -83,7 +83,7 @@ function toggleRun(){
   game.toggleRun(); // The movement button updates when the server confirms the mode.
 }
 function chooseWeapon(id:unknown){
-  if(!ready||(id!=='sword'&&id!=='axe')||game.player.dead)return;autoTarget=null;pendingWeapon=null;
+  if(!ready||(id!=='sword'&&id!=='axe')||game.player.dead)return;pendingWeapon=null;
   if(game.player.items.some(item=>item.id===game.player.equipment.weapon&&item.definitionId)){toast('Вид оружия определяется надетым предметом');return;}
   if(id===game.player.weapon)return;if(game.player.attack){pendingWeapon=id;return;}
   game.weapon(id);toast(WEAPONS[id].name);updateUI();
@@ -100,7 +100,7 @@ function castSkill(slot:number){
 }
 function releaseMovement(){
   const id=mouse.pointerId,wasHeld=mouse.held;
-  mouse.held=false;mouse.pointerId=null;mouse.pickPending=false;autoTarget=null;
+  mouse.held=false;mouse.pointerId=null;mouse.pickPending=false;
   if(id!==null&&canvas.hasPointerCapture(id))canvas.releasePointerCapture(id);
   if(wasHeld)game?.stopInput();
 }
@@ -126,7 +126,7 @@ function processEvents(){
     if(event.type==='hurt')number(event,'hurt');
     if(event.type==='heal')number(event,'heal');
     if(event.type==='loot'){number(event,'loot');const model=drops.get(event.id);if(model){model.removeFromParent();drops.delete(event.id);}}
-    if(event.type==='kill'){toast(`${event.name} повержен · +${event.xp} опыта`);if(autoTarget===event.id)autoTarget=null;}
+    if(event.type==='kill'){toast(`${event.name} повержен · +${event.xp} опыта`);}
     if(event.type==='safe'&&time-lastSafeToast>1.5){lastSafeToast=time;toast('Лагерь безопасен. Выйдите на лесную тропу');}
     if(event.type==='death'){clearInput();pendingWeapon=null;selected=null;}
     if(event.type==='camp'){clearInput();selected=null;toast('У костра восстанавливаются здоровье, мана и зелья');}
@@ -140,10 +140,7 @@ function tick(dt:number){
   if(interfaceUI?.isPanelOpen?.()){game.update(dt,{x:0,z:0,aim:null});processEvents();return;}
   const hero=game.player;
   if(hero.afk){game.update(dt,{x:0,z:0,aim:null});processEvents();return;}
-  let mob:PublicMob|null=autoTarget===null?null:game.mobs[autoTarget];
-  if(mob&&(mob.state==='dead'||mob.state==='return')){autoTarget=null;mob=null;}
-  const input=heldMouseInput(hero,mouse.point,{held:mouse.held,target:mob,reach:hero.classId==='warrior'?1.45:classFor(hero.classId).range-.5,inCamp:safe(hero)});
-  if(input.attack&&typeof input.aim==='number'&&Math.abs(angleDelta(hero.yaw,input.aim))<.22)attackAt(mob);
+  const input=heldMouseInput(hero,mouse.point,{held:mouse.held});
   if(keys.has('Space')&&!safe(hero)){input.x=input.z=0;attackAt();}
   game.update(dt,input);
   if(pendingWeapon&&!hero.attack)chooseWeapon(pendingWeapon);
@@ -227,7 +224,7 @@ function renderShots(){
 function render(dt:number){
   const hero=visualActor(game.player,dt);time+=dt;updateCamera(dt);mouse.point=pickGround();
   if(benchmark?.variant==='picking'){mouse.active=true;mouse.x=width*.5+Math.sin(time*2)*width*.18;mouse.y=height*.5;mouse.point=pickGround();pickMob();}
-  if(mouse.held&&mouse.pickPending&&mouse.point){autoTarget=pickMob();selected=autoTarget;mouse.pickPending=false;}
+  if(mouse.held&&mouse.pickPending&&mouse.point){selected=pickMob();mouse.pickPending=false;}
   warrior.root.position.set(hero.x,0,hero.z);warrior.root.rotation.set(0,hero.yaw,0);
   benchmark?.mark('camera-picking');
   warrior.animate(dt,hero,!benchmark?.freezeAnimations);
@@ -298,9 +295,9 @@ canvas.addEventListener('pointerdown',event=>{
   if(!ready||!game.connected||game.player.dead||interfaceUI?.isPanelOpen?.()||event.isPrimary===false)return;
   if(event.button!==0&&event.button!==2)return;
   event.preventDefault();cancelAfk();canvas.focus({preventScroll:true});mouse.x=event.clientX;mouse.y=event.clientY;mouse.active=true;mouse.point=pickGround();
-  if(event.button===2){autoTarget=null;attackAt();return;}
+  if(event.button===2){attackAt();return;}
   mouse.held=true;mouse.pointerId=event.pointerId;canvas.setPointerCapture(event.pointerId);
-  autoTarget=mouse.point?pickMob():null;selected=autoTarget;mouse.pickPending=false;
+  selected=mouse.point?pickMob():null;mouse.pickPending=false;
 });
 addEventListener('pointerup',event=>{if(event.pointerId===mouse.pointerId&&!(event.buttons&1))releaseMovement();});
 addEventListener('pointercancel',event=>{if(event.pointerId===mouse.pointerId)clearInput();});
@@ -320,7 +317,7 @@ addEventListener('keydown',event=>{
   if(document.activeElement?.tagName==='BUTTON'&&['Space','Enter'].includes(event.code))return;
   if(event.code==='Space'){event.preventDefault();keys.add(event.code);}if(event.repeat)return;
   if(['ShiftLeft','ShiftRight'].includes(event.code)&&(document.activeElement===canvas||document.activeElement===document.body))toggleRun();
-  if(event.code==='Space'){autoTarget=null;attackAt();}if(event.code==='Digit1')chooseWeapon('sword');if(event.code==='Digit2')chooseWeapon('axe');if(event.code==='KeyR')game.potion();if(event.code==='KeyQ')castSkill(0);if(event.code==='KeyE')castSkill(1);if(event.code==='KeyF')toggleAfk();if(event.code==='Escape'){cancelAfk();clearInput();}
+  if(event.code==='Space'){attackAt();}if(event.code==='Digit1')chooseWeapon('sword');if(event.code==='Digit2')chooseWeapon('axe');if(event.code==='KeyR')game.potion();if(event.code==='KeyQ')castSkill(0);if(event.code==='KeyE')castSkill(1);if(event.code==='KeyF')toggleAfk();if(event.code==='Escape'){cancelAfk();clearInput();}
 });
 addEventListener('keyup',e=>keys.delete(e.code));addEventListener('blur',clearInput);document.addEventListener('visibilitychange',()=>{paused=document.hidden;if(paused)clearInput();last=0;accumulator=0;});addEventListener('resize',fitCamera);
 canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();ready=false;clearInput();$('loading').hidden=false;$('loading').querySelector('h2')!.textContent='3D-изображение приостановлено';$('load-progress').textContent='Нажмите «Повторить», чтобы открыть локацию снова.';$('retry').hidden=false;});
@@ -329,5 +326,5 @@ $('special').addEventListener('click',()=>{castSkill(0);canvas.focus({preventScr
 $('skill-secondary').addEventListener('click',()=>{castSkill(1);canvas.focus({preventScroll:true});});
 $('afk-toggle').addEventListener('click',()=>{toggleAfk();canvas.focus({preventScroll:true});});
 $('movement').addEventListener('click',()=>{toggleRun();canvas.focus({preventScroll:true});});
-$('attack').addEventListener('click',()=>{autoTarget=null;attackAt();canvas.focus({preventScroll:true});});$('potion').addEventListener('click',()=>{game.potion();canvas.focus({preventScroll:true});});$('reset').addEventListener('click',()=>{returnToCamp();canvas.focus({preventScroll:true});});$('retry').addEventListener('click',()=>location.reload());
+$('attack').addEventListener('click',()=>{attackAt();canvas.focus({preventScroll:true});});$('potion').addEventListener('click',()=>{game.potion();canvas.focus({preventScroll:true});});$('reset').addEventListener('click',()=>{returnToCamp();canvas.focus({preventScroll:true});});$('retry').addEventListener('click',()=>location.reload());
 start();

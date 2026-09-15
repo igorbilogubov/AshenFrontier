@@ -1,24 +1,67 @@
 import * as T from './vendor/three.module.js';
 import {SKILLS} from './skills.js';
 import type {WarriorPose} from './render-types.js';
-/** The string follows the actual animated drawing hand; no gameplay is simulated here. */
+
+// Mixamo hand space is centimetres: Y follows the metacarpals, Z is the
+// palm normal. The source bow's metal grip is at (0, 0, 12), not at its origin.
+export const BOW_GRIP=Object.freeze({x:0,y:7,z:2});
+const sourceGrip=new T.Vector3(0,0,12);
+
+/** Bind the authored rigid bow to the palm; string and arrow use this same socket. */
 export function createBowPresentation(model:T.Object3D){
   const left=model.getObjectByName('mixamorigLeftHand')||model.getObjectByName('mixamorig:LeftHand'),right=model.getObjectByName('mixamorigRightHand')||model.getObjectByName('mixamorig:RightHand');
   const ranger=model.getObjectByName('ranger-bow'),sentinel=model.getObjectByName('sentinel-bow');
-  if(!left||!right||!ranger)return {update(_hero:WarriorPose){},dispose(){}};
-  model.traverse(object=>{if(object instanceof T.Mesh)for(const material of Array.isArray(object.material)?object.material:[object.material])if(material.name==='Linen_Bowstring'){material.transparent=true;material.opacity=0;material.depthWrite=false;}});
+  if(!left||!right||!ranger)return {update(_hero:WarriorPose,_dt=1/60){},dispose(){}};
+  const ownedGeometry:T.BufferGeometry[]=[];
+  const bows=[ranger,...sentinel?[sentinel]:[]];
+  for(const bow of bows){
+    const primitives:T.SkinnedMesh[]=[];bow.traverse(o=>{if(o instanceof T.SkinnedMesh)primitives.push(o);});
+    for(const primitive of primitives){
+      const index=primitive.skeleton.bones.findIndex(bone=>bone===left);if(index<0)continue;
+      // These accessories are rigid (all weights LeftHand). Recover their
+      // original bone-local vertices once; do not transform an already posed skin.
+      const geometry=primitive.geometry.clone().applyMatrix4(primitive.bindMatrix).applyMatrix4(primitive.skeleton.boneInverses[index]);
+      geometry.deleteAttribute('skinIndex');geometry.deleteAttribute('skinWeight');ownedGeometry.push(geometry);
+      const rigid=new T.Mesh(geometry,primitive.material);rigid.name=primitive.name;
+      rigid.castShadow=primitive.castShadow;rigid.receiveShadow=primitive.receiveShadow;rigid.frustumCulled=false;
+      const materials=Array.isArray(primitive.material)?primitive.material:[primitive.material];
+      rigid.visible=!materials.some(material=>material.name==='Linen_Bowstring');
+      primitive.removeFromParent();bow.add(rigid);
+    }
+    left.add(bow);bow.position.set(0,0,0);bow.rotation.set(0,0,0);bow.scale.setScalar(1);
+  }
   const points=new Float32Array(9),geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.BufferAttribute(points,3));
-  const string=new T.Line(geometry,new T.LineBasicMaterial({color:'#cbb78c'}));string.frustumCulled=false;model.add(string);
-  const arrow=new T.Mesh(new T.CylinderGeometry(.006,.006,.9,5),new T.MeshStandardMaterial({color:'#a9956e',roughness:.75}));arrow.castShadow=false;model.add(arrow);
-  const tip=new T.Mesh(new T.ConeGeometry(.024,.10,4),new T.MeshStandardMaterial({color:'#bcc2b3',metalness:.5,roughness:.4}));tip.position.y=.5;arrow.add(tip);
-  const a=new T.Vector3(),b=new T.Vector3(),nock=new T.Vector3(),grip=new T.Vector3(),direction=new T.Vector3(),up=new T.Vector3(0,1,0);
-  return {dispose(){geometry.dispose();string.material.dispose();arrow.geometry.dispose();tip.geometry.dispose();},update(hero:WarriorPose){
-    const armed=!!(ranger.visible||sentinel?.visible);string.visible=armed;arrow.visible=false;if(!armed)return;
-    model.updateWorldMatrix(true,true);const length=sentinel?.visible?62:55;
-    model.worldToLocal(left.localToWorld(a.set(-length,0,-8)));model.worldToLocal(left.localToWorld(b.set(length,0,-8)));
-    const phase=hero.attack?hero.attack.age/hero.attack.duration:1,contact=hero.attack?.skillId?SKILLS[hero.attack.skillId].hitFraction:.49,draw=!!hero.attack&&!hero.dead&&phase<contact;
+  const string=new T.Line(geometry,new T.LineBasicMaterial({color:'#cbb78c'}));string.name='Bow_DynamicString';string.frustumCulled=false;model.add(string);
+  const arrowMaterial=new T.MeshStandardMaterial({color:'#a9956e',roughness:.75}),tipMaterial=new T.MeshStandardMaterial({color:'#bcc2b3',metalness:.5,roughness:.4});
+  const arrow=new T.Mesh(new T.CylinderGeometry(.006,.006,1,5),arrowMaterial);arrow.name='Bow_NockedArrow';arrow.castShadow=false;model.add(arrow);
+  const tip=new T.Mesh(new T.ConeGeometry(.024,.10,4),tipMaterial);tip.position.y=.5;arrow.add(tip);
+  const a=new T.Vector3(),b=new T.Vector3(),nock=new T.Vector3(),grip=new T.Vector3(),direction=new T.Vector3(),up=new T.Vector3(0,1,0),rightLocal=new T.Vector3(),offset=new T.Vector3();
+  let drawWeight=0,drawAngle=-Math.PI/2;
+  return {dispose(){geometry.dispose();string.material.dispose();arrow.geometry.dispose();tip.geometry.dispose();arrowMaterial.dispose();tipMaterial.dispose();for(const geometry of ownedGeometry)geometry.dispose();},update(hero:WarriorPose,dt=1/60){
+    const active=sentinel?.visible?sentinel:ranger,armed=bows.some(bow=>bow.visible);string.visible=armed;arrow.visible=false;if(!armed)return;
+    model.updateWorldMatrix(true,true);
+    const attacking=!!hero.attack&&!hero.dead,phase=hero.attack?hero.attack.age/hero.attack.duration:1,contact=hero.attack?.skillId?SKILLS[hero.attack.skillId].hitFraction:.49,draw=attacking&&phase<contact;
+    drawWeight+=((attacking?1:0)-drawWeight)*(1-Math.exp(-Math.max(0,dt)*24));
+    if(attacking){
+      left.worldToLocal(right.localToWorld(rightLocal.set(0,7,2)));
+      // Roll only around the grip's long axis. In attack the string's side of
+      // the bow faces the actual drawing hand, never the back of the left arm.
+      drawAngle=Math.atan2(-(BOW_GRIP.y-rightLocal.y),BOW_GRIP.z-rightLocal.z);
+      drawAngle=T.MathUtils.clamp(drawAngle,-Math.PI*.85,Math.PI*.85);
+    }
+    for(const bow of bows){
+      bow.rotation.set(drawAngle*drawWeight,0,0);
+      offset.copy(sourceGrip).applyQuaternion(bow.quaternion);
+      bow.position.set(BOW_GRIP.x-offset.x,BOW_GRIP.y-offset.y,BOW_GRIP.z-offset.z);
+    }
+    model.updateWorldMatrix(true,true);const length=active===sentinel?62:55;
+    model.worldToLocal(active.localToWorld(a.set(-length,0,-8)));model.worldToLocal(active.localToWorld(b.set(length,0,-8)));
     nock.copy(a).add(b).multiplyScalar(.5);
-    if(draw){model.worldToLocal(right.localToWorld(nock.set(0,6,2)));model.worldToLocal(left.localToWorld(grip.set(0,0,12)));direction.copy(grip).sub(nock).normalize();arrow.position.copy(nock).addScaledVector(direction,.45);arrow.quaternion.setFromUnitVectors(up,direction);arrow.visible=true;}
+    if(draw){
+      model.worldToLocal(right.localToWorld(nock.set(0,7,2)));model.worldToLocal(active.localToWorld(grip.copy(sourceGrip)));
+      direction.copy(grip).sub(nock);const arrowLength=Math.max(.9,direction.length()+.18);direction.normalize();
+      arrow.scale.y=arrowLength;arrow.position.copy(nock).addScaledVector(direction,arrowLength/2);arrow.quaternion.setFromUnitVectors(up,direction);arrow.visible=true;
+    }
     a.toArray(points,0);nock.toArray(points,3);b.toArray(points,6);geometry.attributes.position.needsUpdate=true;
   }};
 }

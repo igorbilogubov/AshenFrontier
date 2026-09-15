@@ -28,14 +28,14 @@ test('six forest bears own stable appended ids in a separate accessible AFK ring
   }
 });
 
-test('bear grove online AFK keeps the hero in its ring and collects allowed rewards',()=>{
+test('bear grove online AFK keeps the hero stationary and preserves rewards beyond pickup reach',()=>{
   const world=new World({random:()=>0}),hero=newHero('Медвежья чаща','warrior');world.add(hero);
   Object.assign(hero,{x:bearSpot.x,z:bearSpot.z,level:35});hero.hp=stats(hero).maxHp;hero.mana=stats(hero).maxMana;
   world.mobs=world.mobs.filter(mob=>mob.spotId===bearSpot.id);
   assert(world.startAfk(hero));
   for(let i=0;i<900&&hero.afk;i++){
-    world.tick(.05);assert(withinSpot(hero,bearSpot,-.46));assert(stand(hero.x,hero.z));
+    world.tick(.05);assert.deepEqual({x:hero.x,z:hero.z},{x:bearSpot.x,z:bearSpot.z});assert(stand(hero.x,hero.z));
   }
-  assert(hero.kills>0);assert(hero.gold>0);assert.equal(hero.questKills,0);
+  assert(hero.kills>0);assert(hero.gold+world.snapshot(hero.id).groundLoot.filter(drop=>drop.kind==='gold').reduce((total,drop)=>total+drop.amount,0)>0);assert.equal(hero.questKills,0);
   assert(hero.afk,'automatic collection does not cancel an active hunt');
 });

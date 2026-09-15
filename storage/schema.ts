@@ -143,6 +143,10 @@ ALTER TABLE inventory_locations ADD CONSTRAINT inventory_locations_check CHECK (
 CREATE UNIQUE INDEX one_stash_position ON inventory_locations(hero_id,position) WHERE kind='stash';
 `;
 
+const afkPreferencesSchema=`
+ALTER TABLE heroes ADD COLUMN afk_preferences jsonb NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(afk_preferences)='object');
+`;
+
 export async function migrate(client:PoolClient):Promise<void>{
   await client.query('BEGIN');
   try{
@@ -152,6 +156,8 @@ export async function migrate(client:PoolClient):Promise<void>{
     if(!existing.rowCount){await client.query(initialSchema);await client.query('INSERT INTO schema_migrations(version) VALUES (1)');}
     const second=await client.query<{version:number}>('SELECT version FROM schema_migrations WHERE version=2');
     if(!second.rowCount){await client.query(personalStashSchema);await client.query('INSERT INTO schema_migrations(version) VALUES (2)');}
+    const third=await client.query<{version:number}>('SELECT version FROM schema_migrations WHERE version=3');
+    if(!third.rowCount){await client.query(afkPreferencesSchema);await client.query('INSERT INTO schema_migrations(version) VALUES (3)');}
     await client.query('COMMIT');
   }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}
 }

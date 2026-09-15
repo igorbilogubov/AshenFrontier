@@ -5,6 +5,7 @@ import type {EquipmentSlot,Item,PersistentHero} from '../shared/types.js';
 import {migrate} from './schema.js';
 import {BAG_CAPACITY,STASH_CAPACITY,backpackItems} from '../public/rules.js';
 import {CONSUMABLE_LIMIT} from '../public/game/consumables.js';
+import {defaultAfkPreferences,parseAfkPreferences} from '../public/game/afk-preferences.js';
 
 const {Pool}=pg;
 const slots:readonly EquipmentSlot[]=['weapon','armor','helmet','boots','ring','amulet'];
@@ -54,17 +55,18 @@ function checkEntry(entry:CommitEntry):void{
   if(stashIds.size!==hero.stash.length||hero.stash.some(id=>typeof id!=='string'||!hero.items.some(item=>item.id===id)||worn.has(id)))throw new Error('Invalid stash references');
   if(backpackItems(hero).length>BAG_CAPACITY)throw new Error('Backpack capacity exceeded');
   if(!Number.isSafeInteger(hero.potions)||hero.potions<0||hero.potions>CONSUMABLE_LIMIT||!Number.isSafeInteger(hero.manaPotions)||hero.manaPotions<0||hero.manaPotions>CONSUMABLE_LIMIT||!Number.isFinite(hero.manaPotionCooldown)||hero.manaPotionCooldown<0)throw new Error('Invalid consumables');
+  if(!parseAfkPreferences(hero.afkPreferences,hero.classId))throw new Error('Invalid AFK preferences');
 }
 function heroValues(hero:PersistentHero,hash:string):unknown[]{
   const a=hero.allocatedStats;
   return [hero.id,hash,hero.schemaVersion,hero.name,hero.classId,hero.level,hero.xp,hero.gold,hero.kills,hero.statRevision,
     a.strength,a.dexterity,a.vitality,a.energy,hero.x,hero.z,hero.yaw,hero.weapon,hero.hp,hero.mana,hero.potions,
     hero.potionCooldown,hero.manaPotions,hero.manaPotionCooldown,hero.specialCooldown,hero.dead,hero.combatUntil,hero.attackSerial,hero.running,hero.questKills,
-    hero.boss,hero.questClaimed,JSON.stringify(hero.skillCooldowns??{}),hero.attack===null?null:JSON.stringify(hero.attack)];
+    hero.boss,hero.questClaimed,JSON.stringify(hero.skillCooldowns??{}),hero.attack===null?null:JSON.stringify(hero.attack),JSON.stringify(hero.afkPreferences)];
 }
 const heroColumns=`id,token_hash,schema_version,name,class_id,level,xp,gold,kills,stat_revision,
   strength,dexterity,vitality,energy,x,z,yaw,weapon,hp,mana,potions,potion_cooldown,mana_potions,mana_potion_cooldown,special_cooldown,dead,
-  combat_until,attack_serial,running,quest_kills,boss,quest_claimed,skill_cooldowns,attack`;
+  combat_until,attack_serial,running,quest_kills,boss,quest_claimed,skill_cooldowns,attack,afk_preferences`;
 const updateColumns=heroColumns.split(',').map(s=>s.trim()).filter(s=>s!=='id'&&s!=='token_hash');
 
 async function writeInventory(client:PoolClient,hero:PersistentHero):Promise<{gained:string[];lost:string[]}>{
@@ -146,7 +148,8 @@ async function readHero(client:PoolClient,hash:string):Promise<{hero:PersistentH
     x:row.x,z:row.z,yaw:row.yaw,weapon:row.weapon,hp:row.hp,mana:row.mana,potions:row.potions,
     potionCooldown:row.potion_cooldown,manaPotions:row.mana_potions,manaPotionCooldown:row.mana_potion_cooldown,specialCooldown:row.special_cooldown,skillCooldowns:row.skill_cooldowns,
     dead:row.dead,combatUntil:row.combat_until,attack:row.attack,attackSerial:row.attack_serial,
-    running:row.running,questKills:row.quest_kills,boss:row.boss,questClaimed:row.quest_claimed
+    running:row.running,questKills:row.quest_kills,boss:row.boss,questClaimed:row.quest_claimed,
+    afkPreferences:parseAfkPreferences(row.afk_preferences,row.class_id)??defaultAfkPreferences(row.class_id)
   };
   return {hero,revision:numeric(row.revision)};
 }
@@ -247,7 +250,7 @@ class PostgresHeroStore implements HeroStore{
       const result=await client.query<{locked?:boolean}> (this.writer?lockHealthSql:'SELECT 1 AS ok');
       if(this.writer&&!result.rows[0]?.locked){this.lost=true;return false;}
       const schema=await client.query<{version:number}>('SELECT max(version)::integer AS version FROM schema_migrations');
-      return !!result.rowCount&&schema.rows[0]?.version===2;
+      return !!result.rowCount&&schema.rows[0]?.version===3;
     });}catch{if(this.writer)this.lost=true;return false;}
   }
   async schemaVersion():Promise<number>{

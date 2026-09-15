@@ -72,7 +72,7 @@ test('PostgreSQL stores stash locations and exact rolled item identity through w
     try{
       const row=(await client.query('SELECT kind,position FROM inventory_locations WHERE item_id=$1',[item.id])).rows[0];
       assert.deepEqual(row,{kind:'stash',position:0});
-      assert.equal(Number((await client.query('SELECT max(version) AS version FROM schema_migrations')).rows[0].version),2);
+      assert.equal(Number((await client.query('SELECT max(version) AS version FROM schema_migrations')).rows[0].version),3);
     }finally{await client.end();}
     const withdrawn=structuredClone(hero);withdrawn.stash=[];
     await store.commit([{token,hero:withdrawn,expectedRevision:1}],randomUUID(),'test chest withdraw');
@@ -81,7 +81,7 @@ test('PostgreSQL stores stash locations and exact rolled item identity through w
   }finally{await store.close();await db.close();}
 });
 
-test('additive schema 2 migration preserves a version 1 hero and rolled bag item',
+test('additive migrations through schema 3 preserve a version 1 hero and rolled bag item',
   {skip:!hasTestDatabase},async()=>{
   const db=await createTestDatabase();let store=await openHeroStore({connectionString:db.url});
   const token=randomUUID(),hero=persistentHero(newHero('Старый герой')),item=rollEquipment('copper-ring',randomUUID(),()=>.53);
@@ -91,7 +91,8 @@ test('additive schema 2 migration preserves a version 1 hero and rolled bag item
     const client=new pg.Client({connectionString:db.url});await client.connect();
     try{
       await client.query('BEGIN');
-      await client.query('DELETE FROM schema_migrations WHERE version=2');
+      await client.query('DELETE FROM schema_migrations WHERE version IN (2,3)');
+      await client.query('ALTER TABLE heroes DROP COLUMN afk_preferences');
       await client.query('DROP INDEX one_stash_position');
       await client.query('ALTER TABLE inventory_locations DROP CONSTRAINT inventory_locations_check');
       await client.query('ALTER TABLE inventory_locations DROP CONSTRAINT inventory_locations_kind_check');

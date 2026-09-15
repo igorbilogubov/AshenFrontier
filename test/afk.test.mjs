@@ -18,7 +18,7 @@ test('AFK starts only inside a named spot for a connected living hero; off is id
   Object.assign(p,{x:spot.x+spot.radius-.2,z:spot.z});toggle(w,p,true);assert.equal(p.afk,null);
   Object.assign(p,{x:spot.x,z:spot.z,dead:2});toggle(w,p,true);assert.equal(p.afk,null);
   p.dead=0;p.connected=false;toggle(w,p,true);assert.equal(p.afk,null);
-  p.connected=true;toggle(w,p,true);assert.deepEqual(p.afk,{spotId:spot.id,targetId:null});
+  p.connected=true;toggle(w,p,true);assert.deepEqual(p.afk,{spotId:spot.id,targetId:null,skillCursor:0});
   Object.assign(p,{x:100,z:100});toggle(w,p,false);assert.equal(p.afk,null);toggle(w,p,false);assert.equal(p.afk,null);
   assert(w.events.some(e=>e.type==='notice'&&e.text.includes('спот')));
 });
@@ -47,7 +47,7 @@ test('AFK motion follows only legal spot members and cannot cross the body-safe 
 
 test('real potion threshold and finite supply govern automatic survival; death and disconnect end it',()=>{
   const {w,p}=fixture();w.mobs=[];toggle(w,p,true);
-  p.hp=stats(p).maxHp*.39;p.potions=2;p.potionCooldown=0;p.combatUntil=w.t+15000;
+  p.hp=stats(p).maxHp*.34;p.potions=2;p.potionCooldown=0;p.combatUntil=w.t+15000;
   const hp=p.hp;step(w);assert.equal(p.potions,1);assert.equal(p.hp,hp+45);assert(p.potionCooldown>0);
   p.hp=stats(p).maxHp*.2;p.potions=0;p.potionCooldown=0;const dry=p.hp;step(w);assert.equal(p.hp,dry);assert.equal(p.potions,0);
   w.damagePlayer(p,10000);assert.equal(p.afk,null);assert(p.dead>0);

@@ -2,6 +2,11 @@
 export type ClassId = 'warrior' | 'archer' | 'mage';
 export type SkillId = 'warrior-cleave' | 'warrior-whirlwind' | 'archer-piercing' | 'archer-volley' | 'mage-fireball' | 'mage-frost' | 'warrior-thrust' | 'warrior-shockwave' | 'archer-frost-shot' | 'archer-rain' | 'mage-lightning' | 'mage-meteor';
 export type SkillCooldowns = Partial<Record<SkillId, number>>;
+export interface AfkPreferences {
+  pickupGold:boolean;pickupRarities:number[];
+  hpPotion:{enabled:boolean;belowPercent:number};manaPotion:{enabled:boolean;belowPercent:number};
+  skillOrder:SkillId[];basicAttackFallback:boolean;radiusPercent:number;
+}
 export type WeaponId = 'sword' | 'axe';
 export type EquipmentSlot = 'weapon' | 'armor' | 'helmet' | 'boots' | 'ring' | 'amulet';
 export type StatKey = 'strength' | 'dexterity' | 'vitality' | 'energy';
@@ -25,9 +30,9 @@ export interface PersistentHero extends Point {
   items: Item[]; pendingItems: Item[]; stash: string[]; equipment: Equipment; allocatedStats: Attributes; statRevision: number;
   yaw: number; weapon: WeaponId; hp: number; mana: number; potions: number; potionCooldown: number; manaPotions:number; manaPotionCooldown:number;
   specialCooldown: number; skillCooldowns?: SkillCooldowns; dead: number; combatUntil: number; attack: HeroAttack | null; attackSerial: number;
-  running: boolean; questKills: number; boss: boolean; questClaimed: boolean;
+  running: boolean; questKills: number; boss: boolean; questClaimed: boolean; afkPreferences:AfkPreferences;
 }
-export interface AfkState { spotId: string; targetId: number | null }
+export interface AfkState { spotId: string; targetId: number | null; skillCursor:number }
 export interface GroundDrop extends Point { id:string; kind:'item'|'gold'; item?:Item; amount?:number; expiresAt:number }
 export interface InteractionTarget { kind:'loot'|'vendor'|'portal'|'chest'; id:string }
 export interface Hero extends PersistentHero {
@@ -51,7 +56,7 @@ export interface Projectile extends PublicProjectile { damage: number; aoe: numb
 export type PublicPlayer = Pick<Hero, 'id' | 'name' | 'classId' | 'x' | 'z' | 'yaw' | 'weapon' | 'hp' | 'level' | 'dead' | 'hurt' | 'attack' | 'moveBlend' | 'runBlend' | 'gait' | 'vx' | 'vz' | 'connected'> & { maxHp: number; appearance?:ItemAppearance };
 export type SelfSnapshot = PersistentHero & {appearance?:ItemAppearance;afk?:AfkState|null;interactionTarget?:InteractionTarget|null;shopActive?:boolean;stashActive?:boolean} & Omit<CharacterStats, 'attack'> & Pick<Hero, 'targetYaw' | 'vx' | 'vz' | 'hurt' | 'gait' | 'moveBlend' | 'runBlend' | 'ack'>;
 export interface EventPayloads {
-  notice: { text: string }; statResult: { ok: boolean; revision: number; message?: string };
+  notice: { text: string }; statResult: { ok: boolean; revision: number; message?: string }; preferencesSaved:{ok:boolean;message?:string};
   safe: Record<never, never>; camp: Record<never, never>; death: Record<never, never>; quest: Record<never, never>;
   heal: Point & { amount: number }; hurt: Point & { amount: number }; hit: Point & { amount: number; id: number };
   miss: Point & { id: number }; level: { level: number; points: number }; item: { name: string; pending: boolean };
@@ -66,7 +71,7 @@ export type GameEvent = WorldEvent;
 export interface WorldSnapshot { t: number; players: PublicPlayer[]; mobs: PublicMob[]; projectiles: PublicProjectile[]; groundLoot:GroundDrop[]; self: SelfSnapshot | null; events: WorldEvent[] }
 export interface ChatEntry { name: string; text: string; t: number }
 export type ClientCommand =
-  | ({ type: 'input' } & HeroInput) | { type: 'attack'; yaw: number; special?: boolean; targetId?:number } | { type: 'skill'; skillId: SkillId; yaw: number; targetId?:number; target?:Point } | { type: 'afk'; enabled: boolean }
+  | ({ type: 'input' } & HeroInput) | { type: 'attack'; yaw: number; special?: boolean; targetId?:number } | { type: 'skill'; skillId: SkillId; yaw: number; targetId?:number; target?:Point } | { type: 'afk'; enabled: boolean } | {type:'afkPreferences';preferences:AfkPreferences}
   | { type: 'potion'; kind?:'hp'|'mana' } | {type:'camp'|'claim'|'stashOpen'|'stashClose'} | {type:'stashDeposit'|'stashWithdraw';id:string} | { type: 'run'; running: boolean } | { type: 'weapon'; weapon: WeaponId }
   | { type: 'equip' | 'unequip' | 'sell'; id: string } | { type: 'allocateStats'; revision: number; points: Partial<Attributes> }
   | {type:'pickup';id:string} | {type:'interact';npcId:string} | {type:'cancelInteraction'}

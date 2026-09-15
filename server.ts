@@ -48,7 +48,7 @@ const world=new World(),sessions=new Map<string,Session>(),connections=new Map<W
 const alive=new WeakMap<WebSocket,boolean>();
 const joining=new Set<string>();
 const commands=new Map<WebSocket,{move:unknown|null; actions:unknown[]}>();
-const economy=(p:PersistentHero)=>JSON.stringify([p.gold,p.xp,p.level,p.kills,p.items,p.pendingItems,p.stash,p.equipment,p.allocatedStats,p.statRevision,p.potions,p.manaPotions,p.questKills,p.questClaimed,p.boss]);
+const economy=(p:PersistentHero)=>JSON.stringify([p.gold,p.xp,p.level,p.kills,p.items,p.pendingItems,p.stash,p.equipment,p.allocatedStats,p.statRevision,p.potions,p.manaPotions,p.questKills,p.questClaimed,p.boss,p.afkPreferences]);
 let lastSavedAt=Date.now(),lastCheckpoint=Date.now(),saveHealthy=true,shuttingDown=false,busy=false,pending:PendingCommit|null=null,retryTimer:ReturnType<typeof setTimeout>|null=null,writerLost=false,noticeSent=false;
 const stress=stressModule?await stressModule.createStressController(world,dataDir,host,async()=>{
   // Test-only scenario reset: old camp inputs must not cancel freshly placed AFK

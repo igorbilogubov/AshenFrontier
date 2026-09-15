@@ -1,0 +1,599 @@
+{
+  "date": "2026-09-15",
+  "codeCommit": "62c855c",
+  "scope": "Local open world 110 x 90 m, 41 mobs, PostgreSQL, manual ground loot, vendor and updated HUD",
+  "conditions": {
+    "warmupMs": 5000,
+    "measurementMs": 12000,
+    "stressPort": 4742,
+    "temporaryDatabase": true,
+    "backgroundUserAppsLeftOpen": true,
+    "automatedTestSuiteRunning": false,
+    "productionTested": false
+  },
+  "notes": [
+    "The two retained runs were recorded after clearing stale scenario inputs; all 16 AFK heroes remained active.",
+    "AFK includes waiting for 16-second respawns. This is not sustained PvP or a long-duration economy test.",
+    "Earlier AFK report 1789485993113-fy7v5.json had only 2 active AFK heroes and is excluded despite its focus/timing valid flag.",
+    "Earlier camp reports were recorded with different background browser activity and are not a controlled before/after comparison.",
+    "GPU query and CPU render submission overlap; their times must not be added. Stable 60 FPS is not achieved in these conditions."
+  ],
+  "runs": [
+    {
+      "scenario": {
+        "name": "16 · AFK охота",
+        "players": 16,
+        "mode": "afk",
+        "variant": "full"
+      },
+      "equipmentProfile": "default",
+      "valid": true,
+      "measurementMs": 12017.300000011921,
+      "frames": {
+        "count": 438,
+        "mean": 27.394748858447475,
+        "p50": 32.599999999998545,
+        "p95": 34.80000000000291,
+        "p99": 50,
+        "max": 51.80000000000291,
+        "fps": 36.50334614006286,
+        "over33": 118,
+        "over50": 4,
+        "over100": 0
+      },
+      "cpuSections": {
+        "simulation": {
+          "count": 439,
+          "mean": 0.08154897524175449,
+          "p50": 0.09999999403953552,
+          "p95": 0.20000001788139343,
+          "p99": 0.4000000059604645,
+          "max": 1.5
+        },
+        "camera-picking": {
+          "count": 439,
+          "mean": 0.0849658318695555,
+          "p50": 0.09999999403953552,
+          "p95": 0.20000001788139343,
+          "p99": 0.20000001788139343,
+          "max": 0.4000000059604645
+        },
+        "actors": {
+          "count": 439,
+          "mean": 3.343280181933644,
+          "p50": 3.0999999940395355,
+          "p95": 4.699999988079071,
+          "p99": 6.200000017881393,
+          "max": 7
+        },
+        "effects-ui": {
+          "count": 439,
+          "mean": 0.42323462403716694,
+          "p50": 0.29999998211860657,
+          "p95": 1.199999988079071,
+          "p99": 1.5,
+          "max": 2.199999988079071
+        },
+        "render-submit": {
+          "count": 439,
+          "mean": 10.346697039172426,
+          "p50": 10.200000017881393,
+          "p95": 13.199999988079071,
+          "p99": 14.400000005960464,
+          "max": 16.299999982118607
+        }
+      },
+      "counters": {
+        "cpuFrame": {
+          "count": 439,
+          "mean": 14.284282461046358,
+          "p50": 14.100000023841858,
+          "p95": 17.5,
+          "p99": 19.5,
+          "max": 22.19999998807907
+        },
+        "drawCalls": {
+          "count": 439,
+          "mean": 324.20728929384967,
+          "p50": 319,
+          "p95": 322,
+          "p99": 457,
+          "max": 457
+        },
+        "triangles": {
+          "count": 439,
+          "mean": 968319.2528473804,
+          "p50": 957788,
+          "p95": 957950,
+          "p99": 1178386,
+          "max": 1178386
+        },
+        "geometries": {
+          "count": 439,
+          "mean": 172.15261958997723,
+          "p50": 172,
+          "p95": 172,
+          "p99": 185,
+          "max": 185
+        },
+        "textures": {
+          "count": 439,
+          "mean": 119,
+          "p50": 119,
+          "p95": 119,
+          "p99": 119,
+          "max": 119
+        },
+        "players": {
+          "count": 439,
+          "mean": 16,
+          "p50": 16,
+          "p95": 16,
+          "p99": 16,
+          "max": 16
+        },
+        "warriors": {
+          "count": 439,
+          "mean": 6,
+          "p50": 6,
+          "p95": 6,
+          "p99": 6,
+          "max": 6
+        },
+        "archers": {
+          "count": 439,
+          "mean": 5,
+          "p50": 5,
+          "p95": 5,
+          "p99": 5,
+          "max": 5
+        },
+        "mages": {
+          "count": 439,
+          "mean": 5,
+          "p50": 5,
+          "p95": 5,
+          "p99": 5,
+          "max": 5
+        },
+        "activeAttacks": {
+          "count": 439,
+          "mean": 0.5968109339407744,
+          "p50": 0,
+          "p95": 0,
+          "p99": 16,
+          "max": 16
+        },
+        "activeSkills": {
+          "count": 439,
+          "mean": 0.5968109339407744,
+          "p50": 0,
+          "p95": 0,
+          "p99": 16,
+          "max": 16
+        },
+        "mobs": {
+          "count": 439,
+          "mean": 41,
+          "p50": 41,
+          "p95": 41,
+          "p99": 41,
+          "max": 41
+        },
+        "liveMobs": {
+          "count": 439,
+          "mean": 17.656036446469248,
+          "p50": 17,
+          "p95": 17,
+          "p99": 35,
+          "max": 35
+        },
+        "projectiles": {
+          "count": 439,
+          "mean": 0.0683371298405467,
+          "p50": 0,
+          "p95": 0,
+          "p99": 4,
+          "max": 6
+        },
+        "snapshotAge": {
+          "count": 439,
+          "mean": 37.320045558425996,
+          "p50": 34,
+          "p95": 63.70000001788139,
+          "p99": 104.40000000596046,
+          "max": 118.90000000596046
+        }
+      },
+      "gpu": {
+        "available": true,
+        "disjoint": false,
+        "milliseconds": {
+          "count": 108,
+          "mean": 33.9512078425926,
+          "p50": 32.585083,
+          "p95": 39.966083,
+          "p99": 81.595541,
+          "max": 84.476666
+        }
+      },
+      "longTasks": {
+        "count": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null
+      },
+      "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
+      "hardware": {
+        "cpu": "Apple M1",
+        "cores": 8,
+        "memoryGiB": 16,
+        "os": "darwin",
+        "release": "25.6.0",
+        "node": "v24.19.0"
+      },
+      "graphics": {
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+        "width": 1527,
+        "height": 810,
+        "dpr": 1.100000023841858,
+        "displayDpr": 1.100000023841858,
+        "cameraPosition": [
+          23.096909328267948,
+          19.750434372851924,
+          9.393233301156968
+        ],
+        "cameraQuaternion": [
+          -0.3605308247011501,
+          0.2517739357027732,
+          0.10172327300565487,
+          0.8923451044691518
+        ],
+        "cameraZoom": 1,
+        "shadows": true
+      },
+      "server": {
+        "tick": {
+          "count": 231,
+          "mean": 9.108982510822086,
+          "p50": 7.3677499999976135,
+          "p95": 11.761500000000524,
+          "p99": 66.78670900000725,
+          "max": 84.419415999997
+        },
+        "simulation": {
+          "count": 231,
+          "mean": 0.47269982251077736,
+          "p50": 0.34783299999980954,
+          "p95": 1.1284579999992275,
+          "p99": 2.095041000000492,
+          "max": 3.0424999999959255
+        },
+        "broadcast": {
+          "count": 231,
+          "mean": 8.635839982683503,
+          "p50": 6.867833999996947,
+          "p95": 11.424416999994719,
+          "p99": 66.3729580000072,
+          "max": 84.04704099999799
+        },
+        "interval": {
+          "count": 231,
+          "mean": 52.476190476190474,
+          "p50": 51,
+          "p95": 53,
+          "p99": 102,
+          "max": 102
+        },
+        "eventLoopP99Ms": 20.332543,
+        "outboundBytes": 81816856,
+        "durationMs": 12097,
+        "players": 16,
+        "bots": 15,
+        "activeAfk": 16,
+        "afkTargets": 16,
+        "skillCasts": {
+          "warrior-whirlwind": 4,
+          "archer-piercing": 5,
+          "mage-fireball": 4,
+          "mage-frost": 1,
+          "warrior-cleave": 2
+        },
+        "attackCasts": 16,
+        "projectilePeak": 7,
+        "projectiles": 6,
+        "liveMobs": 27,
+        "errors": []
+      },
+      "recordedAt": "2026-09-15T15:34:11.218Z",
+      "sourceFile": "1789486451218-86ayv.json"
+    },
+    {
+      "scenario": {
+        "name": "1 игрок · лагерь",
+        "players": 1,
+        "mode": "camp",
+        "variant": "full"
+      },
+      "equipmentProfile": "default",
+      "valid": true,
+      "measurementMs": 12001.600000023842,
+      "frames": {
+        "count": 509,
+        "mean": 23.54086444007856,
+        "p50": 17.600000000034925,
+        "p95": 34.29999999998836,
+        "p99": 35.29999999998836,
+        "max": 51.899999999965075,
+        "fps": 42.479323669078596,
+        "over33": 89,
+        "over50": 2,
+        "over100": 0
+      },
+      "cpuSections": {
+        "simulation": {
+          "count": 510,
+          "mean": 0.09215686251135434,
+          "p50": 0.09999999403953552,
+          "p95": 0.20000001788139343,
+          "p99": 0.5,
+          "max": 2.800000011920929
+        },
+        "camera-picking": {
+          "count": 510,
+          "mean": 0.06843137244383495,
+          "p50": 0.09999999403953552,
+          "p95": 0.19999998807907104,
+          "p99": 0.20000001788139343,
+          "max": 0.5
+        },
+        "actors": {
+          "count": 510,
+          "mean": 2.074509803921569,
+          "p50": 1.800000011920929,
+          "p95": 3.5999999940395355,
+          "p99": 4.9000000059604645,
+          "max": 11.400000005960464
+        },
+        "effects-ui": {
+          "count": 510,
+          "mean": 0.3658823532801048,
+          "p50": 0.20000001788139343,
+          "p95": 1.0999999940395355,
+          "p99": 1.300000011920929,
+          "max": 2.899999976158142
+        },
+        "render-submit": {
+          "count": 510,
+          "mean": 7.156078431360862,
+          "p50": 6.5999999940395355,
+          "p95": 10,
+          "p99": 14.300000011920929,
+          "max": 50.599999994039536
+        }
+      },
+      "counters": {
+        "cpuFrame": {
+          "count": 510,
+          "mean": 9.760980392028303,
+          "p50": 9.199999988079071,
+          "p95": 13,
+          "p99": 16.19999998807907,
+          "max": 52.80000001192093
+        },
+        "drawCalls": {
+          "count": 510,
+          "mean": 253.19803921568626,
+          "p50": 253,
+          "p95": 257,
+          "p99": 258,
+          "max": 258
+        },
+        "triangles": {
+          "count": 510,
+          "mean": 789544.631372549,
+          "p50": 791076,
+          "p95": 802174,
+          "p99": 809230,
+          "max": 809230
+        },
+        "geometries": {
+          "count": 510,
+          "mean": 144,
+          "p50": 144,
+          "p95": 144,
+          "p99": 144,
+          "max": 144
+        },
+        "textures": {
+          "count": 510,
+          "mean": 104,
+          "p50": 104,
+          "p95": 104,
+          "p99": 104,
+          "max": 104
+        },
+        "players": {
+          "count": 510,
+          "mean": 1,
+          "p50": 1,
+          "p95": 1,
+          "p99": 1,
+          "max": 1
+        },
+        "warriors": {
+          "count": 510,
+          "mean": 1,
+          "p50": 1,
+          "p95": 1,
+          "p99": 1,
+          "max": 1
+        },
+        "archers": {
+          "count": 510,
+          "mean": 0,
+          "p50": 0,
+          "p95": 0,
+          "p99": 0,
+          "max": 0
+        },
+        "mages": {
+          "count": 510,
+          "mean": 0,
+          "p50": 0,
+          "p95": 0,
+          "p99": 0,
+          "max": 0
+        },
+        "activeAttacks": {
+          "count": 510,
+          "mean": 0,
+          "p50": 0,
+          "p95": 0,
+          "p99": 0,
+          "max": 0
+        },
+        "activeSkills": {
+          "count": 510,
+          "mean": 0,
+          "p50": 0,
+          "p95": 0,
+          "p99": 0,
+          "max": 0
+        },
+        "mobs": {
+          "count": 510,
+          "mean": 41,
+          "p50": 41,
+          "p95": 41,
+          "p99": 41,
+          "max": 41
+        },
+        "liveMobs": {
+          "count": 510,
+          "mean": 41,
+          "p50": 41,
+          "p95": 41,
+          "p99": 41,
+          "max": 41
+        },
+        "projectiles": {
+          "count": 510,
+          "mean": 0,
+          "p50": 0,
+          "p95": 0,
+          "p99": 0,
+          "max": 0
+        },
+        "snapshotAge": {
+          "count": 510,
+          "mean": 33.30960784314894,
+          "p50": 34.79999998211861,
+          "p95": 58.5,
+          "p99": 62.599999994039536,
+          "max": 74.39999997615814
+        }
+      },
+      "gpu": {
+        "available": true,
+        "disjoint": false,
+        "milliseconds": {
+          "count": 126,
+          "mean": 29.6152808968254,
+          "p50": 28.85875,
+          "p95": 40.897375,
+          "p99": 55.06525,
+          "max": 56.149
+        }
+      },
+      "longTasks": {
+        "count": 1,
+        "mean": 53,
+        "p50": 53,
+        "p95": 53,
+        "p99": 53,
+        "max": 53
+      },
+      "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
+      "hardware": {
+        "cpu": "Apple M1",
+        "cores": 8,
+        "memoryGiB": 16,
+        "os": "darwin",
+        "release": "25.6.0",
+        "node": "v24.19.0"
+      },
+      "graphics": {
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+        "width": 1527,
+        "height": 810,
+        "dpr": 1.100000023841858,
+        "displayDpr": 1.100000023841858,
+        "cameraPosition": [
+          11.027712353159211,
+          19.750434372851924,
+          19.171134945498487
+        ],
+        "cameraQuaternion": [
+          -0.3605308247011501,
+          0.2517739357027732,
+          0.10172327300565487,
+          0.8923451044691518
+        ],
+        "cameraZoom": 1,
+        "shadows": true
+      },
+      "server": {
+        "tick": {
+          "count": 237,
+          "mean": 1.067472696203379,
+          "p50": 0.780791999946814,
+          "p95": 2.623457999958191,
+          "p99": 7.517167000041809,
+          "max": 10.743625000002794
+        },
+        "simulation": {
+          "count": 237,
+          "mean": 0.2561891054860336,
+          "p50": 0.19750000000931323,
+          "p95": 0.49725000001490116,
+          "p99": 1.1451250000391155,
+          "max": 2.1223749999771826
+        },
+        "broadcast": {
+          "count": 237,
+          "mean": 0.8108579620248874,
+          "p50": 0.5643339999951422,
+          "p95": 1.6190840000053868,
+          "p99": 7.225541000021622,
+          "max": 10.616833000036422
+        },
+        "interval": {
+          "count": 237,
+          "mean": 50.91983122362869,
+          "p50": 51,
+          "p95": 52,
+          "p99": 53,
+          "max": 53
+        },
+        "eventLoopP99Ms": 13.459455,
+        "outboundBytes": 3393926,
+        "durationMs": 12076,
+        "players": 1,
+        "bots": 0,
+        "activeAfk": 0,
+        "afkTargets": 0,
+        "skillCasts": {},
+        "attackCasts": 0,
+        "projectilePeak": 0,
+        "projectiles": 0,
+        "liveMobs": 41,
+        "errors": []
+      },
+      "recordedAt": "2026-09-15T15:38:02.239Z",
+      "sourceFile": "1789486682239-8qvr1.json"
+    }
+  ]
+}

@@ -2,21 +2,22 @@ import type {Position,Obstacle} from './motion.js';
 import type {MobType} from '../../shared/types.js';
 
 /** Separate, server-owned coordinates. The gap to the forest is never walkable. */
-export const STADIUM_BOUNDS=Object.freeze({minX:133,maxX:187,minZ:-19,maxZ:23});
+export const STADIUM_BOUNDS=Object.freeze({minX:133,maxX:205,minZ:-19,maxZ:23});
 export const STADIUM_HUB=Object.freeze({x:160,z:15,r:6.2});
-export type StadiumPenId='stadium-wolves'|'stadium-boars'|'stadium-alphas';
+export type StadiumPenId='stadium-wolves'|'stadium-boars'|'stadium-alphas'|'stadium-bears';
 export interface StadiumPen extends Position {
   readonly id:StadiumPenId;readonly name:string;readonly subtitle:string;
   readonly width:number;readonly depth:number;readonly radius:number;
-  readonly tint:string;readonly rank:'I'|'II'|'III';readonly spawnIds:readonly number[];
+  readonly tint:string;readonly rank:'I'|'II'|'III'|'IV';readonly spawnIds:readonly number[];
 }
 export const STADIUM_PENS:readonly Readonly<StadiumPen>[]=Object.freeze([
   {id:'stadium-wolves',name:'Волчий загон',subtitle:'Волки · 6 существ',x:142,z:-6,width:14,depth:16,radius:5.8,tint:'#819b94',rank:'I',spawnIds:[41,42,43,44,45,46]},
   {id:'stadium-boars',name:'Кабаний загон',subtitle:'Кабаны · 6 существ',x:160,z:-6,width:14,depth:16,radius:5.8,tint:'#b29a71',rank:'II',spawnIds:[47,48,49,50,51,52]},
   {id:'stadium-alphas',name:'Загон вожаков',subtitle:'2 вожака и 4 волка',x:178,z:-6,width:14,depth:16,radius:5.8,tint:'#9b859e',rank:'III',spawnIds:[53,54,55,56,57,58]},
+  {id:'stadium-bears',name:'Медвежий загон',subtitle:'Медведи · 6 существ',x:196,z:-6,width:14,depth:16,radius:5.8,tint:'#a68466',rank:'IV',spawnIds:[89,90,91,92,93,94]},
 ].map(p=>Object.freeze({...p,spawnIds:Object.freeze(p.spawnIds)})) as readonly Readonly<StadiumPen>[]);
 const formation:readonly (readonly [number,number])[]=[[-3,-2.2],[0,-3.7],[3,-2.2],[-3,1.8],[0,3.5],[3,1.8]];
-export const STADIUM_SPAWNS:readonly Readonly<Position & {type:MobType;spotId:StadiumPenId}>[]=Object.freeze(STADIUM_PENS.flatMap((pen,index)=>formation.map(([dx,dz],i)=>Object.freeze({type:(index===1?'boar':index===2&&i<2?'alpha':'wolf') as MobType,spotId:pen.id,x:pen.x+dx,z:pen.z+dz}))));
+export const STADIUM_SPAWNS:readonly Readonly<Position & {type:MobType;spotId:StadiumPenId}>[]=Object.freeze(STADIUM_PENS.flatMap((pen,index)=>formation.map(([dx,dz],i)=>Object.freeze({type:(index===3?'bear':index===1?'boar':index===2&&i<2?'alpha':'wolf') as MobType,spotId:pen.id,x:pen.x+dx,z:pen.z+dz}))));
 export interface Portal extends Position {readonly id:'camp-stadium'|'stadium-camp';readonly name:string;readonly range:number;readonly destination:Readonly<Position>;readonly destinationName:string}
 export const PORTALS:readonly Readonly<Portal>[]=Object.freeze([
   Object.freeze({id:'camp-stadium',name:'Стадиум',x:-4.6,z:2.9,range:1.8,destination:Object.freeze({x:160,z:14.8}),destinationName:'Стадиум'}),
@@ -36,6 +37,6 @@ export const STADIUM_PEN_WALLS:readonly Readonly<Obstacle>[]=Object.freeze(STADI
 ]).map(w=>Object.freeze(w)));
 export const STADIUM_OBSTACLES:readonly Readonly<Obstacle>[]=Object.freeze([
   ...STADIUM_PEN_WALLS,
-  {x:133.35,z:2,w:.7,d:42},{x:186.65,z:2,w:.7,d:42},
-  {x:160,z:-18.65,w:54,d:.7},{x:160,z:22.65,w:54,d:.7},
+  {x:133.35,z:2,w:.7,d:42},{x:204.65,z:2,w:.7,d:42},
+  {x:169,z:-18.65,w:72,d:.7},{x:169,z:22.65,w:72,d:.7},
 ].map(w=>Object.freeze(w)));

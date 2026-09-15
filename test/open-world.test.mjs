@@ -1,16 +1,27 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {BOUNDS,SPAWNS,MOB_TYPES,stand,distance,translate} from '../dist/public/game/location.js';
-import {WORLD_ROADS,WORLD_CLEARINGS,ROAMING_SPAWNS,locationAt} from '../dist/public/game/world-layout.js';
+import {WORLD_ROADS,WORLD_CLEARINGS,ROAMING_SPAWNS,EXTRA_ROAMING_SPAWNS,locationAt,roadDistance} from '../dist/public/game/world-layout.js';
 import {canOccupy} from '../dist/public/game/motion.js';
 import {OBSTACLES,TREE_POSITIONS} from '../dist/public/game/terrain.js';
 
 test('the region grows to 9900 square metres and every creature has a body-safe home',()=>{
   assert.equal((BOUNDS.maxX-BOUNDS.minX)*(BOUNDS.maxZ-BOUNDS.minZ),9900);
-  assert.equal(SPAWNS.filter(p=>locationAt(p)==='forest').length,41);assert.equal(ROAMING_SPAWNS.length,10);
+  assert.equal(SPAWNS.filter(p=>locationAt(p)==='forest').length,71);assert.equal(ROAMING_SPAWNS.length,10);assert.equal(EXTRA_ROAMING_SPAWNS.length,24);
   for(const spawn of SPAWNS)assert(stand(spawn.x,spawn.z,MOB_TYPES[spawn.type].radius),`blocked spawn ${spawn.x},${spawn.z}`);
   assert(TREE_POSITIONS.length<=370,'vegetation budget grew without a bound');
   for(const tree of TREE_POSITIONS.filter(t=>!t.solid))assert(tree.x<BOUNDS.minX||tree.x>BOUNDS.maxX||tree.z<BOUNDS.minZ||tree.z>BOUNDS.maxZ,'old edge forest blocks the expanded view');
+});
+
+test('appended roamers have separate safe homes in all forest quadrants away from camp and roads',()=>{
+  assert.deepEqual(SPAWNS.slice(59,83),EXTRA_ROAMING_SPAWNS);
+  assert.equal(EXTRA_ROAMING_SPAWNS.filter(p=>p.type==='bear').length,4);
+  for(let i=59;i<83;i++){
+    const home=SPAWNS[i];assert(stand(home.x,home.z,MOB_TYPES[home.type].radius),`blocked new home ${i}`);
+    assert(distance(home,{x:-1,z:0})>16,`new home ${i} crowds the camp`);
+    assert(roadDistance(home.x,home.z)>2.5,`new home ${i} crowds a trail`);
+    for(let j=0;j<i;j++)assert(distance(home,SPAWNS[j])>4.5,`homes ${i} and ${j} overlap`);
+  }
 });
 
 test('authored roads form continuously walkable loops and frontier roads allow side-by-side travel',()=>{

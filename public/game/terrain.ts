@@ -1,7 +1,7 @@
 import {STADIUM_OBSTACLES} from './stadium.js';
 import type { Obstacle } from './motion.js';
-import {WORLD_BOUNDS,WORLD_CLEARINGS,WORLD_LANDMARKS,ROAMING_SPAWNS,roadEdgeDistance} from './world-layout.js';
-import {AFK_SPOTS,AFK_SPAWNS,forestTrailDistance,withinSpot} from './afk.js';
+import {WORLD_BOUNDS,WORLD_CLEARINGS,WORLD_LANDMARKS,ROAMING_SPAWNS,EXTRA_ROAMING_SPAWNS,roadEdgeDistance} from './world-layout.js';
+import {AFK_SPOTS,AFK_SPAWNS,BEAR_AFK_SPAWNS,forestTrailDistance,withinSpot} from './afk.js';
 export interface TreePosition {x:number;z:number;s:number;solid:boolean}
 // World coordinates are metres. Only this module defines physical obstacles.
 const spawns=[{x:7.6,z:1.8},{x:10.4,z:-4},{x:12.4,z:6.4},{x:15.4,z:1.4},{x:18.2,z:-6.2},{x:20.7,z:4.9},{x:25,z:-1.2}];
@@ -27,7 +27,7 @@ for(let i=0;i<150;i++){
   if(!edge&&roadEdgeDistance(x,z)>.9)trees.push(Object.freeze({x,z,s,solid:true}));
 }
 // Place the new forest as separated groves, not concentric walls around paths.
-const protectedSpawns=[...spawns,...AFK_SPAWNS,...ROAMING_SPAWNS];
+const protectedSpawns=[...spawns,...AFK_SPAWNS,...ROAMING_SPAWNS,...EXTRA_ROAMING_SPAWNS,...BEAR_AFK_SPAWNS];
 const groves=[[-30,-31],[-26,34],[-3,-13],[9,-39],[19,-25],[34,-22],[62,-31],[65,20],[43,37],[13,11],[6,40],[-31,-3],[42,12]];
 for(let i=0;i<600;i++){
   const [cx,cz]=groves[i%groves.length],angle=random()*Math.PI*2,r=Math.sqrt(random())*9;

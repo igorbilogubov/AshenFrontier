@@ -35,7 +35,7 @@ export interface Hero extends PersistentHero {
   input: HeroInput; inputAt: number; ack: number; connected: boolean; disconnectAt: number; speedScale?: number; afk: AfkState | null;
   interactionTarget:InteractionTarget|null; shopActive:boolean;
 }
-export type MobType = 'wolf' | 'boar' | 'alpha';
+export type MobType = 'wolf' | 'boar' | 'alpha' | 'bear';
 export type MobState = 'idle' | 'chase' | 'windup' | 'recover' | 'return' | 'dead';
 export interface PublicMob extends Point {
   type: MobType; id: number; homeX: number; homeZ: number; hp: number; state: MobState; timer: number;

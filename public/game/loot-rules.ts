@@ -5,5 +5,5 @@ import type {MobType} from '../../shared/types.js';
 export const LOOT_TTL_MS=180_000;
 export const MAX_GROUND_DROPS_PER_HERO=48;
 export const PICKUP_RANGE=1.4;
-export const GEAR_CHANCE:Readonly<Record<MobType,number>>=Object.freeze({wolf:.10,boar:.10,alpha:.40});
+export const GEAR_CHANCE:Readonly<Record<MobType,number>>=Object.freeze({wolf:.10,boar:.10,bear:.10,alpha:.40});
 export const gearDrops=(type:MobType,random:()=>number)=>random()<GEAR_CHANCE[type];

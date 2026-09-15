@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {World,newHero,safeHero,persistentHero,stats} from '../dist/world.js';
 import {SKILLS,skillsForClass,legacySkillId} from '../dist/public/game/skills.js';
+import {clearPath} from '../dist/public/game/location.js';
 
 const east=Math.PI/2;
 const step=(w,n=1)=>{for(let i=0;i<n;i++)w.tick(.05,w.t+50);};
@@ -178,4 +179,23 @@ test('cancelled automatic delayed area has no impact damage or quest credit',()=
   step(w,Math.ceil(p.attack.duration*SKILLS['archer-rain'].hitFraction/.05));
   assert.equal(w.pendingAreas.length,1);p.afk=null;step(w,12);
   assert.equal(damage(mobs[0]),0);assert.equal(p.questKills,0);assert.equal(w.pendingAreas.length,0);
+});
+
+
+test('lightning miss stops the chain at the attempted target',()=>{
+  const {w,p,mobs}=fixture('mage',[[10,1.8],[11.4,1.8],[12.8,1.8]]);
+  p.mana=stats(p).maxMana;w.random=()=>.999;cast(w,p,'mage-lightning');step(w,25);
+  assert(mobs.every(m=>damage(m)===0));
+  assert.equal(w.events.filter(e=>e.type==='miss').length,1);
+  const arcs=w.events.filter(e=>e.type==='skillImpact'&&e.skillId==='mage-lightning');
+  assert.equal(arcs.length,1);assert.deepEqual([arcs[0].x,arcs[0].z],[mobs[0].x,mobs[0].z]);
+});
+
+test('lightning cannot jump through an obstacle even if both targets are visible from caster',()=>{
+  const {w,p,mobs}=fixture('mage',[[23,-2.7],[23,-4.1]]);
+  Object.assign(p,{x:20,z:-3.4,yaw:east,targetYaw:east});p.mana=stats(p).maxMana;
+  assert(clearPath(p,mobs[0])&&clearPath(p,mobs[1]));assert.equal(clearPath(mobs[0],mobs[1]),false);
+  cast(w,p,'mage-lightning');step(w,25);
+  assert(damage(mobs[0])>0);assert.equal(damage(mobs[1]),0);
+  assert.equal(w.events.filter(e=>e.type==='skillImpact'&&e.skillId==='mage-lightning').length,1);
 });

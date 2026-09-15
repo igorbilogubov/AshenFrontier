@@ -413,12 +413,16 @@ export class World{
       const hitIds=new Set<number>();let source: {x:number;z:number}=p;
       for(let index=0;index<skill!.maxTargets;index++){
         const reach=index===0?skill!.range:skill!.radius!;
-        const next=this.mobs.filter(m=>m.state!=='dead'&&m.state!=='return'&&!hitIds.has(m.id)&&distance(source,m)<=reach&&clearPath(p,m)&&(index>0||inStrike(p,m,yaw,reach,.8)))
+        const next=this.mobs.filter(m=>m.state!=='dead'&&m.state!=='return'&&!hitIds.has(m.id)&&distance(source,m)<=reach&&clearPath(p,m)&&clearPath(source,m)&&(index>0||inStrike(p,m,yaw,reach,.8)))
           .sort((left,right)=>distance(source,left)-distance(source,right)||left.id-right.id)[0];
         if(!next)break;
         if(a.automatic&&!p.afk)break;
-        hitIds.add(next.id);this.strikeMob(p,next,attackPower*skill!.damageScale*.72**index,a.automatic===true);
-        this.emit('skillImpact',{x:next.x,z:next.z,skillId,caster:p.id,attackId:a.id,yaw,from:{x:source.x,z:source.z}});source=next;
+        hitIds.add(next.id);
+        const struck=this.strikeMob(p,next,attackPower*skill!.damageScale*.72**index,a.automatic===true);
+        // The cosmetic arc can reach a missed target, but current cannot jump from it.
+        this.emit('skillImpact',{x:next.x,z:next.z,skillId,caster:p.id,attackId:a.id,yaw,from:{x:source.x,z:source.z}});
+        if(!struck)break;
+        source=next;
       }
     }else if(skillId==='archer-rain'||skillId==='mage-meteor'){
       const distanceAhead=skill!.range*.75,center={x:p.x+Math.sin(yaw)*distanceAhead,z:p.z+Math.cos(yaw)*distanceAhead};

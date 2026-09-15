@@ -1,8 +1,10 @@
-import {WORLD_BOUNDS,WORLD_CLEARINGS,WORLD_ROADS,WORLD_LANDMARKS} from './world-layout.js';
+import {WORLD_BOUNDS,WORLD_CLEARINGS,WORLD_ROADS,WORLD_LANDMARKS,locationAt} from './world-layout.js';
+import {STADIUM_BOUNDS,STADIUM_PENS,STADIUM_HUB} from './stadium.js';
 import type {Position} from './motion.js';
 
 /** Draw before actors/AFK rings; coordinates match scene.mapPosition's padding. */
-export function drawWorldMapBackdrop(ctx:CanvasRenderingContext2D,width:number,height:number){
+export function drawWorldMapBackdrop(ctx:CanvasRenderingContext2D,width:number,height:number,position:Position={x:0,z:0}){
+  if(locationAt(position)==='stadium'){drawStadiumMap(ctx,width,height);return;}
   const sx=(width-20)/(WORLD_BOUNDS.maxX-WORLD_BOUNDS.minX),sz=(height-16)/(WORLD_BOUNDS.maxZ-WORLD_BOUNDS.minZ);
   const at=(p:Position)=>({x:10+(p.x-WORLD_BOUNDS.minX)*sx,y:8+(p.z-WORLD_BOUNDS.minZ)*sz});
   ctx.save();ctx.clearRect(0,0,width,height);ctx.fillStyle='#1c3027';ctx.fillRect(0,0,width,height);
@@ -13,5 +15,20 @@ export function drawWorldMapBackdrop(ctx:CanvasRenderingContext2D,width:number,h
   for(const landmark of WORLD_LANDMARKS){const p=at(landmark);ctx.strokeRect(p.x-2,p.y-2,4,4);}
   const camp=at({x:-1,z:0});ctx.fillStyle='#d6c39c';ctx.fillRect(camp.x-2,camp.y-2,4,4);
   const ruin=at({x:25,z:-1.2});ctx.strokeStyle='#b59c74';ctx.strokeRect(ruin.x-3,ruin.y-3,6,6);
+  ctx.restore();
+}
+
+function drawStadiumMap(ctx:CanvasRenderingContext2D,width:number,height:number){
+  const sx=(width-20)/(STADIUM_BOUNDS.maxX-STADIUM_BOUNDS.minX),sz=(height-16)/(STADIUM_BOUNDS.maxZ-STADIUM_BOUNDS.minZ);
+  const at=(p:Position)=>({x:10+(p.x-STADIUM_BOUNDS.minX)*sx,y:8+(p.z-STADIUM_BOUNDS.minZ)*sz});
+  ctx.save();ctx.clearRect(0,0,width,height);ctx.fillStyle='#303d3a';ctx.fillRect(0,0,width,height);
+  ctx.strokeStyle='#9c9a80';ctx.lineWidth=1.2;ctx.strokeRect(10,8,width-20,height-16);
+  for(const pen of STADIUM_PENS){
+    const p=at(pen),left=p.x-pen.width*sx/2,top=p.y-pen.depth*sz/2;
+    ctx.fillStyle=pen.tint;ctx.globalAlpha=.35;ctx.fillRect(left,top,pen.width*sx,pen.depth*sz);ctx.globalAlpha=1;
+    ctx.strokeStyle=pen.tint;ctx.beginPath();ctx.moveTo(p.x-2.4*sx,top+pen.depth*sz);ctx.lineTo(left,top+pen.depth*sz);ctx.lineTo(left,top);ctx.lineTo(left+pen.width*sx,top);ctx.lineTo(left+pen.width*sx,top+pen.depth*sz);ctx.lineTo(p.x+2.4*sx,top+pen.depth*sz);ctx.stroke();
+    ctx.fillStyle='#e1d6b8';ctx.font='bold 9px Georgia';ctx.textAlign='center';ctx.fillText(pen.rank,p.x,top-3);
+  }
+  const hub=at(STADIUM_HUB);ctx.strokeStyle='#bdac7b';ctx.beginPath();ctx.ellipse(hub.x,hub.y,STADIUM_HUB.r*sx,STADIUM_HUB.r*sz,0,0,Math.PI*2);ctx.stroke();
   ctx.restore();
 }

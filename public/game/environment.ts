@@ -3,12 +3,13 @@ import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 import {box,cylinder,ellipsoid,joint,mesh,materials} from './models.js';
 import {BOUNDS,SPAWNS,CAMERA} from './location.js';
 import {OBSTACLES,TREE_POSITIONS} from './terrain.js';
-import {AFK_SPOTS,forestTrailDistance,withinSpot} from './afk.js';
-import {WORLD_CLEARINGS,WORLD_LANDMARKS,roadEdgeDistance} from './world-layout.js';
+import {AFK_SPOTS as ALL_AFK_SPOTS,forestTrailDistance,withinSpot} from './afk.js';
+import {WORLD_CLEARINGS,WORLD_LANDMARKS,roadEdgeDistance,locationAt} from './world-layout.js';
 import {surfaceMaterial} from './forms.js';
 import {pineGeometry,grassGeometry,fernGeometry,leafGeometry,windMaterial} from './vegetation.js';
 
 export function createEnvironment(scene:T.Scene){
+  const AFK_SPOTS=ALL_AFK_SPOTS.filter(spot=>locationAt(spot)==='forest');
   let seed=71493;const random=()=>{seed=(1664525*seed+1013904223)>>>0;return seed/4294967296;};
   const material=(color:T.ColorRepresentation,roughness=.95)=>new T.MeshStandardMaterial({color,roughness});
   const wood=surfaceMaterial('#574534',{grain:.16,frequency:24}),timber=surfaceMaterial('#3c332a',{grain:.18,frequency:18}),plaster=surfaceMaterial('#aaa18b',{grain:.075,frequency:35}),roofMats=['#3c5058','#496069','#526a70','#3b535b'].map(c=>surfaceMaterial(c,{grain:.07,frequency:26}));

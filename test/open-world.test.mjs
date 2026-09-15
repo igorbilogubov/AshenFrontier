@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {BOUNDS,SPAWNS,MOB_TYPES,stand,distance,translate} from '../dist/public/game/location.js';
-import {WORLD_ROADS,WORLD_CLEARINGS,ROAMING_SPAWNS} from '../dist/public/game/world-layout.js';
+import {WORLD_ROADS,WORLD_CLEARINGS,ROAMING_SPAWNS,locationAt} from '../dist/public/game/world-layout.js';
 import {canOccupy} from '../dist/public/game/motion.js';
 import {OBSTACLES,TREE_POSITIONS} from '../dist/public/game/terrain.js';
 
 test('the region grows to 9900 square metres and every creature has a body-safe home',()=>{
   assert.equal((BOUNDS.maxX-BOUNDS.minX)*(BOUNDS.maxZ-BOUNDS.minZ),9900);
-  assert.equal(SPAWNS.length,41);assert.equal(ROAMING_SPAWNS.length,10);
+  assert.equal(SPAWNS.filter(p=>locationAt(p)==='forest').length,41);assert.equal(ROAMING_SPAWNS.length,10);
   for(const spawn of SPAWNS)assert(stand(spawn.x,spawn.z,MOB_TYPES[spawn.type].radius),`blocked spawn ${spawn.x},${spawn.z}`);
   assert(TREE_POSITIONS.length<=370,'vegetation budget grew without a bound');
   for(const tree of TREE_POSITIONS.filter(t=>!t.solid))assert(tree.x<BOUNDS.minX||tree.x>BOUNDS.maxX||tree.z<BOUNDS.minZ||tree.z>BOUNDS.maxZ,'old edge forest blocks the expanded view');
@@ -62,7 +62,7 @@ test('the whole region connects to camp through open space, including all spawns
   const free=walkable.reduce((a,b)=>a+b,0);
   assert(free/walkable.length>.9,'world is mostly filled with obstacles');
   assert(queue.length/free>.99,'open world contains inaccessible islands');
-  for(const target of [...SPAWNS,...WORLD_CLEARINGS.filter(c=>c.id!=='camp'),{x:0,z:2}])assert(visited[cell(target)],`unreachable ${target.x},${target.z}`);
+  for(const target of [...SPAWNS.filter(p=>locationAt(p)==='forest'),...WORLD_CLEARINGS.filter(c=>c.id!=='camp'),{x:0,z:2}])assert(visited[cell(target)],`unreachable ${target.x},${target.z}`);
 });
 
 
@@ -70,7 +70,7 @@ test('spatial collision lookup exactly matches the shared full obstacle scan',()
   for(let x=BOUNDS.minX-.5;x<=BOUNDS.maxX+.5;x+=1.3)for(let z=BOUNDS.minZ-.5;z<=BOUNDS.maxZ+.5;z+=1.3){
     for(const radius of [0,.29,.46,1,1.5])assert.equal(stand(x,z,radius),canOccupy(x,z,OBSTACLES,radius,BOUNDS),`collision mismatch ${x},${z},r=${radius}`);
   }
-  for(const obstacle of OBSTACLES)for(const offset of [-1.01,-1,-.46,0,.46,1,1.01]){
+  for(const obstacle of OBSTACLES.filter(p=>locationAt(p)==='forest'))for(const offset of [-1.01,-1,-.46,0,.46,1,1.01]){
     for(const radius of [.29,.46,1])assert.equal(stand(obstacle.x+offset,obstacle.z,radius),canOccupy(obstacle.x+offset,obstacle.z,OBSTACLES,radius,BOUNDS));
   }
 });

@@ -2,7 +2,8 @@ import {canOccupy,turnTowards,gaitProfile} from './motion.js';
 import type {Position} from './motion.js';
 import {nearbyObstacles} from './terrain.js';
 import {AFK_SPAWNS} from './afk.js';
-import {WORLD_BOUNDS,ROAMING_SPAWNS} from './world-layout.js';
+import {STADIUM_SPAWNS,stadiumSafe} from './stadium.js';
+import {WORLD_BOUNDS,ROAMING_SPAWNS,boundsForPosition} from './world-layout.js';
 import type {AfkSpotId} from './afk.js';
 export {AFK_SPOTS,afkSpotAt,withinSpot} from './afk.js';
 export type {AfkSpot,AfkSpotId} from './afk.js';
@@ -28,10 +29,11 @@ export const SPAWNS:readonly Readonly<Position & {type:MobType;spotId?:AfkSpotId
   {type:'alpha',x:25,z:-1.2},
   ...AFK_SPAWNS,
   ...ROAMING_SPAWNS,
+  ...STADIUM_SPAWNS,
 ]);
-export const safe=(p:Position)=>Math.hypot(p.x-CAMP.x,p.z-CAMP.z)<CAMP.r;
+export const safe=(p:Position)=>Math.hypot(p.x-CAMP.x,p.z-CAMP.z)<CAMP.r||stadiumSafe(p);
 
-export const stand=(x:number,z:number,r=.29)=>Number.isFinite(x)&&Number.isFinite(z)&&canOccupy(x,z,nearbyObstacles(x,z,r),r,BOUNDS);
+export const stand=(x:number,z:number,r=.29)=>Number.isFinite(x)&&Number.isFinite(z)&&canOccupy(x,z,nearbyObstacles(x,z,r),r,boundsForPosition({x,z}));
 export const distance=(a:Position,b:Position)=>Math.hypot(a.x-b.x,a.z-b.z);
 export function clearPath(a:Position,b:Position){
   const steps=Math.ceil(distance(a,b)/.18);

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {World,newHero,safeHero,persistentHero,makeLoot,stats} from '../dist/world.js';
-import {AFK_SPOTS,withinSpot,clearPath,stand} from '../dist/public/game/location.js';
+import {AFK_SPOTS,MOB_TYPES,withinSpot,clearPath,stand} from '../dist/public/game/location.js';
 
 const step=(w,n=1)=>{for(let i=0;i<n;i++)w.tick(.05,w.t+50);};
 function fixture(classId='warrior',spot=AFK_SPOTS[0]){
@@ -116,7 +116,7 @@ test('all six members of each spot respawn at their homes after sixteen seconds;
   for(const spot of AFK_SPOTS)for(const id of spot.spawnIds){const m=w.mobs.find(m=>m.id===id);w.kill(m);assert.equal(m.timer,16);assert.equal(m.state,'dead');}
   const boss=w.mobs[6];w.kill(boss);assert.equal(boss.timer,40);
   w.remove(p.id);for(let i=0;i<161;i++)w.tick(.1,w.t+100);
-  for(const spot of AFK_SPOTS)for(const id of spot.spawnIds){const m=w.mobs.find(m=>m.id===id);assert.equal(m.state,'idle');assert.equal(m.hp,m.type==='wolf'?60:90);assert.equal(m.x,m.homeX);assert.equal(m.z,m.homeZ);}
+  for(const spot of AFK_SPOTS)for(const id of spot.spawnIds){const m=w.mobs.find(m=>m.id===id);assert.equal(m.state,'idle');assert.equal(m.hp,MOB_TYPES[m.type].hp);assert.equal(m.x,m.homeX);assert.equal(m.z,m.homeZ);}
   assert.equal(boss.state,'dead');assert.deepEqual({gold:p.gold,xp:p.xp,kills:p.kills},original);
 });
 

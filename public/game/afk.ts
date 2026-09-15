@@ -1,8 +1,10 @@
 import type {Position} from './motion.js';
 import {roadDistance} from './world-layout.js';
+import {STADIUM_PENS} from './stadium.js';
+import type {StadiumPenId} from './stadium.js';
 import type {MobType} from '../../shared/types.js';
 
-export type AfkSpotId='wolf-den'|'boar-clearing'|'northern-stones'|'eastern-logging';
+export type AfkSpotId=StadiumPenId|'wolf-den'|'boar-clearing'|'northern-stones'|'eastern-logging';
 export interface AfkSpot extends Position {
   readonly id:AfkSpotId;
   readonly name:string;
@@ -11,11 +13,13 @@ export interface AfkSpot extends Position {
 }
 // Numeric mob ids are stable indices in location.SPAWNS. The first seven remain
 // the original route and watchpost boss; the following twenty-four belong to four spots.
+// Stadium mobs are appended after the ten roaming forest creatures, preserving IDs.
 export const AFK_SPOTS:readonly Readonly<AfkSpot>[]=Object.freeze([
   Object.freeze({id:'wolf-den',name:'Волчья ложбина',x:12.7,z:-8.2,radius:3.5,spawnIds:Object.freeze([7,8,9,10,11,12])}),
   Object.freeze({id:'boar-clearing',name:'Кабанья поляна',x:23,z:9.3,radius:3.5,spawnIds:Object.freeze([13,14,15,16,17,18])}),
   Object.freeze({id:'northern-stones',name:'Северная стая',x:-14,z:-27,radius:4.6,spawnIds:Object.freeze([19,20,21,22,23,24])}),
   Object.freeze({id:'eastern-logging',name:'Дальний лесоповал',x:49,z:23,radius:4.6,spawnIds:Object.freeze([25,26,27,28,29,30])}),
+  ...STADIUM_PENS,
 ]);
 export const AFK_SPAWNS:readonly Readonly<Position & {type:MobType;spotId:AfkSpotId}>[]=Object.freeze([
   ...[[11,-7],[14.4,-6.8],[15,-8.6],[13.5,-10.4],[11.6,-10.2],[10.3,-8.7]].map(([x,z])=>Object.freeze({type:'wolf' as const,spotId:'wolf-den' as const,x,z})),

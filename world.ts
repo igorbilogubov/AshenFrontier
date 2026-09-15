@@ -7,6 +7,8 @@ import {BOUNDS,CAMP,SPAWNS,MOB_TYPES,WEAPONS,AFK_SPOTS,afkSpotAt,withinSpot,safe
 import {angleDelta,turnTowards,inStrike} from './public/game/motion.js';
 import {SKILLS,skillsForClass,legacySkillId} from './public/game/skills.js';
 import {LOOT_TTL_MS,MAX_GROUND_DROPS_PER_HERO,PICKUP_RANGE,gearDrops} from './public/game/loot-rules.js';
+import {portalById} from './public/game/stadium.js';
+import {locationAt,sameLocation} from './public/game/world-layout.js';
 import {SHOP,shopPrice,sellPrice} from './public/game/shop.js';
 export {CLASSES,EQUIPMENT_SLOTS,CAMP,BOUNDS};
 export const SAVE_VERSION=3;
@@ -146,6 +148,28 @@ export class World{
     if(distance(p,SHOP)<=SHOP.range)return this.openShop(p);
     this.stopInteraction(p);p.interactionTarget={kind:'vendor',id:SHOP.id};p.input={...p.input,x:0,z:0,aim:null};return true;
   }
+  portalAvailable(p:Hero){
+    return p.connected&&!p.dead&&!p.attack&&p.combatUntil<=this.t&&!this.mobs.some(m=>m.target===p.id&&['chase','windup','recover'].includes(m.state));
+  }
+  usePortal(p:Hero,id:unknown){
+    const portal=portalById(id);
+    if(!portal||!sameLocation(p,portal)||!this.portalAvailable(p)||distance(p,portal)>portal.range||!clearPath(p,portal))return false;
+    if(!stand(portal.destination.x,portal.destination.z))return false;
+    this.stopAfk(p);this.stopInteraction(p);p.shopActive=false;
+    this.projectiles=this.projectiles.filter(projectile=>projectile.owner!==p.id);
+    this.pendingAreas=this.pendingAreas.filter(area=>area.caster!==p.id);
+    Object.assign(p,{...portal.destination,yaw:Math.PI,targetYaw:Math.PI,vx:0,vz:0,attack:null,moveBlend:0,runBlend:0,gait:0,inputAt:0,input:{...p.input,x:0,z:0,aim:null}});
+    this.emit('portal',{portalId:portal.id,location:locationAt(p)},p.id);return true;
+  }
+  startPortal(p:Hero,id:unknown){
+    const portal=portalById(id);
+    if(!portal||!sameLocation(p,portal)||!p.connected||p.dead)return false;
+    if(!this.portalAvailable(p)){this.notice(p,'Портал доступен вне боя. Сначала оторвитесь от врагов');return false;}
+    if(!clearPath(p,portal)){this.notice(p,'К порталу нет прямого прохода');return false;}
+    this.stopAfk(p);this.stopInteraction(p);p.shopActive=false;
+    if(distance(p,portal)<=portal.range)return this.usePortal(p,portal.id);
+    p.interactionTarget={kind:'portal',id:portal.id};p.input={...p.input,x:0,z:0,aim:null};return true;
+  }
   buy(p:Hero,definitionId:unknown,requestId:unknown){
     if(!p.shopActive||!this.vendorAvailable(p))return false;
     const price=shopPrice(definitionId);
@@ -166,10 +190,11 @@ export class World{
   }
   interactionInput(p:Hero){
     const target=p.interactionTarget;if(!target)return {x:0,z:0,aim:null};
-    const point=target.kind==='vendor'?SHOP:this.groundDrop(p,target.id);
+    const point=target.kind==='vendor'?SHOP:target.kind==='portal'?portalById(target.id):this.groundDrop(p,target.id);
     if(!point||!p.connected||p.dead||p.attack||!clearPath(p,point)){this.stopInteraction(p);return {x:0,z:0,aim:null};}
-    const limit=target.kind==='vendor'?SHOP.range:PICKUP_RANGE,d=distance(p,point);
-    if(d<=limit){if(target.kind==='vendor')this.openShop(p);else this.pickUp(p,target.id);return {x:0,z:0,aim:null};}
+    if(target.kind==='portal'&&(!sameLocation(p,point)||!this.portalAvailable(p))){this.stopInteraction(p);return {x:0,z:0,aim:null};}
+    const limit=target.kind==='vendor'?SHOP.range:target.kind==='portal'?portalById(target.id)!.range:PICKUP_RANGE,d=distance(p,point);
+    if(d<=limit){if(target.kind==='vendor')this.openShop(p);else if(target.kind==='portal')this.usePortal(p,target.id);else this.pickUp(p,target.id);return {x:0,z:0,aim:null};}
     const yaw=Math.atan2(point.x-p.x,point.z-p.z);
     return {x:Math.sin(yaw),z:Math.cos(yaw),aim:yaw};
   }
@@ -184,7 +209,7 @@ export class World{
   startAfk(p: Hero){
     if(!p.connected||p.dead){this.notice(p,'Автоохота доступна только живому подключённому герою');return false;}
     const spot=afkSpotAt(p);
-    if(!spot||!withinSpot(p,spot,-.46)){this.notice(p,'Войдите в отмеченный лесной спот для автоохоты');return false;}
+    if(!spot||!withinSpot(p,spot,-.46)){this.notice(p,'Войдите в охотничий спот или загон Стадиума для автоохоты');return false;}
     if(backpackItems(p).length>=BAG_CAPACITY&&p.pendingItems.length>=BAG_CAPACITY){this.notice(p,'Рюкзак и очередь добычи заполнены');return false;}
     p.afk={spotId:spot.id,targetId:null};p.input={...p.input,x:0,z:0,aim:null};p.vx=p.vz=0;
     return true;
@@ -264,6 +289,7 @@ export class World{
     if(msg.type==='pickup'){this.startPickup(p,msg.id);return;}
     if(msg.type==='interact'){this.startVendor(p,msg.npcId);return;}
     if(msg.type==='cancelInteraction'){this.stopInteraction(p);return;}
+    if(msg.type==='portal'){this.startPortal(p,msg.portalId);return;}
     if(msg.type==='buy'){this.buy(p,msg.definitionId,msg.requestId);return;}
     if(msg.type==='run'&&typeof msg.running==='boolean'&&!p.dead){p.running=msg.running;return;}
     if(msg.type==='weapon'&&isWeaponId(msg.weapon)&&!p.attack&&!p.dead){const weapon=p.items.find(item=>item.id===p.equipment.weapon);if(weapon?.definitionId){this.notice(p,'Вид оружия определяется надетым предметом');return;}p.weapon=msg.weapon;return;}
@@ -350,7 +376,7 @@ export class World{
     for(const [id,contribution] of m.contributors){
       const p=this.players.get(id);if(!p||p.dead||this.t-contribution.at>20000||distance(p,m)>12||contribution.damage<cfg.hp*.05)continue;
       const automatic=contribution.automatic===true;
-      p.kills++;if(!automatic)p.questKills++;p.xp+=cfg.xp;if(m.type==='alpha')p.boss=true;
+      p.kills++;if(!automatic&&locationAt(m)==='forest')p.questKills++;p.xp+=cfg.xp;if(!automatic&&m.id===6&&locationAt(m)==='forest')p.boss=true;
       while(p.xp>=stats(p).xpNeeded){p.xp-=stats(p).xpNeeded;p.level++;p.statRevision++;this.emit('level',{level:p.level,points:5},p.id);}
       this.addGroundDrop(p.id,{id:randomUUID(),kind:'gold',x:m.x,z:m.z,amount:cfg.coins,expiresAt:this.t+LOOT_TTL_MS});
       if(gearDrops(m.type,this.random)){
@@ -566,6 +592,6 @@ export class World{
   }
   snapshot(forId: string): WorldSnapshot{
     const p=this.players.get(forId);
-    return {t:this.t,players:[...this.players.values()].map(p=>({id:p.id,name:p.name,classId:p.classId,x:p.x,z:p.z,yaw:p.yaw,weapon:p.weapon,hp:p.hp,maxHp:stats(p).maxHp,level:p.level,dead:p.dead,hurt:p.hurt,attack:p.attack,moveBlend:p.moveBlend,runBlend:p.runBlend,gait:p.gait,vx:p.vx,vz:p.vz,connected:p.connected,appearance:equipmentAppearance(p)})),mobs:this.mobs.map(({contributors,patrol,slowUntil,slow,...m})=>({...m,slow:Math.max(0,((slowUntil??0)-this.t)/1000)})),projectiles:this.projectiles.map(({damage,aoe,maxTargets,hitIds,pierce,damageScaleOnPierce,slowMs,automatic,...b})=>b),groundLoot:this.groundLoot.filter(drop=>drop.owner===forId).map(({owner,...drop})=>drop),self:p?{...stats(p),...persistentHero(p),appearance:equipmentAppearance(p),attackPower:stats(p).attack,targetYaw:p.targetYaw,vx:p.vx,vz:p.vz,hurt:p.hurt,gait:p.gait,moveBlend:p.moveBlend,runBlend:p.runBlend,ack:p.ack,afk:p.afk,interactionTarget:p.interactionTarget,shopActive:p.shopActive}:null,events:this.events.filter(e=>!e.owner||e.owner===forId)};
+    return {t:this.t,players:[...this.players.values()].filter(other=>!p||sameLocation(p,other)).map(p=>({id:p.id,name:p.name,classId:p.classId,x:p.x,z:p.z,yaw:p.yaw,weapon:p.weapon,hp:p.hp,maxHp:stats(p).maxHp,level:p.level,dead:p.dead,hurt:p.hurt,attack:p.attack,moveBlend:p.moveBlend,runBlend:p.runBlend,gait:p.gait,vx:p.vx,vz:p.vz,connected:p.connected,appearance:equipmentAppearance(p)})),mobs:this.mobs.filter(m=>!p||sameLocation(p,m)).map(({contributors,patrol,slowUntil,slow,...m})=>({...m,slow:Math.max(0,((slowUntil??0)-this.t)/1000)})),projectiles:this.projectiles.filter(b=>!p||sameLocation(p,b)).map(({damage,aoe,maxTargets,hitIds,pierce,damageScaleOnPierce,slowMs,automatic,...b})=>b),groundLoot:this.groundLoot.filter(drop=>drop.owner===forId&&(!p||sameLocation(p,drop))).map(({owner,...drop})=>drop),self:p?{...stats(p),...persistentHero(p),appearance:equipmentAppearance(p),attackPower:stats(p).attack,targetYaw:p.targetYaw,vx:p.vx,vz:p.vz,hurt:p.hurt,gait:p.gait,moveBlend:p.moveBlend,runBlend:p.runBlend,ack:p.ack,afk:p.afk,interactionTarget:p.interactionTarget,shopActive:p.shopActive}:null,events:this.events.filter(e=>(!e.owner||e.owner===forId)&&(!p||!('x' in e&&'z' in e)||sameLocation(p,e)))};
   }
 }

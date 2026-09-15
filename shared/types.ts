@@ -29,7 +29,7 @@ export interface PersistentHero extends Point {
 }
 export interface AfkState { spotId: string; targetId: number | null }
 export interface GroundDrop extends Point { id:string; kind:'item'|'gold'; item?:Item; amount?:number; expiresAt:number }
-export interface InteractionTarget { kind:'loot'|'vendor'; id:string }
+export interface InteractionTarget { kind:'loot'|'vendor'|'portal'; id:string }
 export interface Hero extends PersistentHero {
   targetYaw: number; vx: number; vz: number; hurt: number; gait: number; moveBlend: number; runBlend: number;
   input: HeroInput; inputAt: number; ack: number; connected: boolean; disconnectAt: number; speedScale?: number; afk: AfkState | null;
@@ -57,6 +57,7 @@ export interface EventPayloads {
   miss: Point & { id: number }; level: { level: number; points: number }; item: { name: string; pending: boolean };
   kill: { id: number; name: string; xp: number }; loot: Point & { id: number; amount: number };
   shopOpen:{npcId:string};
+  portal:{portalId:string;location:'forest'|'stadium'};
   skillImpact: Point & { skillId: SkillId; caster: string; attackId: number; yaw: number; phase?: 'warning' | 'impact'; delay?: number; radius?: number; from?: Point };
 }
 export type WorldEvent = { [K in keyof EventPayloads]: { type: K; owner?: string } & EventPayloads[K] }[keyof EventPayloads];
@@ -69,6 +70,7 @@ export type ClientCommand =
   | { type: 'equip' | 'unequip' | 'sell'; id: string } | { type: 'allocateStats'; revision: number; points: Partial<Attributes> }
   | {type:'pickup';id:string} | {type:'interact';npcId:string} | {type:'cancelInteraction'}
   | {type:'buy';definitionId:string;requestId?:string}
+  | {type:'portal';portalId:string}
   | { type: 'resetStats'; revision: number };
 export type ClientMessage = ClientCommand | { type: 'join'; protocol: 2; name: string; classId: ClassId; token?: string | null } | { type: 'chat'; text: string } | { type: 'ping'; t: number };
 export type ServerMessage =

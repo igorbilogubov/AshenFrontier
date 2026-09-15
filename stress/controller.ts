@@ -12,6 +12,10 @@ import type {Hero,ServerMessage,ClientMessage,SelfSnapshot} from '../shared/type
 import {isRecord} from '../shared/types.js';
 import {distribution} from '../public/game/performance-metrics.js';
 import {AFK_SPOTS} from '../public/game/afk.js';
+import {locationAt} from '../public/game/world-layout.js';
+// Keep the existing benchmark profile on its four forest spots. The Stadium
+// is a separate region and would change both visible load and target difficulty.
+const FOREST_AFK_SPOTS=AFK_SPOTS.filter(spot=>locationAt(spot)==='forest');
 import {skillsForClass} from '../public/game/skills.js';
 
 interface Bot {socket:WebSocket;id:string;token:string|null;seq:number;state:SelfSnapshot|null;index:number;nextSkill:0|1}
@@ -149,7 +153,7 @@ class StressController {
       hero.afk=null;
       const scenarioIndex=playerIndex++;
       if(mode==='afk'){
-        const spot=AFK_SPOTS[scenarioIndex%AFK_SPOTS.length],angle=scenarioIndex*2.399;
+        const spot=FOREST_AFK_SPOTS[scenarioIndex%FOREST_AFK_SPOTS.length],angle=scenarioIndex*2.399;
         hero.x=spot.x+Math.sin(angle)*.9;hero.z=spot.z+Math.cos(angle)*.9;
         hero.level=10;
         hero.allocatedStats=hero.classId==='warrior'?{strength:20,dexterity:10,vitality:20,energy:0}:hero.classId==='archer'?{strength:10,dexterity:20,vitality:20,energy:0}:{strength:0,dexterity:10,vitality:20,energy:20};

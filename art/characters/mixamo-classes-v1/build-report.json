@@ -1,0 +1,16 @@
+{
+  "archer": {
+    "source": "erika-archer-tpose.fbx",
+    "bones": 67,
+    "triangles": 20526,
+    "glbBytes": 3222600,
+    "unweighted": 0
+  },
+  "mage": {
+    "source": "dreyar-tpose.fbx",
+    "bones": 67,
+    "triangles": 14235,
+    "glbBytes": 1928396,
+    "unweighted": 0
+  }
+}

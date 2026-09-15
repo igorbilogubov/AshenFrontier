@@ -11,11 +11,12 @@ export type WarriorClip=typeof CLIP_NAMES[number];
 type AttackClip='Attack_Sword_1'|'Attack_Sword_2';
 const IMPACT_PHASE={Attack_Sword_1:.5,Attack_Sword_2:.445};
 
-let assetPromise:Promise<GLTF>|undefined;
-export async function loadWarrior(){
-  assetPromise??=new GLTFLoader().loadAsync(CHARACTER_URL);
-  const asset=await assetPromise;
-  return createAnimatedWarrior({...asset,scene:clone(asset.scene)});
+export const CHARACTER_URLS:Record<ClassId,string>={warrior:CHARACTER_URL,archer:new URL('./characters/ashen-archer-v1.glb',import.meta.url).href,mage:new URL('./characters/ashen-mage-v1.glb',import.meta.url).href};
+const assetPromises=new Map<ClassId,Promise<GLTF>>();
+export async function loadWarrior(classId:ClassId='warrior'){
+  let promise=assetPromises.get(classId);if(!promise){promise=new GLTFLoader().loadAsync(CHARACTER_URLS[classId]);assetPromises.set(classId,promise);}
+  try{const asset=await promise;return createAnimatedWarrior({...asset,scene:clone(asset.scene)},classId);}
+  catch(error){assetPromises.delete(classId);throw error;}
 }
 
 
@@ -39,7 +40,7 @@ function shareCharacterSkeletons(model:T.Object3D){
 }
 
 // Exported separately so animation/respawn transitions can be tested on the real asset.
-export function createAnimatedWarrior(gltf:{scene:T.Object3D;animations:T.AnimationClip[]}){
+export function createAnimatedWarrior(gltf:{scene:T.Object3D;animations:T.AnimationClip[]},classId:ClassId='warrior'){
   const root=new T.Group();root.name='Warrior';
   const model=gltf.scene;shareCharacterSkeletons(model);model.scale.setScalar(1.12);root.add(model);
   contactShadow(root,1.05,.84);
@@ -49,6 +50,8 @@ export function createAnimatedWarrior(gltf:{scene:T.Object3D;animations:T.Animat
     o.frustumCulled=false;
     for(const m of Array.isArray(o.material)?o.material:[o.material]){
       if(m instanceof T.MeshStandardMaterial&&m.map)m.map.anisotropy=4;
+      if(m instanceof T.MeshStandardMaterial&&m.name.startsWith('Traveller_Leather_')){m.color.set('#ac9475');m.metalness=0;m.roughness=.94;}
+      if(m instanceof T.MeshStandardMaterial&&m.name==='Traveller_Undercloth'){m.color.set('#77716a');m.metalness=0;m.roughness=.92;}
       if(m instanceof T.MeshStandardMaterial&&(m.name==='Weathered_Paladin_Steel'||m.name==='Traveller_Textured_Leather')&&!tuned.has(m)){
         // The source diffuse includes strong baked shading; compensate for the overhead camera.
         m.color.multiplyScalar(1.6);m.metalness=m.name==='Traveller_Textured_Leather'?0:.25;m.roughness=m.name==='Traveller_Textured_Leather'?.9:.6;m.normalScale.setScalar(.7);tuned.add(m);
@@ -98,7 +101,7 @@ export function createAnimatedWarrior(gltf:{scene:T.Object3D;animations:T.Animat
     const heavy=modular&&(appearance.armor==='watch-armor'||appearance.armor==='legacy');
     const light=modular&&appearance.armor==='wanderer-armor';
     show('Traveller_Limbs',light);show('Traveller_Cape',light);show('Traveller_Coif',modular&&appearance.helmet==='wanderer-hood');
-    show('Base_Body',modular&&!heavy&&!light);show('Base_Head',modular&&!['watch-helm','wanderer-hood','legacy'].includes(appearance.helmet??''));show('Base_Feet',modular&&!['watch-boots','wanderer-boots','legacy'].includes(appearance.boots??''));
+    show('Base_Body',modular&&!heavy&&!light);show('Base_Head',modular&&!['watch-helm','legacy'].includes(appearance.helmet??''));show('Base_Feet',modular&&!['watch-boots','wanderer-boots','legacy'].includes(appearance.boots??''));
     show('Traveller_Armor',modular&&appearance.armor==='wanderer-armor');show('Traveller_Hood',modular&&appearance.helmet==='wanderer-hood');show('Traveller_Boots',modular&&appearance.boots==='wanderer-boots');
     show('Armor_Body',!modular||heavy);show('Cape',!modular||heavy);show('Helmet',!modular||appearance.helmet==='watch-helm'||appearance.helmet==='legacy');show('Boots',!modular||appearance.boots==='watch-boots'||appearance.boots==='legacy');
     show('Copper_Ring',modular&&!!appearance.ring);show('Ember_Amulet',modular&&!!appearance.amulet);
@@ -107,7 +110,7 @@ export function createAnimatedWarrior(gltf:{scene:T.Object3D;animations:T.Animat
     sword!.visible=classId==='warrior'&&armed&&!watch&&weapon!=='axe';axe!.visible=classId==='warrior'&&armed&&weapon==='axe';
     if(buckler)buckler.visible=classId==='warrior'&&armed;bow.visible=classId==='archer';staff.visible=classId==='mage';
   }
-  equipment('sword');
+  equipment('sword',classId);
   function reset(){
     lastAttack=null;wasDead=false;deathAge=0;hitAge=1;lastHurt=0;hitAction.weight=0;
     for(const name of CLIP_NAMES){weights[name]=name==='Idle'?1:0;actions[name].time=0;actions[name].setEffectiveWeight(weights[name]);}

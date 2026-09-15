@@ -1,7 +1,7 @@
 {
   "generator": "Blender 5.2.1 LTS",
   "bones": 67,
-  "glbBytes": 4803032,
+  "glbBytes": 5944752,
   "meshes": [
     {
       "name": "Helmet",
@@ -39,31 +39,6 @@
       "unweighted": 0
     },
     {
-      "name": "Base_Body",
-      "triangles": 2796,
-      "unweighted": 0
-    },
-    {
-      "name": "Base_Head",
-      "triangles": 1712,
-      "unweighted": 0
-    },
-    {
-      "name": "Base_Feet",
-      "triangles": 640,
-      "unweighted": 0
-    },
-    {
-      "name": "Traveller_Armor",
-      "triangles": 1144,
-      "unweighted": 0
-    },
-    {
-      "name": "Traveller_Hood",
-      "triangles": 480,
-      "unweighted": 0
-    },
-    {
       "name": "Weapon_WatchSword",
       "triangles": 504,
       "unweighted": 0
@@ -80,22 +55,37 @@
     },
     {
       "name": "Traveller_Limbs",
-      "triangles": 6056,
+      "triangles": 4822,
       "unweighted": 0
     },
     {
-      "name": "Traveller_Coif",
-      "triangles": 1448,
+      "name": "Base_Body",
+      "triangles": 20538,
+      "unweighted": 0
+    },
+    {
+      "name": "Base_Head",
+      "triangles": 9518,
+      "unweighted": 0
+    },
+    {
+      "name": "Base_Feet",
+      "triangles": 1640,
+      "unweighted": 0
+    },
+    {
+      "name": "Traveller_Hood",
+      "triangles": 1008,
+      "unweighted": 0
+    },
+    {
+      "name": "Traveller_Armor",
+      "triangles": 4186,
       "unweighted": 0
     },
     {
       "name": "Traveller_Boots",
-      "triangles": 658,
-      "unweighted": 0
-    },
-    {
-      "name": "Traveller_Cape",
-      "triangles": 128,
+      "triangles": 840,
       "unweighted": 0
     }
   ]

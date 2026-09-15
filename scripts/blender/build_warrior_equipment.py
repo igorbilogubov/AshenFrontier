@@ -1,5 +1,7 @@
 """Generate modular equipment without overwriting the archived Mixamo warrior."""
-import bpy, bmesh, json, math
+import bpy, bmesh, json, math, sys
+sys.path.insert(0,str(__import__("pathlib").Path(__file__).resolve().parent))
+from mixamo_common import import_on_rig,copy_faces,joined,split_body,components
 from pathlib import Path
 from mathutils import Vector
 ROOT=Path(__file__).resolve().parents[2]
@@ -38,20 +40,6 @@ class Shape:
         for r in range(rings):
             for i in range(segments):j=(i+1)%segments;faces.append((r*segments+i,r*segments+j,(r+1)*segments+j,(r+1)*segments+i))
         self.add(verts,faces,material,bone)
-    def limb(self,bone,radius,material,stretch=1.15):
-        b=arm.data.bones['mixamorig:'+bone];start=arm.matrix_world@b.head_local;end=arm.matrix_world@b.tail_local;c=(start+end)/2;direction=end-start
-        rot=Vector((0,0,1)).rotation_difference(direction.normalized()).to_matrix();verts=[];n=12;rings=8
-        for r in range(rings+1):
-            phi=math.pi*r/rings
-            for i in range(n):
-                theta=math.tau*i/n;v=Vector((math.sin(phi)*math.cos(theta)*radius,math.sin(phi)*math.sin(theta)*radius,math.cos(phi)*direction.length*.5*stretch));verts.append(c+rot@v)
-        faces=[(r*n+i,r*n+(i+1)%n,(r+1)*n+(i+1)%n,(r+1)*n+i) for r in range(rings) for i in range(n)]
-        self.add(verts,faces,material,bone)
-    def torso(self,rows,material,weight):
-        n=20;verts=[(math.cos(i*math.tau/n)*x,.015+math.sin(i*math.tau/n)*y,z) for z,x,y in rows for i in range(n)]
-        faces=[tuple(reversed(range(n))),tuple(range((len(rows)-1)*n,len(rows)*n))]
-        faces += [(r*n+i,r*n+(i+1)%n,(r+1)*n+(i+1)%n,(r+1)*n+i) for r in range(len(rows)-1) for i in range(n)]
-        self.add(verts,faces,material,weight)
     def finish(self):
         mesh=bpy.data.meshes.new(self.name);mesh.from_pydata(self.v,[],self.f);mesh.update();obj=bpy.data.objects.new(self.name,mesh);scene.collection.objects.link(obj);obj.parent=arm
         for m in MATS:mesh.materials.append(m)
@@ -64,42 +52,6 @@ class Shape:
         mod=obj.modifiers.new('Shared_Rig','ARMATURE');mod.object=arm
         return obj
 
-def torso_weights(v):
-    z=v[2];joints=[('Hips',.95),('Spine',1.10),('Spine1',1.24),('Spine2',1.39)]
-    if z<=joints[0][1]:return {'Hips':1}
-    for (a,lo),(b,hi) in zip(joints,joints[1:]):
-        if z<hi:t=(z-lo)/(hi-lo);return {a:1-t,b:t}
-    return {'Spine2':1}
-
-base=Shape('Base_Body');base.torso([(.83,.125,.09),(.97,.135,.10),(1.10,.12,.092),(1.28,.17,.10),(1.42,.19,.085),(1.47,.075,.065)],0,torso_weights)
-for side in ['Left','Right']:
-    for tail,r,mi in [('Arm',.071,0),('ForeArm',.055,0),('Hand',.046,2),('UpLeg',.082,1),('Leg',.060,1)]:base.limb(side+tail,r,mi)
-    shoulder=arm.matrix_world@arm.data.bones['mixamorig:'+side+'Arm'].head_local;base.sphere(shoulder,(.079,.08,.085),0,side+'Arm')
-base.finish()
-head=Shape('Base_Head');head.sphere((0,.04,1.49),(.053,.052,.09),2,'Neck');head.sphere((0,.04,1.642),(.091,.082,.122),2,'Head');head.sphere((0,.048,1.719),(.093,.082,.055),3,'Head')
-head.sphere((0,-.036,1.62),(.02,.027,.028),2,'Head',12,8)
-for x in [-.033,.033]:head.sphere((x,-.033,1.67),(.014,.010,.008),4,'Head',10,6)
-head.sphere((0,-.02,1.57),(.060,.050,.045),3,'Head');head.finish()
-feet=Shape('Base_Feet')
-for x,side in [(-.098,'Right'),(.098,'Left')]:feet.sphere((x,-.025,.083),(.059,.13,.081),1,side+'Foot')
-feet.finish()
-armor=Shape('Traveller_Armor');armor.torso([(.81,.17,.12),(.98,.148,.116),(1.13,.134,.111),(1.31,.188,.121),(1.435,.19,.115),(1.47,.082,.071)],5,torso_weights)
-armor.torso([(1.0,.151,.12),(1.045,.148,.12)],6,torso_weights)
-for side in ['Left','Right']:
-    pos=arm.matrix_world@arm.data.bones['mixamorig:'+side+'Arm'].head_local;armor.sphere(pos+Vector((0,0,.035)),(.082,.099,.040),5,side+'Arm')
-armor.sphere((0,-.107,1.027),(.027,.014,.024),7,'Hips',12,8);armor.finish()
-hood=Shape('Traveller_Hood');verts=[];n=20;rings=12
-# Front opening faces -Y; both sides remain thick and readable at game distance.
-for r in range(rings+1):
-    phi=.04+(math.pi-.08)*r/rings
-    for i in range(n+1):
-        theta=-.42+(math.pi+.84)*i/n;verts.append((math.sin(phi)*math.cos(theta)*.115,.048+math.sin(phi)*math.sin(theta)*.115,1.646+math.cos(phi)*.154))
-faces=[(r*(n+1)+i,r*(n+1)+i+1,(r+1)*(n+1)+i+1,(r+1)*(n+1)+i) for r in range(rings) for i in range(n)]
-hood.add(verts,faces,8,'Head');hood.finish()
-boots=Shape('Traveller_Boots')
-for x,side in [(-.098,'Right'),(.098,'Left')]:
-    boots.sphere((x,-.025,.083),(.065,.145,.088),5,side+'Foot');boots.sphere((x,.012,.225),(.067,.07,.16),5,side+'Leg');boots.sphere((x,.012,.345),(.071,.074,.037),6,side+'Leg')
-boots.finish()
 # The second blade shares the hand weights but has a distinct broad silhouette.
 watch=bpy.data.objects['Weapon_Sword'].copy();watch.data=watch.data.copy();watch.name='Weapon_WatchSword';scene.collection.objects.link(watch)
 bone=arm.data.bones['mixamorig:RightHand'];inv=bone.matrix_local.inverted()
@@ -124,46 +76,44 @@ for i in range(23):
 amulet.sphere((0,-.134,1.304),(.026,.014,.035),7,'Spine2',10,6);amulet.sphere((0,-.148,1.304),(.017,.009,.024),11,'Spine2',10,6);amulet.finish()
 
 
-# Keep the established character's detailed limbs and textured proportions under
-# the new leather torso. The simple full body remains only the unequipped fallback.
-leather_source=bpy.data.materials['Weathered_Paladin_Steel'].copy()
-leather_source.name='Traveller_Textured_Leather'
-shader=next(n for n in leather_source.node_tree.nodes if n.type=='BSDF_PRINCIPLED')
-shader.inputs['Metallic'].default_value=0
-shader.inputs['Roughness'].default_value=.91
-if shader.inputs['Base Color'].links:
-    original=shader.inputs['Base Color'].links[0].from_socket
-    tint=leather_source.node_tree.nodes.new('ShaderNodeMixRGB');tint.blend_type='MULTIPLY';tint.inputs[0].default_value=1;tint.inputs[2].default_value=(.82,.64,.40,1)
-    leather_source.node_tree.links.new(original,tint.inputs[1]);leather_source.node_tree.links.new(tint.outputs[0],shader.inputs['Base Color'])
-def textured_copy(source,name):
-    obj=bpy.data.objects[source].copy();obj.data=obj.data.copy();obj.name=name;scene.collection.objects.link(obj)
-    obj.data.materials.clear();obj.data.materials.append(leather_source)
-    for face in obj.data.polygons:face.material_index=0
-    return obj
-limbs=textured_copy('Armor_Body','Traveller_Limbs')
+# The real Exo Gray face/body replaces the primitive mannequin.
+source=ROOT/'art/characters/mixamo-classes-v1/source'
+exo=import_on_rig(source/'exo-gray-tpose.fbx',arm,'ExoGray')
+# Retain the thin underlying suit for the gaps between the leather sleeves/boots.
+suit=next(o for o in exo if 'Exo_Suit' in o.name)
 keep=set()
-for face in limbs.data.polygons:
-    bones=[]
-    for vi in face.vertices:
-        v=limbs.data.vertices[vi];group=max(v.groups,key=lambda g:g.weight);bones.append(limbs.vertex_groups[group.group].name)
-    if any(any(part in name for part in ['Arm','Hand','Leg','Finger']) for name in bones):keep.add(face.index)
-bm=bmesh.new();bm.from_mesh(limbs.data);bm.faces.ensure_lookup_table()
-bmesh.ops.delete(bm,geom=[face for face in bm.faces if face.index not in keep],context='FACES')
-bmesh.ops.delete(bm,geom=[v for v in bm.verts if not v.link_faces],context='VERTS')
-bm.to_mesh(limbs.data);bm.free()
-# Leather coif within the hood, retaining the familiar face guard.
-coif=textured_copy('Helmet','Traveller_Coif')
-to_world=coif.matrix_world
-inverse=to_world.inverted()
-for v in coif.data.vertices:
-    point=to_world@v.co;point.x*=.88;point.y=.04+(point.y-.04)*.90;point.z=1.65+(point.z-1.65)*.80;v.co=inverse@point
-# Real boot topology fits the existing knees/ankles better than primitive ovals.
-old_boots=bpy.data.objects['Traveller_Boots'];bpy.data.objects.remove(old_boots,do_unlink=True)
-textured_copy('Boots','Traveller_Boots')
-# Short earth-coloured cape belongs to the leather armor.
-traveller_cape=bpy.data.objects['Cape'].copy();traveller_cape.data=traveller_cape.data.copy();traveller_cape.name='Traveller_Cape';scene.collection.objects.link(traveller_cape)
-traveller_cape.data.materials.clear()
-for m in [olive,edge]:traveller_cape.data.materials.append(m)
+for face in suit.data.polygons:
+    if any(any(part in suit.vertex_groups[g.group].name for part in ['Arm','Hand','Leg']) for i in face.vertices for g in suit.data.vertices[i].groups if g.weight>.25):keep.add(face.index)
+limbs=copy_faces(suit,'Traveller_Limbs',keep)
+base=split_body(exo)
+# The fitted hood, tunic, belt, bracers and boots use textured garment topology.
+erika=import_on_rig(source/'erika-archer-tpose.fbx',arm,'LeatherSource')
+clothes=next(o for o in erika if 'Erika_Archer_Body_Mesh' in o.name)
+selections={'Traveller_Hood':set(),'Traveller_Armor':set(),'Traveller_Boots':set()}
+for component in components(clothes):
+    points=[arm.matrix_world@clothes.data.vertices[i].co for f in component for i in clothes.data.polygons[f].vertices]
+    low=[min(v[k] for v in points) for k in range(3)];high=[max(v[k] for v in points) for k in range(3)]
+    if low[1]>.10 and low[2]>1.0:continue # arrow/quiver islands
+    if high[2]>1.66:key='Traveller_Hood'
+    elif high[2]<.50:key='Traveller_Boots'
+    elif low[1]>.14:continue # quiver belongs to the archer, not the warrior
+    else:key='Traveller_Armor'
+    selections[key].update(component)
+for name,faces in selections.items():
+    obj=copy_faces(clothes,name,faces)
+    for index,material in enumerate(list(obj.data.materials)):
+        copied=material.copy();copied.name='Traveller_Leather_'+name;obj.data.materials[index]=copied
+    if name=='Traveller_Hood':
+        # Give the male head room inside the cloth, preserving the draped collar.
+        inverse=arm.matrix_world.inverted()
+        for vertex in obj.data.vertices:
+            point=arm.matrix_world@vertex.co
+            if point.z>1.49:point.x*=1.15;point.y=.03+(point.y-.03)*1.12;point.z=1.49+(point.z-1.49)*1.18
+            vertex.co=inverse@point
+for obj in erika:bpy.data.objects.remove(obj,do_unlink=True)
+# Neutral dark undercloth remains visible at wrists and knees, with native fingers.
+for index,material in enumerate(list(limbs.data.materials)):
+    copied=material.copy();copied.name='Traveller_Undercloth';limbs.data.materials[index]=copied
 
 arm.data.pose_position='POSE'
 objects=[o for o in scene.objects if o.type in ['MESH','ARMATURE']]
@@ -171,14 +121,14 @@ for o in scene.objects:o.select_set(False)
 for o in objects:o.select_set(True)
 bpy.context.view_layer.objects.active=arm
 out=ROOT/'public/game/characters/ashen-warrior-equipment-v1.glb'
-bpy.ops.export_scene.gltf(filepath=str(out),export_format='GLB',use_selection=True,export_animations=True,export_animation_mode='NLA_TRACKS',export_nla_strips=True,export_force_sampling=True,export_optimize_animation_size=True,export_materials='EXPORT',export_extras=True,export_cameras=False,export_lights=False)
+bpy.ops.export_scene.gltf(filepath=str(out),export_format='GLB',use_selection=True,export_animations=True,export_animation_mode='NLA_TRACKS',export_nla_strips=True,export_force_sampling=True,export_optimize_animation_size=True,export_materials='EXPORT',export_image_format='JPEG',export_jpeg_quality=88,export_extras=True,export_cameras=False,export_lights=False)
 arm.animation_data.action=action;arm.animation_data.action_slot=slot;scene.frame_set(1)
 report={'generator':'Blender '+bpy.app.version_string,'bones':len(arm.data.bones),'glbBytes':out.stat().st_size,'meshes':[]}
 for o in objects:
     if o.type=='MESH':
         o.data.calc_loop_triangles();report['meshes'].append({'name':o.name,'triangles':len(o.data.loop_triangles),'unweighted':sum(not v.groups for v in o.data.vertices)})
 (ASSET/'build-report.json').write_text(json.dumps(report,indent=2)+'\n')
-visible={'Traveller_Limbs','Traveller_Armor','Traveller_Hood','Traveller_Coif','Traveller_Boots','Traveller_Cape','Weapon_Sword','Copper_Ring','Ember_Amulet'}
+visible={'Traveller_Limbs','Traveller_Armor','Traveller_Hood','Base_Head','Traveller_Boots','Weapon_Sword','Copper_Ring','Ember_Amulet'}
 for o in objects:
     if o.type=='MESH':o.hide_render=o.name not in visible;o.hide_set(o.name not in visible)
 bpy.ops.wm.save_as_mainfile(filepath=str(ASSET/'ashen-warrior-equipment-v1.blend'))

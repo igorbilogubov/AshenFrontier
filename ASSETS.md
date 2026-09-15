@@ -6,7 +6,8 @@
 
 | Ресурс | Происхождение | Рабочие исходники |
 | --- | --- | --- |
-| Тело, броня и скелет воина | Adobe Mixamo, Paladin J Nordstrom, загружен 14.09.2026 | `art/characters/ashen-warrior-v1/source/` |
+| Архивный Paladin, тяжёлая броня и общий скелет | Adobe Mixamo, Paladin J Nordstrom, загружен 14.09.2026 | `art/characters/ashen-warrior-v1/source/` |
+| Exo Gray, Erika Archer, Dreyar By M.Aure | Adobe Mixamo, загружены 15.09.2026 | `art/characters/mixamo-classes-v1/source/` |
 | Семь анимаций воина | Adobe Mixamo; обработаны и собраны в Blender | тот же каталог, `ashen-warrior-v1.blend` |
 | Меч, топор, щит и плащ | Созданы в Blender скриптом проекта | `scripts/blender/build_warrior.py` |
 | Волк, кабан и вожак, их риги/анимации | Созданы в Blender скриптом проекта | `art/creatures/ashen-fauna-v1/`, `scripts/blender/build_creatures.py` |
@@ -24,3 +25,8 @@ Mixamo — библиотечная основа с условиями Adobe, н
 ## Модульный воин — 15 сентября
 
 `art/characters/ashen-warrior-equipment-v1/` и `public/game/characters/ashen-warrior-equipment-v1.glb` — производные первой Mixamo-модели воина. Генератор `scripts/blender/build_warrior_equipment.py` сохраняет её исходный скелет/клипы, тяжёлые меши и текстуры; создаёт базовое тело, кожаные части, вариант меча и украшения. Права Adobe/Mixamo сохраняются; это не самостоятельная библиотека для перепродажи. Исходный `ashen-warrior-v1` не перезаписывается. [Происхождение и пересборка](art/characters/ashen-warrior-equipment-v1/README.md).
+
+
+## Облики классов и новая кожа — 15 сентября
+
+15 сентября после замечания пользователя округлая модель из примитивов заменена на Exo Gray из Mixamo. Кожаный комплект использует подогнанную текстурированную одежду Erika Archer, тяжёлые меши Paladin сохранены. Лучник получил Erika Archer, маг — Dreyar By M.Aure как первый облик боевого мага. Все три модели подключены в общую локацию по сохранённому классу; переключатель в примерочной меняет только модель для осмотра. Семь прежних клипов перенесены на общий скелет; отдельные движения стрельбы/каста, детальный лук/посох и сменные коллекции лучника/мага остаются следующим этапом. Происхождение и пересборка — [модели классов](art/characters/mixamo-classes-v1/README.md).

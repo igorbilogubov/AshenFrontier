@@ -179,7 +179,7 @@ function renderPlayers(dt:number){
   for(const p of game.players){
     if(p.id===game.id)continue;present.add(p.id);
     if(!remoteModels.has(p.id)&&!loadingPlayers.has(p.id)){
-      loadingPlayers.add(p.id);loadWarrior().then(model=>{
+      loadingPlayers.add(p.id);loadWarrior(p.classId).then(model=>{
         loadingPlayers.delete(p.id);if(!game.players.some(other=>other.id===p.id))return;
         scene.add(model.root);model.root.position.set(p.x,0,p.z);
         const label=document.createElement('div');label.className='player-label';$('world-ui').append(label);remoteModels.set(p.id,Object.assign(model,{label}));
@@ -255,9 +255,10 @@ async function start(){
 
     world=createEnvironment(scene);game=new NetworkGame();interfaceUI=bindInterface(game,toast,clearInput);
     $('load-progress').textContent='Загружаем персонажа и обитателей леса…';
-    const loaded=await Promise.all([loadWarrior(),loadMobAssets()]);warrior=loaded[0];scene.add(warrior.root);
+    const mobAssets=await loadMobAssets();
     $('load-progress').textContent='Подключаем героя к общему миру…';const stressMode=await stressEnabled();if(stressMode){game.storage.removeItem(game.tokenKey);await game.connect({name:'Наблюдатель FPS',classId:'warrior'});}else await interfaceUI.join();
-    for(const mob of game.mobs){const model=Object.assign(createMob(mob.type,loaded[1]),{pickMeshes:[] as T.Mesh[]});model.pickRoot.traverse(o=>{if(o instanceof T.Mesh){o.userData.mob=mob.id;model.pickMeshes.push(o);}});models.set(mob.id,model);scene.add(model.root);}
+    warrior=await loadWarrior(game.player.classId);scene.add(warrior.root);
+    for(const mob of game.mobs){const model=Object.assign(createMob(mob.type,mobAssets),{pickMeshes:[] as T.Mesh[]});model.pickRoot.traverse(o=>{if(o instanceof T.Mesh){o.userData.mob=mob.id;model.pickMeshes.push(o);}});models.set(mob.id,model);scene.add(model.root);}
     const ring=mesh(marker,new T.RingGeometry(.43,.451,40),new T.MeshBasicMaterial({color:'#dac593',transparent:true,opacity:.62,side:T.DoubleSide,depthWrite:false}));ring.rotation.x=-Math.PI/2;ring.castShadow=false;ring.receiveShadow=false;scene.add(marker);
     $('load-progress').textContent='Загружаем материалы леса…';await world.ready;ready=true;if(stressMode){const link=document.createElement('link');link.rel='stylesheet';link.href='/game/benchmark.css';document.head.append(link);benchmark=new Benchmark({renderer,scene,camera,game,modelsReady:()=>remoteModels.size===game.players.length-1&&loadingPlayers.size===0,setVariant:variant=>{renderer.shadowMap.enabled=variant!=='no-shadows';fitCamera();world.setTreesVisible?.(variant!=='no-trees');}});}
     render(1/60);$('load-progress').textContent='Готовим свет и тени…';await renderer.compileAsync(scene,camera);$('loading').hidden=true;canvas.focus({preventScroll:true});updateUI();renderer.setAnimationLoop(loop);

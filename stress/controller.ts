@@ -38,13 +38,13 @@ class StressController {
   private resetMetrics(){this.samples={tick:[],simulation:[],broadcast:[],interval:[]};this.bytes=0;this.histogram.reset();this.epoch=Date.now();}
   private snapshot(){return {tick:distribution(this.samples.tick),simulation:distribution(this.samples.simulation),broadcast:distribution(this.samples.broadcast),interval:distribution(this.samples.interval),eventLoopP99Ms:this.histogram.percentile(99)/1e6,outboundBytes:this.bytes,durationMs:Date.now()-this.epoch,players:this.world.players.size,bots:this.bots.length,errors:this.errors};}
   private send(bot:Bot,message:ClientMessage){if(bot.socket.readyState===WebSocket.OPEN)bot.socket.send(JSON.stringify(message));}
-  private async addBot(url:string,index:number){
+  private async addBot(url:string,index:number,warriorsOnly=false){
     const bot:Bot={socket:new WebSocket(url.replace('http:','ws:')+'/ws',{origin:url}),id:'',seq:0,state:null,index};
     bot.socket.on('message',raw=>{const message=JSON.parse(String(raw)) as ServerMessage;if(message.type==='welcome')bot.id=message.id;if(message.type==='state')bot.state=message.self;if(message.type==='error')this.errors.push(message.code);});
     bot.socket.on('error',error=>this.errors.push(error.message));
     this.bots.push(bot);
     await new Promise<void>((resolve,reject)=>{const timeout=setTimeout(()=>reject(new Error('Bot connect timeout')),6000);bot.socket.once('open',()=>{clearTimeout(timeout);resolve();});});
-    this.send(bot,{type:'join',protocol:2,name:`Нагрузка ${index+1}`,classId:(['warrior','archer','mage'] as const)[index%3]});
+    this.send(bot,{type:'join',protocol:2,name:`Нагрузка ${index+1}`,classId:warriorsOnly?'warrior':(['warrior','archer','mage'] as const)[index%3]});
     const deadline=Date.now()+6000;while(!bot.state){if(Date.now()>deadline)throw new Error('Bot join timeout');await delay(25);}
   }
   private drive(){
@@ -63,7 +63,7 @@ class StressController {
     }
   }
   private async scenario(players:number,mode:'camp'|'combat',url:string,equipment:unknown){
-    while(this.bots.length<players-1)await this.addBot(url,this.bots.length);
+    while(this.bots.length<players-1)await this.addBot(url,this.bots.length,equipment==='mixed-warrior'||equipment==='legacy-warrior');
     while(this.bots.length>players-1){const bot=this.bots.pop()!;bot.socket.close();const hero=this.world.players.get(bot.id);if(hero)hero.combatUntil=0;}
     const deadline=Date.now()+7000;while(this.world.players.size!==players){if(Date.now()>deadline)throw new Error('Expected player count not reached');await delay(50);}
     this.mode=mode;this.errors=[];

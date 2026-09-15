@@ -5,7 +5,7 @@ import {renderItemRolls} from './item-details.js';
 import {characterStats,EQUIPMENT_SLOTS} from '../rules.js';
 import {itemIcon} from './item-icons.js';
 import {element as $,errorMessage} from './ui-types.js';
-import type {Equipment,Item} from '../../shared/types.js';
+import type {ClassId,Equipment,Item} from '../../shared/types.js';
 
 const canvas=$('portrait'),renderer=new T.WebGLRenderer({canvas,antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;
@@ -19,6 +19,8 @@ const rim=new T.Mesh(new T.TorusGeometry(1.23,.006,4,80),new T.MeshStandardMater
 const random=()=>crypto.getRandomValues(new Uint32Array(1))[0]/4294967296;
 const samples=new Map<string,Item>(WARRIOR_ITEMS.map(definition=>[definition.id,rollEquipment(definition.id,crypto.randomUUID(),random)]));
 const equipment:Equipment={};let selected='watch-armor',warrior:Awaited<ReturnType<typeof loadWarrior>>,clip:WarriorClip='Idle',elapsed=0,last=0,paused=false,feedback='';
+let previewClass:ClassId='warrior',loadSequence=0;
+const models=new Map<ClassId,Awaited<ReturnType<typeof loadWarrior>>>();
 const buttons=new Map<string,HTMLButtonElement>();
 const source=()=>({classId:'warrior' as const,level:1,items:[...samples.values()],equipment});
 const shortNames:Record<string,string>={weapon:'МЕЧ',armor:'ДОСПЕХ',helmet:'ГОЛОВА',boots:'САПОГИ',ring:'КОЛЬЦО',amulet:'АМУЛЕТ'};
@@ -33,7 +35,7 @@ function update(){
   $('sample-equip').textContent=worn?'Снять':'Надеть';$('sample-feedback').textContent=feedback||'Каждая находка получает свои значения в указанном диапазоне.';
   const stats=characterStats(source()),values:[string,string][]=[['Урон',stats.attack.toFixed(1)],['Защита',stats.armor.toFixed(1)],['Здоровье',String(stats.maxHp)],['Мана',String(stats.maxMana)],['Попадание',(stats.hitChance*100).toFixed(1)+'%'],['Скорость атак','+'+Math.round(stats.attackSpeed*100)+'%']];
   $('sample-totals').replaceChildren(...values.map(([label,value])=>{const row=document.createElement('div'),name=document.createElement('span'),number=document.createElement('strong');name.textContent=label;number.textContent=value;row.append(name,number);return row;}));
-  warrior?.equipment('sword','warrior',equipmentAppearance(source()));
+  if(previewClass==='warrior')warrior?.equipment('sword','warrior',equipmentAppearance(source()));
 }
 function preset(kind:'wanderer'|'watch'|'none'){
   for(const key of Object.keys(equipment) as (keyof Equipment)[])delete equipment[key];
@@ -47,8 +49,26 @@ $('sample-roll').onclick=()=>{const old=samples.get(selected)!,next=rollEquipmen
 $('motion').onchange=()=>{const value=($('motion') as HTMLSelectElement).value;if(CLIP_NAMES.includes(value as WarriorClip)){clip=value as WarriorClip;elapsed=0;warrior?.previewClip(clip);}};
 $('pause').onclick=()=>{paused=!paused;$('pause').textContent=paused?'Продолжить':'Пауза';};
 preset('watch');
-try{warrior=await loadWarrior();scene.add(warrior.root);warrior.previewClip(clip);update();
+try{await selectClass('warrior');$('class-preview').removeAttribute('disabled');
   let frames=0,time=0;
   renderer.setAnimationLoop(now=>{const dt=last?Math.min((now-last)/1000,.15):0;last=now;if(document.hidden)return;if(!paused)elapsed+=dt;warrior.root.rotation.y=Number($('angle').value)*Math.PI/180;warrior.samplePreview(elapsed);renderer.render(scene,camera);frames++;time+=dt;if(time>1){$('render-status').textContent=Math.round(frames/time)+' FPS · '+renderer.info.render.triangles.toLocaleString('ru-RU')+' треугольников · колесо — приближение';frames=time=0;}});
   canvas.addEventListener('wheel',event=>{event.preventDefault();camera.zoom=T.MathUtils.clamp(camera.zoom*Math.exp(-event.deltaY*.001),.8,1.8);camera.updateProjectionMatrix();},{passive:false});
 }catch(error){$('render-status').textContent=errorMessage(error);console.error(error);}
+
+async function selectClass(classId:ClassId){
+  const sequence=++loadSequence;previewClass=classId;($('class-preview') as HTMLSelectElement).value=classId;
+  $('render-status').textContent='Загружаем модель…';
+  try{
+    const model=models.get(classId)??await loadWarrior(classId);models.set(classId,model);
+    if(sequence!==loadSequence)return;
+    if(warrior)scene.remove(warrior.root);warrior=model;scene.add(warrior.root);
+    elapsed=0;warrior.previewClip(clip);warrior.equipment('sword',classId,classId==='warrior'?equipmentAppearance(source()):undefined);
+    const names={warrior:'Exo Gray',archer:'Erika Archer',mage:'Dreyar'};
+    const notes={warrior:'Воин · Странник и дозорный · 6 слотов снаряжения',archer:'Лучник · кожа, капюшон и лёгкий силуэт',mage:'Маг · тёмная одежда, высокий ворот и посох'};
+    $('model-name').textContent=names[classId];$('model-note').textContent=notes[classId];
+    $('warrior-wardrobe').hidden=classId!=='warrior';$('warrior-presets').hidden=classId!=='warrior';$('class-description').hidden=classId==='warrior';
+    $('class-name').textContent=names[classId];$('class-copy').textContent=notes[classId];canvas.setAttribute('aria-label',notes[classId]);update();
+  }catch(error){$('render-status').textContent=errorMessage(error);console.error(error);if(!warrior)throw error;}
+}
+$('class-preview').onchange=()=>{const value=($('class-preview') as HTMLSelectElement).value;if(value==='warrior'||value==='archer'||value==='mage')void selectClass(value);};
+$('back-to-warrior').onclick=()=>void selectClass('warrior');

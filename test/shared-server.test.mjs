@@ -11,9 +11,24 @@ import {createTestDatabase,hasTestDatabase} from './helpers/postgres.mjs';
 import {startTestServer,stopTestServer} from './helpers/network.mjs';
 const until=async(predicate,timeout=6000)=>{const end=Date.now()+timeout;while(!predicate()){assert(Date.now()<end,'Timed out waiting for server state');await delay(20);}};
 async function connect(server,join={}){
-  const c={ws:new WebSocket(server.url.replace('http:','ws:')+'/ws',{origin:server.url}),history:[],events:[]};
-  c.ws.on('message',b=>{const m=JSON.parse(b);if(m.type==='welcome')c.welcome=m;if(m.type==='state'){c.state=m;c.events.push(...m.events);}if(m.type==='error')c.error=m;});
-  c.send=m=>c.ws.send(JSON.stringify(m));await once(c.ws,'open');c.send({type:'join',protocol:2,...join});await until(()=>c.state||c.error);return c;
+  // A disconnect save can briefly block joins; retry that one transient response.
+  const deadline=Date.now()+12000;
+  let token=join.token,lastFailure='no response';
+  while(Date.now()<deadline){
+    const c={ws:new WebSocket(server.url.replace('http:','ws:')+'/ws',{origin:server.url}),history:[],events:[]};
+    c.ws.on('message',b=>{const m=JSON.parse(b);if(m.type==='welcome'){c.welcome=m;token ||= m.token;}if(m.type==='state'){c.state=m;c.events.push(...m.events);}if(m.type==='error')c.error=m;});
+    c.send=m=>c.ws.send(JSON.stringify(m));
+    try{
+      await once(c.ws,'open');
+      c.send({type:'join',protocol:2,...join,...(token?{token}:{})});
+      while(Date.now()<deadline&&!c.state&&!c.error&&c.ws.readyState!==WebSocket.CLOSED)await delay(20);
+      if(c.state||(c.error&&c.error.code!=='storage_unavailable'))return c;
+      lastFailure=c.error?.code||'socket closed before state';
+    }catch(error){lastFailure=error.message;}
+    c.ws.terminate();
+    await delay(100);
+  }
+  throw new Error(`WebSocket join did not reach a state within 12s (${lastFailure})`);
 }
 async function close(c){if(!c||c.ws.readyState===WebSocket.CLOSED)return;const done=once(c.ws,'close');c.ws.close();await done;}
 

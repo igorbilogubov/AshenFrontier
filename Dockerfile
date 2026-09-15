@@ -5,6 +5,7 @@ RUN npm ci --ignore-scripts --no-audit --no-fund
 COPY tsconfig.json server.ts world.ts ./
 COPY shared ./shared
 COPY stress ./stress
+COPY storage ./storage
 COPY public ./public
 COPY scripts/build.mjs ./scripts/build.mjs
 RUN npm run build

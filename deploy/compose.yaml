@@ -13,10 +13,15 @@ services:
       PORT: 4731
       GAME_DATA_DIR: /data
       NODE_OPTIONS: --max-old-space-size=192
+      DATABASE_URL: postgresql://ashen_game:${ASHEN_DB_PASSWORD:?Set a random hex database password}@database:5432/ashen_frontier
+    depends_on:
+      database:
+        condition: service_healthy
     volumes:
       - /opt/ashen-frontier/data:/data
     networks:
       - proxy
+      - database
     expose:
       - "4731"
     read_only: true
@@ -34,7 +39,39 @@ services:
       options:
         max-size: 10m
         max-file: "3"
+  database:
+    image: postgres:18.6-alpine
+    restart: unless-stopped
+    stop_grace_period: 30s
+    environment:
+      POSTGRES_DB: ashen_frontier
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${ASHEN_PG_ADMIN_PASSWORD:?Set a separate random PostgreSQL admin password}
+      ASHEN_DB_PASSWORD: ${ASHEN_DB_PASSWORD:?Set a random hex database password}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ./postgres-init.sh:/docker-entrypoint-initdb.d/10-ashen.sh:ro
+    networks:
+      - database
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ashen_frontier"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    command: ["postgres", "-c", "shared_buffers=64MB", "-c", "max_connections=30", "-c", "work_mem=2MB", "-c", "max_wal_size=512MB"]
+    mem_limit: 384m
+    cpus: 0.50
+    pids_limit: 100
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
 networks:
+  database:
+    internal: true
   proxy:
     external: true
     name: n8n_default
+volumes:
+  postgres-data:

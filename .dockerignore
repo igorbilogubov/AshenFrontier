@@ -14,3 +14,5 @@
 !scripts/build.mjs
 !stress/
 !stress/**
+!storage/
+!storage/**

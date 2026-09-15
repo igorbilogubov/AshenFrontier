@@ -6,9 +6,12 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
-    "start": "npm run build && node server.mjs",
+    "start": "npm run build && node scripts/start.mjs",
+    "db:start": "node scripts/local-database.mjs start",
+    "db:stop": "node scripts/local-database.mjs stop",
+    "db:backup": "node scripts/database-backup.mjs",
     "art:preview": "npm run build && node scripts/serve-art-test.mjs",
-    "test": "npm run build && node --test test/*.test.mjs",
+    "test": "npm run build && node scripts/test.mjs",
     "check": "npm run typecheck && node scripts/check.mjs",
     "stress": "npm run build && node scripts/stress.mjs",
     "stress:report": "node scripts/performance-report.mjs"

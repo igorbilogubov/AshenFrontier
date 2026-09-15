@@ -63,7 +63,7 @@ export class NetworkGame{
         welcomed=true;this.id=m.id;this.token=m.token;this.storage.setItem(this.tokenKey,m.token);localStorage.setItem('frontier-name',this.options.name);this.onChat(m.chat,true);return;
       }
       if(m.type==='error'){
-        if(m.code!=='full'){this.fatal=true;this.rejectJoin?.(new Error(m.text));}
+        if(m.code!=='full'&&m.code!=='storage_unavailable'){this.fatal=true;this.rejectJoin?.(new Error(m.text));}
         this.onStatus('error',m.text);return;
       }
       if(m.type==='state'&&welcomed&&m.self){

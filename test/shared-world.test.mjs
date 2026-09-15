@@ -87,10 +87,12 @@ test('death and camp safety preserve equipment; manual camp return cannot escape
   Object.assign(p,{x:8,z:2});w.damagePlayer(p,9999);assert.equal(p.hp,0);assert(p.dead>0);step(w,51);assert(safe(p));assert.deepEqual(p.equipment,equipment);
   Object.assign(p,{x:8,z:2,combatUntil:w.t+15000});w.command(p,{type:'camp'});assert.equal(p.x,8);
 });
-test('mob telegraph warns before hitting and leashing clears stale contributor rewards',()=>{
+test('mob telegraph warns before hitting and safe return preserves injury until home rest',()=>{
   const {w,p}=setup(),m=isolated(w,p);Object.assign(m,{state:'chase',target:p.id,yaw:-Math.PI/2});p.x=7;
   step(w);assert.equal(m.state,'windup');assert.equal(p.hp,100);step(w,16);assert(p.hp<100);
-  w.hurtMob(p,m,1);w.camp(p,true);step(w);assert(['idle','return'].includes(m.state));assert.equal(m.contributors.size,0);
+  w.hurtMob(p,m,1);const injured=m.hp;w.camp(p,true);step(w);assert.equal(m.state,'return');assert.equal(m.hp,injured);
+  for(let i=0;i<500&&m.state!=='idle';i++)step(w);
+  assert.equal(m.contributors.size,0);assert.equal(m.hp,60);
 });
 
 test('snapshot separates attack power from animation state; prediction stays finite',()=>{

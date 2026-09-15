@@ -16,10 +16,10 @@ function fixture(classId,positions){
 const cast=(w,p,id,extra={})=>w.command(p,{type:'skill',skillId:id,yaw:east,...extra});
 const damage=m=>190-m.hp;
 
-test('twelve Q/E/Z/X skills have fixed class ownership, private cooldowns and server costs',()=>{
+test('twelve 1/2/3/4 skills have fixed class ownership, private cooldowns and server costs',()=>{
   assert.equal(Object.keys(SKILLS).length,12);
   for(const classId of ['warrior','archer','mage']){
-    const skills=skillsForClass(classId);assert.deepEqual(skills.map(s=>s.slot),['Q','E','Z','X']);
+    const skills=skillsForClass(classId);assert.deepEqual(skills.map(s=>s.slot),['1','2','3','4']);
     const {w,p}=fixture(classId,[[9.4,1.8]]);
     for(const other of Object.values(SKILLS).filter(s=>s.classId!==classId)){
       const before=persistentHero(p);cast(w,p,other.id,{damage:999999,manaCost:0,cooldown:0});
@@ -123,7 +123,7 @@ test('new warrior skills separate a strong narrow thrust from a longer capped wa
   const thrust=fixture('warrior',[[9.5,1.8],[9.5,2.65],[10.7,1.8]]);
   thrust.p.mana=stats(thrust.p).maxMana;cast(thrust.w,thrust.p,'warrior-thrust');step(thrust.w,20);
   assert(damage(thrust.mobs[0])>0);assert.equal(damage(thrust.mobs[1]),0);assert.equal(damage(thrust.mobs[2]),0);
-  const wave=fixture('warrior',[[9.5,1.8],[10.7,1.8],[11.8,1.8],[12.1,2.8],[12.1,.8]]);
+  const wave=fixture('warrior',[[9.5,1.8],[10.7,1.8],[11.8,1.8],[12.8,2.8],[12.8,.8]]);
   wave.p.mana=stats(wave.p).maxMana;cast(wave.w,wave.p,'warrior-shockwave');step(wave.w,25);
   assert(wave.mobs.slice(0,3).every(m=>damage(m)>0));assert(wave.mobs.slice(3).every(m=>damage(m)===0));
 });

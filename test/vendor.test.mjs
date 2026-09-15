@@ -21,7 +21,7 @@ test('shop opens only on server arrival; purchase deducts once and min rolls sur
   const {w,p}=fixture();p.gold=100;const listing=shopItems()[0];
   w.command(p,{type:'buy',definitionId:listing.definitionId});assert.equal(p.items.length,2);
   w.command(p,{type:'interact',npcId:SHOP.id});assert(p.interactionTarget);assert.equal(p.shopActive,false);
-  tick(w,2);assert(distance(p,SHOP)<distance({x:.5,z:2},SHOP));open(w,p);
+  const origin={x:p.x,z:p.z};tick(w,2);assert(distance(p,SHOP)<distance(origin,SHOP));open(w,p);
   assert(w.events.some(e=>e.type==='shopOpen'&&e.owner===p.id));
   w.command(p,{type:'buy',definitionId:listing.definitionId,requestId:'one'});const item=p.items.at(-1);
   assert.equal(p.gold,100-listing.price);assert.equal(p.items.length,3);validateEquipment(item);

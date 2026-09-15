@@ -3,7 +3,7 @@ import type {NetworkGame} from './network.js';
 import {distribution,frameSummary} from './performance-metrics.js';
 
 type Variant='full'|'no-shadows'|'no-animation'|'low-resolution'|'no-trees'|'picking'|'no-render'|'no-labels'|'scheduler';
-interface Scenario {name:string;players:1|4|16;mode:'camp'|'combat';variant:Variant}
+interface Scenario {name:string;players:1|4|16;mode:'camp'|'combat'|'afk';variant:Variant}
 interface Hooks {renderer:T.WebGLRenderer;scene:T.Scene;camera:T.Camera;game:NetworkGame;modelsReady:()=>boolean;setVariant:(variant:Variant)=>void}
 interface GpuExtension {TIME_ELAPSED_EXT:number;GPU_DISJOINT_EXT:number}
 const scenarios:Scenario[]=[
@@ -20,6 +20,9 @@ const scenarios:Scenario[]=[
   {name:'16 · только rAF и сеть (контроль)',players:16,mode:'camp',variant:'scheduler'},
   {name:'16 · бой',players:16,mode:'combat',variant:'full'},
   {name:'16 · бой и выбор моба каждый кадр',players:16,mode:'combat',variant:'picking'},
+  {name:'1 · AFK охота',players:1,mode:'afk',variant:'full'},
+  {name:'4 · AFK охота',players:4,mode:'afk',variant:'full'},
+  {name:'16 · AFK охота',players:16,mode:'afk',variant:'full'},
 ];
 const pause=(ms:number)=>new Promise<void>(resolve=>setTimeout(resolve,ms));
 async function request(route:string,body:object){const response=await fetch(`/__stress/${route}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!response.ok)throw new Error(await response.text());return response.json() as Promise<Record<string,unknown>>;}
@@ -86,7 +89,7 @@ export class Benchmark {
     if(!this.measuring)return;
     this.mark('render-submit');
     const {renderer,game}=this.hooks;
-    const values={cpuFrame:performance.now()-this.frameStart,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,geometries:renderer.info.memory.geometries,textures:renderer.info.memory.textures,players:game.players.length,mobs:game.mobs.length,liveMobs:game.mobs.filter(m=>m.state!=='dead').length,projectiles:game.projectiles.length,snapshotAge:performance.now()-game.receivedAt};
+    const values={cpuFrame:performance.now()-this.frameStart,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,geometries:renderer.info.memory.geometries,textures:renderer.info.memory.textures,players:game.players.length,warriors:game.players.filter(p=>p.classId==='warrior').length,archers:game.players.filter(p=>p.classId==='archer').length,mages:game.players.filter(p=>p.classId==='mage').length,activeAttacks:game.players.filter(p=>!!p.attack).length,activeSkills:game.players.filter(p=>!!p.attack?.skillId).length,mobs:game.mobs.length,liveMobs:game.mobs.filter(m=>m.state!=='dead').length,projectiles:game.projectiles.length,snapshotAge:performance.now()-game.receivedAt};
     for(const [key,value] of Object.entries(values))(this.counters[key]??=[]).push(value);
   }
   private reset(){
@@ -114,7 +117,9 @@ export class Benchmark {
         const gl=this.gl,debug=gl.getExtension('WEBGL_debug_renderer_info');
         const report={scenario,equipmentProfile:equipment||'default',valid:true,measurementMs:performance.now()-started,frames:frameSummary(this.durations),cpuSections:Object.fromEntries(Object.entries(this.sections).map(([k,v])=>[k,distribution(v)])),counters:Object.fromEntries(Object.entries(this.counters).map(([k,v])=>[k,distribution(v)])),gpu:{available:!!this.extension,disjoint:this.gpuDisjoint,milliseconds:this.gpuDisjoint?null:distribution(this.gpuTimes)},longTasks:distribution(this.longTasks),browser:navigator.userAgent,hardware:environment.hardware,graphics:{renderer:debug?gl.getParameter(debug.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER),width:innerWidth,height:innerHeight,dpr:this.hooks.renderer.getPixelRatio(),displayDpr:devicePixelRatio,cameraPosition:this.hooks.camera.position.toArray(),cameraQuaternion:this.hooks.camera.quaternion.toArray(),cameraZoom:'zoom' in this.hooks.camera?this.hooks.camera.zoom:null,shadows:this.hooks.renderer.shadowMap.enabled},rawFrameMs:this.durations};
         const saved=await request('report',report);const frames=report.frames,cpu=report.counters.cpuFrame;
-        this.results.textContent+=`${scenario.name}: ${frames.fps?.toFixed(1)} FPS · p95 ${frames.p95?.toFixed(1)} мс · >50мс ${frames.over50} · CPU ${cpu.mean?.toFixed(1)} мс\n`;
+        const server=saved.server as {activeAfk?:number;skillCasts?:Record<string,number>;attackCasts?:number;projectilePeak?:number}|undefined;
+        const afkActivity=scenario.mode==='afk'&&server?` · AFK ${server.activeAfk}/${scenario.players} · навыки ${Object.values(server.skillCasts??{}).reduce((sum,count)=>sum+count,0)} · атаки ${server.attackCasts} · снаряды пик ${server.projectilePeak}`:'';
+        this.results.textContent+=`${scenario.name}: ${frames.fps?.toFixed(1)} FPS · p95 ${frames.p95?.toFixed(1)} мс · >50мс ${frames.over50} · CPU ${cpu.mean?.toFixed(1)} мс${afkActivity}\n`;
         console.info('Benchmark saved',saved.file);
       }
       this.status.textContent='Готово. JSON-отчёты сохранены в artifacts/performance. Можно повторить отдельный сценарий.';

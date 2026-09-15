@@ -4,6 +4,8 @@ import {World,newHero} from '../dist/world.js';
 import {AFK_SPOTS as ALL_AFK_SPOTS,SPAWNS,MOB_TYPES,CAMP,stand,safe,distance,translate} from '../dist/public/game/location.js';
 const AFK_SPOTS=ALL_AFK_SPOTS.slice(0,4);
 import {AFK_TRAILS,afkSpotAt,withinSpot} from '../dist/public/game/afk.js';
+import {CAMP_SPAWN} from '../dist/public/game/camp-layout.js';
+import {WORLD_ROADS} from '../dist/public/game/world-layout.js';
 
 test('the original route keeps its spawn ids and four disjoint hunting spots own twenty-four mobs',()=>{
   assert.deepEqual(SPAWNS.slice(0,7),[
@@ -28,9 +30,9 @@ test('the original route keeps its spawn ids and four disjoint hunting spots own
 });
 
 test('both branch trails and their approaches are continuously walkable from camp',()=>{
+  const oldRoad=WORLD_ROADS.find(road=>road.id==='old-road');assert(oldRoad);
   for(const trail of AFK_TRAILS){
-    const actor={x:.5,z:2},main=[];
-    for(let x=1;x<trail[0].x;x+=.2)main.push({x,z:1+Math.sin(x*.25)*.9});
+    const actor={...CAMP_SPAWN},main=oldRoad.points.filter(point=>point.x<=trail[0].x);
     for(const point of [...main,...trail]){
       translate(actor,point.x-actor.x,point.z-actor.z,.46);
       assert(distance(actor,point)<1e-6,`blocked at ${point.x}, ${point.z}`);

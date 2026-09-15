@@ -2,7 +2,7 @@ import type {ClassId,EquipmentSlot,Item} from '../../shared/types.js';
 import {CLASS_ITEMS} from './equipment-items.js';
 import {CONSUMABLES} from './consumables.js';
 
-export const SHOP=Object.freeze({id:'camp-vendor',name:'Торговец',x:2,z:-2,range:2.4});
+export const SHOP=Object.freeze({id:'camp-vendor',name:'Торговец',x:3.8,z:-.8,range:2.4});
 export interface ShopListing {definitionId:string;name:string;classId:ClassId;slot:EquipmentSlot;price:number}
 const PRICES:Readonly<Record<EquipmentSlot,number>>=Object.freeze({weapon:40,armor:35,helmet:25,boots:20,ring:30,amulet:30});
 const basics=Object.values(CLASS_ITEMS).flatMap(items=>{

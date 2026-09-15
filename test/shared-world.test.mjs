@@ -30,7 +30,7 @@ test('input is speed-limited, collision-safe and expires when packets stop',()=>
   for(let i=0;i<20;i++){w.command(p,{type:'input',x:1,z:1,aim:0,seq:++seq});step(w);}
   assert(Math.hypot(p.x-2,p.z-2)<3.81);
   step(w,20);const x=p.x,z=p.z;step(w,10);assert.equal(p.x,x);assert.equal(p.z,z);
-  const testHero={...p,x:-.8,z:-.6,vx:0,vz:0,attack:null,dead:0};for(let i=0;i<80;i++)moveHero(testHero,.05,{x:-1,z:0,aim:0});assert(stand(testHero.x,testHero.z));assert(testHero.x>-2.3);
+  const testHero={...p,x:-1.7,z:-4.6,vx:0,vz:0,attack:null,dead:0};for(let i=0;i<80;i++)moveHero(testHero,.05,{x:-1,z:0,aim:0});assert(stand(testHero.x,testHero.z));assert(testHero.x>-2.3,'house east wall stops a body-sized hero');
 });
 test('attacks use server range, timing and cooldown rather than packet damage',()=>{
   const {w,p}=setup(),m=isolated(w,p);w.command(p,{type:'attack',yaw:Math.PI/2,damage:99999});assert.equal(m.hp,60);
@@ -77,7 +77,7 @@ test('class and starting weapon chosen at creation remain attached to the saved 
 });
 test('archer and mage launch real server projectiles that hit and respect obstacles',()=>{
   for(const classId of ['archer','mage']){
-    const {w,p}=setup(classId),m=isolated(w,p);Object.assign(p,{x:5,z:1.8});assert(!safe(p));
+    const {w,p}=setup(classId),m=isolated(w,p);Object.assign(p,{x:6,z:1.8});assert(!safe(p));
     w.attack(p,Math.PI/2);step(w,10);assert(w.projectiles.length||m.hp<60);step(w,8);assert(m.hp<60);
     Object.assign(p,{x:27,z:-6,yaw:0,targetYaw:0,attack:null});Object.assign(m,{x:27,z:-3.5,homeX:27,homeZ:-3.5,hp:60,state:'idle',target:null});w.attack(p,0);step(w,25);assert.equal(m.hp,60);
   }

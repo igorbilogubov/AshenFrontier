@@ -23,9 +23,11 @@ export const WORLD_CLEARINGS:readonly Readonly<WorldClearing>[]=Object.freeze([
 export interface WorldRoad {readonly id:string;readonly width:number;readonly points:readonly Readonly<Position>[]}
 const road=(id:string,width:number,points:readonly (readonly [number,number])[]):Readonly<WorldRoad>=>Object.freeze({id,width,points:Object.freeze(points.map(([x,z])=>Object.freeze({x,z})))});
 export const WORLD_ROADS:readonly Readonly<WorldRoad>[]=Object.freeze([
-  road('old-road',4.6,Array.from({length:32},(_,i)=>[i-1,1+Math.sin((i-1)*.25)*.9] as const)),
-  road('western-loop',5,[[.5,2],[-9,6],[-25,5],[-27,-12],[-14,-27],[4,-26],[15,-18],[25,-14],[34,-10],[35,1],[30,1.85]]),
-  road('southern-loop',5.8,[[.5,2],[-5,13],[-12,25],[5,30],[23,24],[32,16],[32,7],[30,1.85]]),
+  // The old centreline ran through the authored fire at (.5, 2). Camp exits
+  // now begin at the safe spawn and bend through the east, west and north gates.
+  road('old-road',4.6,[[.5,4],[2.5,4],[5.2,3.1],[7,2],...Array.from({length:23},(_,i)=>[i+8,1+Math.sin((i+8)*.25)*.9] as const)]),
+  road('western-loop',5,[[.5,4],[-3,5.5],[-8.5,5.5],[-10,5.3],[-25,5],[-27,-12],[-14,-27],[4,-26],[15,-18],[25,-14],[34,-10],[35,1],[30,1.85]]),
+  road('southern-loop',5.8,[[.5,4],[-2.5,5.5],[-5,13],[-12,25],[5,30],[23,24],[32,16],[32,7],[30,1.85]]),
   road('western-crossing',4.8,[[-25,5],[-26,18],[-12,25]]),
   road('northern-frontier',5.4,[[4,-26],[25,-33],[48,-25],[63,-13],[59,5],[49,23],[23,24]]),
   road('eastern-crossing',5.6,[[35,1],[46,1],[59,5]]),

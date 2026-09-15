@@ -5,13 +5,14 @@ import {SHOP,shopItems,shopPrice,sellPrice} from '../dist/public/game/shop.js';
 import {stand,safe,clearPath,distance} from '../dist/public/game/location.js';
 import {BAG_CAPACITY,backpackItems} from '../dist/public/rules.js';
 import {validateEquipment} from '../dist/public/game/equipment-items.js';
+import {CAMP_SPAWN} from '../dist/public/game/camp-layout.js';
 
 const tick=(w,n=1)=>{for(let i=0;i<n;i++)w.tick(.05,w.t+50);};
 const fixture=()=>{const w=new World(),p=newHero('Покупатель');w.add(p);w.mobs=[];return {w,p};};
 const open=(w,p)=>{w.command(p,{type:'interact',npcId:SHOP.id});for(let i=0;i<80&&!p.shopActive;i++)tick(w);assert(p.shopActive);};
 
 test('one basic six-slot collection per class is priced and reachable in the safe camp',()=>{
-  assert(stand(SHOP.x,SHOP.z));assert(safe(SHOP));assert(clearPath({x:.5,z:2},SHOP));
+  assert(stand(SHOP.x,SHOP.z));assert(safe(SHOP));assert(clearPath(CAMP_SPAWN,SHOP));
   const catalog=shopItems();assert.equal(catalog.length,18);assert.equal(new Set(catalog.map(i=>i.definitionId)).size,18);
   for(const classId of ['warrior','archer','mage'])assert.deepEqual(catalog.filter(i=>i.classId===classId).map(i=>i.slot),['weapon','armor','helmet','boots','ring','amulet']);
   assert(catalog.every(i=>i.price===shopPrice(i.definitionId)&&i.price>0));assert.equal(shopPrice('watch-blade'),undefined);

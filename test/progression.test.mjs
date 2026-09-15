@@ -178,7 +178,7 @@ test('melee accuracy is rolled only at contact; misses do no damage, grant no re
 test('ranged projectiles also use server accuracy at collision and disappear on a miss',()=>{
   for(const classId of ['archer','mage']){
     let rolls=0;const {w,p}=fixture(classId,()=>{rolls++;return .99;}),m=field(w,p);
-    Object.assign(p,{x:5,z:1.8});assert(w.attack(p,Math.PI/2));step(w,5);assert.equal(rolls,0);
+    Object.assign(p,{x:6,z:1.8});assert(w.attack(p,Math.PI/2));step(w,5);assert.equal(rolls,0);
     step(w,20);assert.equal(rolls,1);assert.equal(m.hp,60);assert.equal(w.projectiles.length,0);
     assert.equal(m.contributors.size,0);
   }

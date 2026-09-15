@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {BOUNDS,SPAWNS,MOB_TYPES,stand,distance,translate} from '../dist/public/game/location.js';
 import {WORLD_ROADS,WORLD_CLEARINGS,ROAMING_SPAWNS,EXTRA_ROAMING_SPAWNS,locationAt,roadDistance} from '../dist/public/game/world-layout.js';
+import {CAMP_SPAWN,campSafe} from '../dist/public/game/camp-layout.js';
 import {canOccupy} from '../dist/public/game/motion.js';
 import {OBSTACLES,TREE_POSITIONS} from '../dist/public/game/terrain.js';
 
@@ -34,6 +35,9 @@ test('authored roads form continuously walkable loops and frontier roads allow s
     if(['old-road','wolf-approach','boar-approach'].includes(road.id))continue;
     for(let i=1;i<road.points.length;i++){
       const a=road.points[i-1],b=road.points[i],length=distance(a,b),nx=-(b.z-a.z)/length,nz=(b.x-a.x)/length;
+      // Fire, stalls and gateposts intentionally narrow the first metres of
+      // the camp exit; the continuous centreline is checked above.
+      if(campSafe(a)||campSafe(b))continue;
       for(let t=0;t<=length;t+=.4)for(const side of [-1.3,0,1.3]){
         const x=a.x+(b.x-a.x)*t/length+nx*side,z=a.z+(b.z-a.z)*t/length+nz*side;
         assert(stand(x,z,.46),`${road.id} broad lane blocked at ${x},${z}`);
@@ -59,7 +63,7 @@ test('the whole region connects to camp through open space, including all spawns
   const point=i=>({x:BOUNDS.minX+1+i%width,z:BOUNDS.minZ+1+Math.floor(i/width)});
   const cell=p=>Math.round(p.x-BOUNDS.minX-1)+Math.round(p.z-BOUNDS.minZ-1)*width;
   for(let i=0;i<walkable.length;i++){const p=point(i);walkable[i]=Number(stand(p.x,p.z,.46));}
-  const start=cell({x:0,z:2});queue.push(start);visited[start]=1;
+  const start=cell(CAMP_SPAWN);queue.push(start);visited[start]=1;
   for(let n=0;n<queue.length;n++){
     const i=queue[n],a=point(i);
     for(const delta of [-1,1,-width,width]){
@@ -73,7 +77,7 @@ test('the whole region connects to camp through open space, including all spawns
   const free=walkable.reduce((a,b)=>a+b,0);
   assert(free/walkable.length>.9,'world is mostly filled with obstacles');
   assert(queue.length/free>.99,'open world contains inaccessible islands');
-  for(const target of [...SPAWNS.filter(p=>locationAt(p)==='forest'),...WORLD_CLEARINGS.filter(c=>c.id!=='camp'),{x:0,z:2}])assert(visited[cell(target)],`unreachable ${target.x},${target.z}`);
+  for(const target of [...SPAWNS.filter(p=>locationAt(p)==='forest'),...WORLD_CLEARINGS.filter(c=>c.id!=='camp'),CAMP_SPAWN])assert(visited[cell(target)],`unreachable ${target.x},${target.z}`);
 });
 
 

@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {heldMouseInput} from '../dist/public/game/mouse-input.js';
 import {moveHero} from '../dist/public/game/location.js';
+import {CAMP_SPAWN} from '../dist/public/game/camp-layout.js';
 
-const hero=()=>({x:.5,z:2,yaw:.75,targetYaw:.75,vx:0,vz:0,gait:0,runBlend:0,moveBlend:0,running:false,attack:null,dead:0});
+const hero=()=>({...CAMP_SPAWN,yaw:.75,targetYaw:.75,vx:0,vz:0,gait:0,runBlend:0,moveBlend:0,running:false,attack:null,dead:0});
 test('hover and a released press cannot move or turn an idle hero, even with an old enemy target',()=>{
   const p=hero(),before={x:p.x,z:p.z,yaw:p.yaw};
   for(let n=0;n<120;n++)moveHero(p,1/60,heldMouseInput(p,{x:Math.sin(n)*10,z:Math.cos(n)*10},{target:{x:8,z:2}}));
@@ -43,5 +44,5 @@ test('left steering over an enemy only follows the cursor and never attacks or c
   const near=heldMouseInput(p,point,{held:true,target,reach:5.5});assert.equal(near.attack,false);assert(near.x>0);
   const camp=heldMouseInput(p,point,{held:true,target,reach:5.5,inCamp:true});assert(!camp.attack);assert(camp.x>0);
   assert(!heldMouseInput(p,point,{target,reach:5.5}).attack);
-  const overlap=heldMouseInput(p,point,{held:true,target:{x:p.x,z:p.z},reach:1.45});assert.equal(overlap.attack,false);assert.equal(overlap.aim,Math.PI/2);assert(overlap.x>0);
+  const overlap=heldMouseInput(p,point,{held:true,target:{x:p.x,z:p.z},reach:1.45});assert.equal(overlap.attack,false);assert.equal(overlap.aim,Math.atan2(point.x-p.x,point.z-p.z));assert(overlap.x>0);
 });

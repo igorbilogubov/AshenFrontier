@@ -13,6 +13,7 @@ import {isRecord} from '../shared/types.js';
 import {distribution} from '../public/game/performance-metrics.js';
 import {AFK_SPOTS} from '../public/game/afk.js';
 import {locationAt} from '../public/game/world-layout.js';
+import {CAMP_SPAWN} from '../public/game/camp-layout.js';
 // Keep the existing benchmark profile on its four forest spots. The Stadium
 // is a separate region and would change both visible load and target difficulty.
 const FOREST_AFK_SPOTS=AFK_SPOTS.filter(spot=>locationAt(spot)==='forest');
@@ -162,7 +163,7 @@ class StressController {
     const participants=mode==='afk'?[observer!,...[...this.world.players.values()].filter(hero=>hero!==observer)]:[...this.world.players.values()];
     let index=0,playerIndex=0;for(const hero of participants){
       const fresh=newHero(hero.name,equipment==='mixed-warrior'||equipment==='legacy-warrior'?'warrior':hero.classId),oldId=hero.id;
-      Object.assign(hero,fresh,{id:oldId,connected:true,x:mode==='camp'?.5:8.5,z:mode==='camp'?2:0});
+      Object.assign(hero,fresh,{id:oldId,connected:true,x:mode==='camp'?CAMP_SPAWN.x:8.5,z:mode==='camp'?CAMP_SPAWN.z:0});
       const bot=this.bots.find(candidate=>candidate.id===oldId);
       if(bot){hero.input.seq=bot.seq;hero.ack=bot.seq;}
       hero.afk=null;

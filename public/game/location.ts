@@ -1,6 +1,10 @@
 import {canOccupy,turnTowards,gaitProfile} from './motion.js';
 import type {Position} from './motion.js';
 import {OBSTACLES} from './terrain.js';
+import {AFK_SPAWNS} from './afk.js';
+import type {AfkSpotId} from './afk.js';
+export {AFK_SPOTS,afkSpotAt,withinSpot} from './afk.js';
+export type {AfkSpot,AfkSpotId} from './afk.js';
 
 import type {MobType,WeaponId} from '../../shared/types.js';
 export type {MobType,WeaponId} from '../../shared/types.js';
@@ -17,10 +21,11 @@ export const MOB_TYPES=Object.freeze({
   boar:{name:'Лесной кабан',hp:90,damage:12,speed:1.55,range:1.55,windup:.95,cooldown:1.35,aggro:4.4,coins:12,xp:18,radius:.46,scale:1.1},
   alpha:{name:'Седой вожак',hp:190,damage:17,speed:2.02,range:1.75,windup:1.05,cooldown:1.3,aggro:5.1,coins:35,xp:55,radius:.52,scale:1.4},
 });
-export const SPAWNS:readonly Readonly<Position & {type:MobType}>[]=Object.freeze([
+export const SPAWNS:readonly Readonly<Position & {type:MobType;spotId?:AfkSpotId}>[]=Object.freeze([
   {type:'wolf',x:7.6,z:1.8},{type:'wolf',x:10.4,z:-4},{type:'boar',x:12.4,z:6.4},
   {type:'wolf',x:15.4,z:1.4},{type:'boar',x:18.2,z:-6.2},{type:'wolf',x:20.7,z:4.9},
   {type:'alpha',x:25,z:-1.2},
+  ...AFK_SPAWNS,
 ]);
 export const safe=(p:Position)=>Math.hypot(p.x-CAMP.x,p.z-CAMP.z)<CAMP.r;
 

@@ -1,4 +1,5 @@
 import type { Obstacle } from './motion.js';
+import {AFK_SPOTS,forestTrailDistance,withinSpot} from './afk.js';
 export interface TreePosition {x:number;z:number;s:number;solid:boolean}
 // World coordinates are metres. Only this module defines physical obstacles.
 const spawns=[{x:7.6,z:1.8},{x:10.4,z:-4},{x:12.4,z:6.4},{x:15.4,z:1.4},{x:18.2,z:-6.2},{x:20.7,z:4.9},{x:25,z:-1.2}];
@@ -12,7 +13,15 @@ for(let i=0;i<150;i++){
   const coversFight=spawns.some(s=>{const dx=x-s.x,dz=z-s.z,depth=dx*Math.sin(.55)+dz*Math.cos(.55),side=dx*Math.cos(.55)-dz*Math.sin(.55);return depth>0&&depth<7&&Math.abs(side)<2.8;});
   const coversTrail=x>2&&x<29&&z>1+Math.sin(x*.25)*.9&&path<7;
   if(!edge&&(path<3||coversFight||coversTrail||Math.hypot(x+1,z)<7||spawns.some(s=>Math.hypot(s.x-x,s.z-z)<3)||Math.hypot(x-25,z+1.2)<4.5))continue;
-  trees.push(Object.freeze({x,z,s:.7+random()*.55,solid:!edge}));
+  // Consume the original scale draw before filtering so surviving trees retain
+  // their exact old positions. Removing trees opens routes without trapping saves.
+  const s=.7+random()*.55;
+  const coversSpot=AFK_SPOTS.some(spot=>{
+    const dx=x-spot.x,dz=z-spot.z,depth=dx*Math.sin(.55)+dz*Math.cos(.55),side=dx*Math.cos(.55)-dz*Math.sin(.55);
+    return withinSpot({x,z},spot,1.25)||(depth>0&&depth<8&&Math.abs(side)<4.3);
+  });
+  if(!edge&&(coversSpot||forestTrailDistance(x,z)<2.15))continue;
+  trees.push(Object.freeze({x,z,s,solid:!edge}));
 }
 export const TREE_POSITIONS=Object.freeze(trees);
 export const OBSTACLES:readonly Readonly<Obstacle>[]=Object.freeze([

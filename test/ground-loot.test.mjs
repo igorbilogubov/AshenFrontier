@@ -53,6 +53,15 @@ test('distant click approaches server-side without attack; neutral packets prese
   assert.equal(p.gold,8);assert.equal(w.snapshot(p.id).groundLoot.length,0);assert.equal(p.interactionTarget,null);
 });
 
+test('a wall blocks server pickup and approach even with a forged personal drop id',()=>{
+  const {w,p}=fixture();w.mobs=[];
+  Object.assign(p,{x:-1.5,z:-4.6});assert(stand(p.x,p.z));assert(stand(-8,-4.6));
+  w.addGroundDrop(p.id,{id:'behind-hut',kind:'gold',x:-8,z:-4.6,amount:8,expiresAt:w.t+LOOT_TTL_MS});
+  w.command(p,{type:'pickup',id:'behind-hut'});
+  assert.equal(p.gold,0);assert.equal(p.interactionTarget,null);
+  assert.equal(w.snapshot(p.id).groundLoot.length,1);
+});
+
 test('full backpack leaves item on ground while gold remains collectible; expiry and per-owner cap hold',()=>{
   const {w,p,m}=fixture(()=>0);kill(w,p,m);
   while(backpackItems(p).length<BAG_CAPACITY)p.items.push(makeLoot('warrior',1,0,'ring'));

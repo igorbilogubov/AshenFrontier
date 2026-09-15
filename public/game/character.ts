@@ -1,11 +1,11 @@
 import * as T from './vendor/three.module.js';
 import {GLTFLoader,type GLTF} from './vendor/GLTFLoader.js';
-import type {ClassId,WeaponId} from '../../shared/types.js';
+import type {ClassId,WeaponId,ItemAppearance} from '../../shared/types.js';
 import type {WarriorPose} from './render-types.js';
 import {clone} from './vendor/SkeletonUtils.js';
 import {contactShadow} from './forms.js';
 
-export const CHARACTER_URL=new URL('./characters/ashen-warrior-v1.glb',import.meta.url).href;
+export const CHARACTER_URL=new URL('./characters/ashen-warrior-equipment-v1.glb',import.meta.url).href;
 export const CLIP_NAMES=['Idle','Walk','Run','Attack_Sword_1','Attack_Sword_2','Hit','Death'] as const;
 export type WarriorClip=typeof CLIP_NAMES[number];
 type AttackClip='Attack_Sword_1'|'Attack_Sword_2';
@@ -49,9 +49,9 @@ export function createAnimatedWarrior(gltf:{scene:T.Object3D;animations:T.Animat
     o.frustumCulled=false;
     for(const m of Array.isArray(o.material)?o.material:[o.material]){
       if(m instanceof T.MeshStandardMaterial&&m.map)m.map.anisotropy=4;
-      if(m instanceof T.MeshStandardMaterial&&m.name==='Weathered_Paladin_Steel'&&!tuned.has(m)){
+      if(m instanceof T.MeshStandardMaterial&&(m.name==='Weathered_Paladin_Steel'||m.name==='Traveller_Textured_Leather')&&!tuned.has(m)){
         // The source diffuse includes strong baked shading; compensate for the overhead camera.
-        m.color.multiplyScalar(1.6);m.metalness=.25;m.roughness=.6;m.normalScale.setScalar(.7);tuned.add(m);
+        m.color.multiplyScalar(1.6);m.metalness=m.name==='Traveller_Textured_Leather'?0:.25;m.roughness=m.name==='Traveller_Textured_Leather'?.9:.6;m.normalScale.setScalar(.7);tuned.add(m);
       }
     }
   }});
@@ -89,14 +89,32 @@ export function createAnimatedWarrior(gltf:{scene:T.Object3D;animations:T.Animat
   let lastAttack:WarriorPose['attack']=null,attackIndex=0,attackName:AttackClip='Attack_Sword_1',wasDead=false,deathAge=0,lastHurt=0,hitAge=1,preview:WarriorClip|null=null;
   let state:WarriorClip='Idle';
   const weights=Object.fromEntries(CLIP_NAMES.map(n=>[n,n==='Idle'?1:0]));
-  function equipment(weapon:WeaponId,classId:ClassId='warrior'){sword!.visible=classId==='warrior'&&weapon!=='axe';axe!.visible=classId==='warrior'&&weapon==='axe';if(buckler)buckler.visible=classId==='warrior';bow.visible=classId==='archer';staff.visible=classId==='mage';}
+  const parts=Object.fromEntries(['Base_Body','Base_Head','Base_Feet','Traveller_Armor','Traveller_Hood','Traveller_Boots','Traveller_Limbs','Traveller_Coif','Traveller_Cape','Weapon_WatchSword','Copper_Ring','Ember_Amulet','Armor_Body','Helmet','Boots','Cape'].map(name=>[name,model.getObjectByName(name)]));
+  let appearanceKey='';
+  function equipment(weapon:WeaponId,classId:ClassId='warrior',appearance?:ItemAppearance){
+    const key=JSON.stringify([weapon,classId,appearance]);if(key===appearanceKey)return;appearanceKey=key;
+    const show=(name:string,visible:boolean)=>{if(parts[name])parts[name]!.visible=visible;};
+    const modular=classId==='warrior'&&!!appearance&&!!parts.Base_Body;
+    const heavy=modular&&(appearance.armor==='watch-armor'||appearance.armor==='legacy');
+    const light=modular&&appearance.armor==='wanderer-armor';
+    show('Traveller_Limbs',light);show('Traveller_Cape',light);show('Traveller_Coif',modular&&appearance.helmet==='wanderer-hood');
+    show('Base_Body',modular&&!heavy&&!light);show('Base_Head',modular&&!['watch-helm','wanderer-hood','legacy'].includes(appearance.helmet??''));show('Base_Feet',modular&&!['watch-boots','wanderer-boots','legacy'].includes(appearance.boots??''));
+    show('Traveller_Armor',modular&&appearance.armor==='wanderer-armor');show('Traveller_Hood',modular&&appearance.helmet==='wanderer-hood');show('Traveller_Boots',modular&&appearance.boots==='wanderer-boots');
+    show('Armor_Body',!modular||heavy);show('Cape',!modular||heavy);show('Helmet',!modular||appearance.helmet==='watch-helm'||appearance.helmet==='legacy');show('Boots',!modular||appearance.boots==='watch-boots'||appearance.boots==='legacy');
+    show('Copper_Ring',modular&&!!appearance.ring);show('Ember_Amulet',modular&&!!appearance.amulet);
+    const watch=modular&&appearance.weapon==='watch-sword';show('Weapon_WatchSword',watch);
+    const armed=!modular||!!appearance.weapon;
+    sword!.visible=classId==='warrior'&&armed&&!watch&&weapon!=='axe';axe!.visible=classId==='warrior'&&armed&&weapon==='axe';
+    if(buckler)buckler.visible=classId==='warrior'&&armed;bow.visible=classId==='archer';staff.visible=classId==='mage';
+  }
+  equipment('sword');
   function reset(){
     lastAttack=null;wasDead=false;deathAge=0;hitAge=1;lastHurt=0;hitAction.weight=0;
     for(const name of CLIP_NAMES){weights[name]=name==='Idle'?1:0;actions[name].time=0;actions[name].setEffectiveWeight(weights[name]);}
   }
   function animate(dt:number,hero:WarriorPose,sampleAnimation=true){
     if(preview)return;
-    equipment(hero.weapon,hero.classId);
+    equipment(hero.weapon,hero.classId,hero.appearance);
     if(wasDead&&!hero.dead)reset();
     const target=Object.fromEntries(CLIP_NAMES.map(n=>[n,0]));
     if(hero.dead){

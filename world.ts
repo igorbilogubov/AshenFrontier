@@ -1,3 +1,4 @@
+import {WARRIOR_ITEMS,rollEquipment,validateEquipment,equipmentAppearance} from './public/game/equipment-items.js';
 import type {ClassId, EquipmentSlot, Item, Hero, PersistentHero, HeroAttack, Mob, Projectile, WorldEvent, EventPayloads, WorldSnapshot} from './shared/types.js';
 import {isRecord, isClassId, isEquipmentSlot, isWeaponId} from './shared/types.js';
 import {randomUUID} from 'node:crypto';
@@ -25,6 +26,7 @@ function savedItems(value: unknown): Item[]{
   return value.map((item: unknown)=>{
     if(!isRecord(item)||typeof item.id!=='string'||typeof item.name!=='string'||!isEquipmentSlot(item.slot)||typeof item.power!=='number'||typeof item.rarity!=='number')throw new Error('Invalid saved item');
     if(item.classId!==undefined&&!isClassId(item.classId))throw new Error('Invalid saved item class');
+    validateEquipment(item as unknown as Item);
     const copy={...item, ...(item.slot==='weapon'&&!item.classId?{classId:'warrior' as const}:{})};
     return copy as unknown as Item;
   });
@@ -42,7 +44,7 @@ export function safeHero(saved: unknown): Hero{
   const items=savedItems(raw.items),pendingItems=savedItems(raw.pendingItems),rawEquipment=isRecord(raw.equipment)?raw.equipment:{};
   const equipment: Hero['equipment']={};
   for(const slot of Object.keys(EQUIPMENT_SLOTS) as EquipmentSlot[]){
-    const id=rawEquipment[slot];equipment[slot]=typeof id==='string'&&items.some(i=>i.id===id&&i.slot===slot&&canEquip({classId},i))?id:null;
+    const id=rawEquipment[slot];equipment[slot]=typeof id==='string'&&items.some(i=>i.id===id&&i.slot===slot&&canEquip({classId,level},i))?id:null;
   }
   const x=finite(raw.x,.5),z=finite(raw.z,2),position=legacy||typeof raw.x!=='number'||typeof raw.z!=='number'||!Number.isFinite(raw.x)||!Number.isFinite(raw.z)||!stand(x,z)?{x:.5,z:2}:{x,z};
   const yaw=finite(raw.yaw,Math.PI*.25);
@@ -147,16 +149,17 @@ export class World{
     if(msg.type==='attack'){if(typeof msg.yaw==='number'&&Number.isFinite(msg.yaw))this.attack(p,msg.yaw,!!msg.special);return;}
     if(msg.type==='potion'){this.potion(p);return;}
     if(msg.type==='run'&&typeof msg.running==='boolean'&&!p.dead){p.running=msg.running;return;}
-    if(msg.type==='weapon'&&isWeaponId(msg.weapon)&&!p.attack&&!p.dead){p.weapon=msg.weapon;return;}
+    if(msg.type==='weapon'&&isWeaponId(msg.weapon)&&!p.attack&&!p.dead){const weapon=p.items.find(item=>item.id===p.equipment.weapon);if(weapon?.definitionId){this.notice(p,'Вид оружия определяется надетым предметом');return;}p.weapon=msg.weapon;return;}
     if(msg.type==='camp'){
       if(p.dead||p.combatUntil>this.t||this.mobs.some(m=>m.target===p.id&&['chase','windup','recover'].includes(m.state))){this.notice(p,'Сначала оторвитесь от врагов');return;}
       this.camp(p,false);return;
     }
-    if(typeof msg.type==='string'&&['equip','sell','claim'].includes(msg.type)){
+    if(typeof msg.type==='string'&&['equip','unequip','sell','claim'].includes(msg.type)){
       if(!safe(p)||p.dead||p.attack||p.combatUntil>this.t){this.notice(p,'Снаряжение меняется у костра, вне боя');return;}
       if(msg.type==='claim'){while(p.pendingItems.length&&p.items.length<BAG_CAPACITY)p.items.push(p.pendingItems.shift()!);return;}
       const item=p.items.find(i=>i.id===msg.id);if(!item)return;
-      if(msg.type==='equip'&&canEquip(p,item)){p.equipment[item.slot]=item.id;this.clampResources(p);}
+      if(msg.type==='equip'&&canEquip(p,item)){p.equipment[item.slot]=item.id;if(item.definitionId&&item.slot==='weapon')p.weapon='sword';this.clampResources(p);}
+      if(msg.type==='unequip'&&p.equipment[item.slot]===item.id){p.equipment[item.slot]=null;this.clampResources(p);}
       if(msg.type==='sell'&&!item.bound&&!Object.values(p.equipment).includes(item.id)){p.gold+=Math.max(1,Math.round(nonnegative(item.power)*3+5));p.items=p.items.filter(i=>i.id!==item.id);}
     }
   }
@@ -166,7 +169,7 @@ export class World{
     if(special&&p.specialCooldown>0)return false;
     if(special&&p.mana<stats(p).specialManaCost){this.notice(p,'Не хватает маны. Обычная атака не расходует ману');return false;}
     p.targetYaw=Math.atan2(Math.sin(yaw),Math.cos(yaw));
-    const c=classFor(p.classId),duration=p.classId==='warrior'?WEAPONS[p.weapon].duration:c.duration;
+    const c=classFor(p.classId),duration=(p.classId==='warrior'?WEAPONS[p.weapon].duration:c.duration)/(1+stats(p).attackSpeed);
     p.attack={id:++p.attackSerial,age:0,duration:special?duration*1.2:duration,weapon:p.weapon,yaw:null,hit:false,special};
     p.combatUntil=this.t+15000;
     if(special){p.specialCooldown=5;p.mana-=stats(p).specialManaCost;}
@@ -215,8 +218,9 @@ export class World{
       while(p.xp>=stats(p).xpNeeded){p.xp-=stats(p).xpNeeded;p.level++;p.statRevision++;this.emit('level',{level:p.level,points:5},p.id);}
       // Every third personal kill and each boss gives a real persisted item.
       if(p.questKills===1||p.questKills%3===0||m.type==='alpha'){
-        const slots=Object.keys(EQUIPMENT_SLOTS) as EquipmentSlot[],slot=slots[(p.questKills-1)%slots.length];
-        const item=makeLoot(p.classId,Math.min(12,p.level+1),m.type==='alpha'?2:1,slot);
+        const slots=Object.keys(EQUIPMENT_SLOTS) as EquipmentSlot[],slot=slots[p.classId==='warrior'?Math.floor(p.questKills/3)%slots.length:(p.questKills-1)%slots.length];
+        const choices=WARRIOR_ITEMS.filter(definition=>definition.slot===slot);
+        const item=p.classId==='warrior'?rollEquipment(choices[Math.floor(this.random()*choices.length)].id,randomUUID(),this.random):makeLoot(p.classId,Math.min(12,p.level+1),m.type==='alpha'?2:1,slot);
         if(p.items.length<BAG_CAPACITY)p.items.push(item);else p.pendingItems.push(item);
         this.emit('item',{name:item.name,pending:p.items.length>=BAG_CAPACITY},p.id);
       }
@@ -296,6 +300,6 @@ export class World{
   }
   snapshot(forId: string): WorldSnapshot{
     const p=this.players.get(forId);
-    return {t:this.t,players:[...this.players.values()].map(p=>({id:p.id,name:p.name,classId:p.classId,x:p.x,z:p.z,yaw:p.yaw,weapon:p.weapon,hp:p.hp,maxHp:stats(p).maxHp,level:p.level,dead:p.dead,hurt:p.hurt,attack:p.attack,moveBlend:p.moveBlend,runBlend:p.runBlend,gait:p.gait,vx:p.vx,vz:p.vz,connected:p.connected})),mobs:this.mobs.map(({contributors,patrol,...m})=>m),projectiles:this.projectiles.map(({damage,aoe,...b})=>b),self:p?{...stats(p),...persistentHero(p),attackPower:stats(p).attack,targetYaw:p.targetYaw,vx:p.vx,vz:p.vz,hurt:p.hurt,gait:p.gait,moveBlend:p.moveBlend,runBlend:p.runBlend,ack:p.ack}:null,events:this.events.filter(e=>!e.owner||e.owner===forId)};
+    return {t:this.t,players:[...this.players.values()].map(p=>({id:p.id,name:p.name,classId:p.classId,x:p.x,z:p.z,yaw:p.yaw,weapon:p.weapon,hp:p.hp,maxHp:stats(p).maxHp,level:p.level,dead:p.dead,hurt:p.hurt,attack:p.attack,moveBlend:p.moveBlend,runBlend:p.runBlend,gait:p.gait,vx:p.vx,vz:p.vz,connected:p.connected,...(p.classId==='warrior'?{appearance:equipmentAppearance(p)}:{})})),mobs:this.mobs.map(({contributors,patrol,...m})=>m),projectiles:this.projectiles.map(({damage,aoe,...b})=>b),self:p?{...stats(p),...persistentHero(p),appearance:equipmentAppearance(p),attackPower:stats(p).attack,targetYaw:p.targetYaw,vx:p.vx,vz:p.vz,hurt:p.hurt,gait:p.gait,moveBlend:p.moveBlend,runBlend:p.runBlend,ack:p.ack}:null,events:this.events.filter(e=>!e.owner||e.owner===forId)};
   }
 }

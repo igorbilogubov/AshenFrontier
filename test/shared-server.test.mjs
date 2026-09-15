@@ -139,3 +139,23 @@ test('isolated stress controller creates 16 real sessions and cleans up; ordinar
     const info=await (await fetch(server.url+'/__stress/info')).json();assert.equal(info.server.bots,0);assert.deepEqual(info.server.errors,[]);
   }finally{for(const c of clients)await close(c);await stop(server);await rm(dir,{recursive:true,force:true});}
 });
+
+test('rolled equipment survives real WebSocket equip, observer updates and a server restart',async()=>{
+  const {rollEquipment}=await import('../dist/public/game/equipment-items.js');
+  const dir=await mkdtemp(path.join(tmpdir(),'ashen-equipment-network-'));let server;const clients=[];
+  try{
+    const hero=newHero('Экипировка'),observer=newHero('Наблюдатель');
+    const armor=rollEquipment('wanderer-armor','rolled-armor',()=>.7),blade=rollEquipment('watch-blade','rolled-blade',()=>.3);
+    hero.items.push(armor,blade);const original=structuredClone(hero.items);const keys=['d'.repeat(48),'e'.repeat(48)];
+    await writeFile(path.join(dir,'heroes.json'),JSON.stringify({[keys[0]]:persistentHero(hero),[keys[1]]:persistentHero(observer)}));
+    server=await start(dir);const owner=await connect(server,{token:keys[0]}),watcher=await connect(server,{token:keys[1]});clients.push(owner,watcher);
+    owner.send({type:'equip',id:armor.id,rolls:[{key:'maxHp',value:99999}]});owner.send({type:'equip',id:blade.id});
+    await until(()=>watcher.state.players.some(p=>p.id===hero.id&&p.appearance?.armor==='wanderer-armor'&&p.appearance?.weapon==='watch-sword'));
+    assert.deepEqual(owner.state.self.items,original);assert.equal(owner.state.self.maxHp,112);
+    for(const client of clients)await close(client);clients.length=0;await stop(server);server=await start(dir);
+    const restored=await connect(server,{token:keys[0]});clients.push(restored);
+    assert.deepEqual(restored.state.self.items,original);assert.equal(restored.state.self.equipment.armor,armor.id);
+    restored.send({type:'unequip',id:armor.id});await until(()=>restored.state.self.equipment.armor===null);
+    assert.equal(restored.state.self.appearance.armor,null);assert.deepEqual(restored.state.self.items,original);
+  }finally{for(const client of clients)await close(client);await stop(server);await rm(dir,{recursive:true,force:true});}
+});

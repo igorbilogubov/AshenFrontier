@@ -1,3 +1,4 @@
+import {WARRIOR_ITEMS,rollEquipment} from '../public/game/equipment-items.js';
 /** Test-only controller: load through the isolated runner, never on a production server. */
 import type {IncomingMessage,ServerResponse} from 'node:http';
 import {readFile,writeFile} from 'node:fs/promises';
@@ -61,16 +62,22 @@ class StressController {
       if(this.mode==='combat'&&p.hp<p.maxHp*.5)this.send(bot,{type:'potion'});
     }
   }
-  private async scenario(players:number,mode:'camp'|'combat',url:string){
+  private async scenario(players:number,mode:'camp'|'combat',url:string,equipment:unknown){
     while(this.bots.length<players-1)await this.addBot(url,this.bots.length);
     while(this.bots.length>players-1){const bot=this.bots.pop()!;bot.socket.close();const hero=this.world.players.get(bot.id);if(hero)hero.combatUntil=0;}
     const deadline=Date.now()+7000;while(this.world.players.size!==players){if(Date.now()>deadline)throw new Error('Expected player count not reached');await delay(50);}
     this.mode=mode;this.errors=[];
     this.world.mobs=new World().mobs;this.world.projectiles=[];this.world.events=[];
     let index=0;for(const hero of this.world.players.values()){
-      const fresh=newHero(hero.name,hero.classId),oldId=hero.id;
+      const fresh=newHero(hero.name,equipment==='mixed-warrior'||equipment==='legacy-warrior'?'warrior':hero.classId),oldId=hero.id;
       Object.assign(hero,fresh,{id:oldId,connected:true,x:mode==='camp'?.5:8.5,z:mode==='camp'?2:0});
       if(this.bots.some(bot=>bot.id===oldId)){const angle=index++*2.399;hero.x+=Math.sin(angle)*1.3;hero.z+=Math.cos(angle)*1.3;}
+      if(equipment==='mixed-warrior'){
+        const family=index%2?'wanderer':'watch';
+        hero.items=WARRIOR_ITEMS.map(definition=>({...rollEquipment(definition.id,oldId+'-'+definition.id,()=>.5),bound:true}));
+        hero.equipment={};
+        for(const definition of WARRIOR_ITEMS)if(definition.id.startsWith(family)||definition.slot==='ring'||definition.slot==='amulet')hero.equipment[definition.slot]=oldId+'-'+definition.id;
+      }
       // Test scenarios use ordinary level-one stats, real damage and real deaths.
       const derived=stats(hero);hero.hp=derived.maxHp;hero.mana=derived.maxMana;
     }
@@ -90,7 +97,7 @@ class StressController {
       if(pathname==='/__stress/scenario'){
         if(this.busy)throw new Error('Scenario change already running');
         if(![1,4,16].includes(Number(body.players))||(body.mode!=='camp'&&body.mode!=='combat'))throw new Error('Unknown scenario');
-        this.busy=true;try{res.end(JSON.stringify(await this.scenario(Number(body.players),body.mode,origin)));}finally{this.busy=false;}return true;
+        this.busy=true;try{res.end(JSON.stringify(await this.scenario(Number(body.players),body.mode,origin,body.equipment)));}finally{this.busy=false;}return true;
       }
       if(pathname==='/__stress/reset-metrics'){this.resetMetrics();res.end('{}');return true;}
       if(pathname==='/__stress/report'){

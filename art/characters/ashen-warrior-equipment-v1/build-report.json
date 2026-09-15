@@ -1,0 +1,102 @@
+{
+  "generator": "Blender 5.2.1 LTS",
+  "bones": 67,
+  "glbBytes": 4803032,
+  "meshes": [
+    {
+      "name": "Helmet",
+      "triangles": 1448,
+      "unweighted": 0
+    },
+    {
+      "name": "Armor_Body",
+      "triangles": 12554,
+      "unweighted": 0
+    },
+    {
+      "name": "Boots",
+      "triangles": 658,
+      "unweighted": 0
+    },
+    {
+      "name": "Weapon_Sword",
+      "triangles": 504,
+      "unweighted": 0
+    },
+    {
+      "name": "Weapon_Axe",
+      "triangles": 304,
+      "unweighted": 0
+    },
+    {
+      "name": "Weapon_Buckler",
+      "triangles": 168,
+      "unweighted": 0
+    },
+    {
+      "name": "Cape",
+      "triangles": 128,
+      "unweighted": 0
+    },
+    {
+      "name": "Base_Body",
+      "triangles": 2796,
+      "unweighted": 0
+    },
+    {
+      "name": "Base_Head",
+      "triangles": 1712,
+      "unweighted": 0
+    },
+    {
+      "name": "Base_Feet",
+      "triangles": 640,
+      "unweighted": 0
+    },
+    {
+      "name": "Traveller_Armor",
+      "triangles": 1144,
+      "unweighted": 0
+    },
+    {
+      "name": "Traveller_Hood",
+      "triangles": 480,
+      "unweighted": 0
+    },
+    {
+      "name": "Weapon_WatchSword",
+      "triangles": 504,
+      "unweighted": 0
+    },
+    {
+      "name": "Copper_Ring",
+      "triangles": 192,
+      "unweighted": 0
+    },
+    {
+      "name": "Ember_Amulet",
+      "triangles": 1344,
+      "unweighted": 0
+    },
+    {
+      "name": "Traveller_Limbs",
+      "triangles": 6056,
+      "unweighted": 0
+    },
+    {
+      "name": "Traveller_Coif",
+      "triangles": 1448,
+      "unweighted": 0
+    },
+    {
+      "name": "Traveller_Boots",
+      "triangles": 658,
+      "unweighted": 0
+    },
+    {
+      "name": "Traveller_Cape",
+      "triangles": 128,
+      "unweighted": 0
+    }
+  ]
+}

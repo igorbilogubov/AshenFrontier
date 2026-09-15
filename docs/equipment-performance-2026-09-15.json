@@ -1,0 +1,345 @@
+{
+  "scope": "Local short camp scenarios; same modular asset with legacy or mixed equipment; not original pre-change binary, production capacity or long-session proof",
+  "reports": [
+    {
+      "artifact": "1789473142102-nt7es.json",
+      "recordedAt": "2026-09-15T11:52:22.102Z",
+      "profile": "mixed-warrior",
+      "scenario": {
+        "name": "1 игрок · лагерь",
+        "players": 1,
+        "mode": "camp",
+        "variant": "full"
+      },
+      "valid": true,
+      "graphics": {
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+        "width": 1280,
+        "height": 720,
+        "dpr": 1,
+        "displayDpr": 1,
+        "cameraPosition": [
+          11.027712353159211,
+          19.750434372851924,
+          19.171134945498487
+        ],
+        "cameraQuaternion": [
+          -0.3605308247011501,
+          0.2517739357027732,
+          0.10172327300565487,
+          0.8923451044691518
+        ],
+        "cameraZoom": 1,
+        "shadows": true
+      },
+      "hardware": {
+        "cpu": "Apple M1",
+        "cores": 8,
+        "memoryGiB": 16,
+        "os": "darwin",
+        "release": "25.6.0",
+        "node": "v24.19.0"
+      },
+      "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
+      "frames": {
+        "count": 719,
+        "mean": 16.665090403337967,
+        "p50": 16.69999999999709,
+        "p95": 17.600000000002183,
+        "p99": 17.700000000000728,
+        "max": 17.799999999999272,
+        "fps": 60.005675084709,
+        "over33": 0,
+        "over50": 0,
+        "over100": 0
+      },
+      "cpuFrame": {
+        "count": 720,
+        "mean": 2.065000000430478,
+        "p50": 2.0999999940395355,
+        "p95": 2.5,
+        "p99": 2.800000011920929,
+        "max": 3.0999999940395355
+      },
+      "drawCalls": {
+        "count": 720,
+        "mean": 160,
+        "p50": 160,
+        "p95": 160,
+        "p99": 160,
+        "max": 160
+      },
+      "triangles": {
+        "count": 720,
+        "mean": 1087076,
+        "p50": 1087076,
+        "p95": 1087076,
+        "p99": 1087076,
+        "max": 1087076
+      },
+      "serverTick": {
+        "count": 239,
+        "mean": 0.6021404895400794,
+        "p50": 0.5712919999787118,
+        "p95": 0.9189579999947455,
+        "p99": 0.9961659999971744,
+        "max": 1.1825420000241138
+      }
+    },
+    {
+      "artifact": "1789473186765-lrrdy.json",
+      "recordedAt": "2026-09-15T11:53:06.765Z",
+      "profile": "mixed-warrior",
+      "scenario": {
+        "name": "4 игрока · лагерь",
+        "players": 4,
+        "mode": "camp",
+        "variant": "full"
+      },
+      "valid": true,
+      "graphics": {
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+        "width": 1280,
+        "height": 720,
+        "dpr": 1,
+        "displayDpr": 1,
+        "cameraPosition": [
+          11.027712353159211,
+          19.750434372851924,
+          19.171134945498487
+        ],
+        "cameraQuaternion": [
+          -0.3605308247011501,
+          0.2517739357027732,
+          0.10172327300565487,
+          0.8923451044691518
+        ],
+        "cameraZoom": 1,
+        "shadows": true
+      },
+      "hardware": {
+        "cpu": "Apple M1",
+        "cores": 8,
+        "memoryGiB": 16,
+        "os": "darwin",
+        "release": "25.6.0",
+        "node": "v24.19.0"
+      },
+      "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
+      "frames": {
+        "count": 719,
+        "mean": 16.66592489568846,
+        "p50": 16.69999999999709,
+        "p95": 17.60000000000582,
+        "p99": 17.69999999999709,
+        "max": 17.80000000000291,
+        "fps": 60.00267049437526,
+        "over33": 0,
+        "over50": 0,
+        "over100": 0
+      },
+      "cpuFrame": {
+        "count": 720,
+        "mean": 2.7679166664265926,
+        "p50": 2.7999999821186066,
+        "p95": 3.0999999940395355,
+        "p99": 3.300000011920929,
+        "max": 3.7999999821186066
+      },
+      "drawCalls": {
+        "count": 720,
+        "mean": 253,
+        "p50": 253,
+        "p95": 253,
+        "p99": 253,
+        "max": 253
+      },
+      "triangles": {
+        "count": 720,
+        "mean": 1169562,
+        "p50": 1169562,
+        "p95": 1169562,
+        "p99": 1169562,
+        "max": 1169562
+      },
+      "serverTick": {
+        "count": 239,
+        "mean": 1.3063964769876197,
+        "p50": 1.2336669999931473,
+        "p95": 2.10137499999837,
+        "p99": 2.4165830000129063,
+        "max": 4.664666000026045
+      }
+    },
+    {
+      "artifact": "1789473394793-v2c83.json",
+      "recordedAt": "2026-09-15T11:56:34.793Z",
+      "profile": "mixed-warrior",
+      "scenario": {
+        "name": "16 игроков · лагерь",
+        "players": 16,
+        "mode": "camp",
+        "variant": "full"
+      },
+      "valid": true,
+      "graphics": {
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+        "width": 1280,
+        "height": 720,
+        "dpr": 1,
+        "displayDpr": 1,
+        "cameraPosition": [
+          11.027712353159211,
+          19.750434372851924,
+          19.171134945498487
+        ],
+        "cameraQuaternion": [
+          -0.3605308247011501,
+          0.2517739357027732,
+          0.10172327300565487,
+          0.8923451044691518
+        ],
+        "cameraZoom": 1,
+        "shadows": true
+      },
+      "hardware": {
+        "cpu": "Apple M1",
+        "cores": 8,
+        "memoryGiB": 16,
+        "os": "darwin",
+        "release": "25.6.0",
+        "node": "v24.19.0"
+      },
+      "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
+      "frames": {
+        "count": 719,
+        "mean": 16.66703755215574,
+        "p50": 16.70000000001164,
+        "p95": 18.5,
+        "p99": 18.600000000034925,
+        "max": 18.70000000001164,
+        "fps": 59.998664841950784,
+        "over33": 0,
+        "over50": 0,
+        "over100": 0
+      },
+      "cpuFrame": {
+        "count": 720,
+        "mean": 7.261250000115898,
+        "p50": 6.700000017881393,
+        "p95": 10.5,
+        "p99": 12.600000023841858,
+        "max": 17.30000001192093
+      },
+      "drawCalls": {
+        "count": 720,
+        "mean": 601,
+        "p50": 601,
+        "p95": 601,
+        "p99": 601,
+        "max": 601
+      },
+      "triangles": {
+        "count": 720,
+        "mean": 1519002,
+        "p50": 1519002,
+        "p95": 1519002,
+        "p99": 1519002,
+        "max": 1519002
+      },
+      "serverTick": {
+        "count": 236,
+        "mean": 7.0876673516941695,
+        "p50": 6.23699999996461,
+        "p95": 11.623458000016399,
+        "p99": 14.098750000004657,
+        "max": 45.4252919999999
+      }
+    },
+    {
+      "artifact": "1789473470524-picac.json",
+      "recordedAt": "2026-09-15T11:57:50.524Z",
+      "profile": "legacy-warrior",
+      "scenario": {
+        "name": "16 игроков · лагерь",
+        "players": 16,
+        "mode": "camp",
+        "variant": "full"
+      },
+      "valid": true,
+      "graphics": {
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+        "width": 1280,
+        "height": 720,
+        "dpr": 1,
+        "displayDpr": 1,
+        "cameraPosition": [
+          11.027712353159211,
+          19.750434372851924,
+          19.171134945498487
+        ],
+        "cameraQuaternion": [
+          -0.3605308247011501,
+          0.2517739357027732,
+          0.10172327300565487,
+          0.8923451044691518
+        ],
+        "cameraZoom": 1,
+        "shadows": true
+      },
+      "hardware": {
+        "cpu": "Apple M1",
+        "cores": 8,
+        "memoryGiB": 16,
+        "os": "darwin",
+        "release": "25.6.0",
+        "node": "v24.19.0"
+      },
+      "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
+      "frames": {
+        "count": 719,
+        "mean": 16.66564673157163,
+        "p50": 16.700000000000728,
+        "p95": 17.69999999999709,
+        "p99": 18.30000000000291,
+        "max": 18.700000000000728,
+        "fps": 60.003671991053686,
+        "over33": 0,
+        "over50": 0,
+        "over100": 0
+      },
+      "cpuFrame": {
+        "count": 720,
+        "mean": 7.636250000778172,
+        "p50": 7.200000017881393,
+        "p95": 11.800000011920929,
+        "p99": 13.400000005960464,
+        "max": 15.400000005960464
+      },
+      "drawCalls": {
+        "count": 720,
+        "mean": 569,
+        "p50": 569,
+        "p95": 569,
+        "p99": 569,
+        "max": 569
+      },
+      "triangles": {
+        "count": 720,
+        "mean": 1555706,
+        "p50": 1555706,
+        "p95": 1555706,
+        "p99": 1555706,
+        "max": 1555706
+      },
+      "serverTick": {
+        "count": 237,
+        "mean": 5.175983143457554,
+        "p50": 4.780040999990888,
+        "p95": 8.382209000003058,
+        "p99": 9.072625000029802,
+        "max": 10.265833000012208
+      }
+    }
+  ]
+}

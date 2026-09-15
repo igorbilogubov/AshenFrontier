@@ -6,14 +6,17 @@ export type StatKey = 'strength' | 'dexterity' | 'vitality' | 'energy';
 export type Attributes = Record<StatKey, number>;
 export type Equipment = Partial<Record<EquipmentSlot, string | null>>;
 export interface Point { x: number; z: number }
-export interface Item { id: string; name: string; slot: EquipmentSlot; rarity: number; power: number; classId?: ClassId; bound?: boolean }
+export type ItemStatKey = 'attack' | 'armor' | 'maxHp' | 'maxMana' | 'hpRegen' | 'manaRegen' | 'accuracy' | 'haste';
+export interface ItemRoll { key:ItemStatKey; value:number; min:number; max:number; step?:number }
+export type ItemAppearance = Partial<Record<EquipmentSlot,string|null>>;
+export interface Item { definitionId?:string; rollVersion?:1; itemLevel?:number; rolls?:ItemRoll[]; id: string; name: string; slot: EquipmentSlot; rarity: number; power: number; classId?: ClassId; bound?: boolean }
 export interface HeroAttack { id: number; age: number; duration: number; weapon?: WeaponId; yaw: number | null; hit: boolean; special: boolean }
 export interface HeroInput extends Point { aim: number | null; seq: number }
 export interface StatSource { classId?: ClassId; level?: number; allocatedStats?: unknown; statRevision?: number; items?: Item[]; equipment?: Equipment }
 export interface CharacterStats {
   attributes: Attributes; allocatedStats: Attributes; unspentPoints: number; statRevision: number;
   maxHp: number; maxMana: number; hpRegen: number; manaRegen: number; attack: number; attackPower: number;
-  armor: number; hitChance: number; speedScale: number; range: number; xpNeeded: number; specialManaCost: number; damageReduction: number;
+  armor: number; attackSpeed: number; hitChance: number; speedScale: number; range: number; xpNeeded: number; specialManaCost: number; damageReduction: number;
 }
 export interface PersistentHero extends Point {
   schemaVersion: number; id: string; name: string; classId: ClassId; level: number; xp: number; gold: number; kills: number;
@@ -38,8 +41,8 @@ export interface Mob extends PublicMob {
 }
 export interface PublicProjectile extends Point { id: string; owner: string; yaw: number; remaining: number; speed: number; kind: 'archer' | 'mage' }
 export interface Projectile extends PublicProjectile { damage: number; aoe: number }
-export type PublicPlayer = Pick<Hero, 'id' | 'name' | 'classId' | 'x' | 'z' | 'yaw' | 'weapon' | 'hp' | 'level' | 'dead' | 'hurt' | 'attack' | 'moveBlend' | 'runBlend' | 'gait' | 'vx' | 'vz' | 'connected'> & { maxHp: number };
-export type SelfSnapshot = PersistentHero & Omit<CharacterStats, 'attack'> & Pick<Hero, 'targetYaw' | 'vx' | 'vz' | 'hurt' | 'gait' | 'moveBlend' | 'runBlend' | 'ack'>;
+export type PublicPlayer = Pick<Hero, 'id' | 'name' | 'classId' | 'x' | 'z' | 'yaw' | 'weapon' | 'hp' | 'level' | 'dead' | 'hurt' | 'attack' | 'moveBlend' | 'runBlend' | 'gait' | 'vx' | 'vz' | 'connected'> & { maxHp: number; appearance?:ItemAppearance };
+export type SelfSnapshot = PersistentHero & {appearance?:ItemAppearance} & Omit<CharacterStats, 'attack'> & Pick<Hero, 'targetYaw' | 'vx' | 'vz' | 'hurt' | 'gait' | 'moveBlend' | 'runBlend' | 'ack'>;
 export interface EventPayloads {
   notice: { text: string }; statResult: { ok: boolean; revision: number; message?: string };
   safe: Record<never, never>; camp: Record<never, never>; death: Record<never, never>; quest: Record<never, never>;
@@ -54,7 +57,7 @@ export interface ChatEntry { name: string; text: string; t: number }
 export type ClientCommand =
   | ({ type: 'input' } & HeroInput) | { type: 'attack'; yaw: number; special?: boolean }
   | { type: 'potion' | 'camp' | 'claim' } | { type: 'run'; running: boolean } | { type: 'weapon'; weapon: WeaponId }
-  | { type: 'equip' | 'sell'; id: string } | { type: 'allocateStats'; revision: number; points: Partial<Attributes> }
+  | { type: 'equip' | 'unequip' | 'sell'; id: string } | { type: 'allocateStats'; revision: number; points: Partial<Attributes> }
   | { type: 'resetStats'; revision: number };
 export type ClientMessage = ClientCommand | { type: 'join'; protocol: 2; name: string; classId: ClassId; token?: string | null } | { type: 'chat'; text: string } | { type: 'ping'; t: number };
 export type ServerMessage =

@@ -16,7 +16,7 @@ import type {Point,PublicPlayer,PublicMob,WeaponId} from '../../shared/types.js'
 type Warrior=Awaited<ReturnType<typeof loadWarrior>>;
 type MobModel=ReturnType<typeof createMob> & {pickMeshes:T.Mesh[]};
 type RemoteWarrior=Warrior & {label:HTMLDivElement};
-type VisualHero=Pick<PublicPlayer,'id'|'x'|'z'|'yaw'|'gait'|'runBlend'|'moveBlend'|'dead'|'weapon'|'classId'|'hurt'|'attack'>;
+type VisualHero=Pick<PublicPlayer,'id'|'x'|'z'|'yaw'|'gait'|'runBlend'|'moveBlend'|'dead'|'weapon'|'classId'|'hurt'|'attack'|'appearance'>;
 interface FloatingNumber {element:HTMLSpanElement;x:number;z:number;y:number;life:number}
 interface Particle {mesh:T.Mesh<T.IcosahedronGeometry,T.MeshBasicMaterial>;v:T.Vector3;life:number}
 interface HeldMouse {x:number;y:number;active:boolean;point:T.Vector3|null;held:boolean;pointerId:number|null;pickPending:boolean}
@@ -78,6 +78,7 @@ function toggleRun(){
 }
 function chooseWeapon(id:unknown){
   if(!ready||(id!=='sword'&&id!=='axe')||game.player.dead)return;autoTarget=null;pendingWeapon=null;
+  if(game.player.items.some(item=>item.id===game.player.equipment.weapon&&item.definitionId)){toast('Вид оружия определяется надетым предметом');return;}
   if(id===game.player.weapon)return;if(game.player.attack){pendingWeapon=id;return;}
   game.weapon(id);toast(WEAPONS[id].name);updateUI();
 }
@@ -158,7 +159,7 @@ function updateUI(){
   $('kills-goal').innerHTML=`Победите существ: <b>${Math.min(5,hero.questKills)} / 5</b>`;$('kills-goal').classList.toggle('done',hero.questKills>=5);$('boss-goal').classList.toggle('done',hero.boss);$('camp-goal').classList.toggle('done',hero.questClaimed);
   $('quest-hint').textContent=hero.questClaimed?'Задание выполнено. Можно продолжить охоту.':hero.questKills>=5&&hero.boss?'Возвращайтесь в безопасный лагерь.':hero.questKills>=5?'Вожак ждёт у руин, дальше по тропе.':'Идите по тропе направо, за указатель.';
   $('target-panel').hidden=!mob||mob.state==='dead';if(mob&&mob.state!=='dead'){$('target-name').textContent=MOB_TYPES[mob.type].name;$('target-health').textContent=mob.state==='return'?'Возвращается к логову':`${mob.hp} / ${MOB_TYPES[mob.type].hp}`;$('target-fill').style.transform=`scaleX(${mob.hp/MOB_TYPES[mob.type].hp})`;}
-  for(const button of document.querySelectorAll<HTMLButtonElement>('[data-weapon]')){const active=button.dataset.weapon===hero.weapon;button.classList.toggle('selected',active);button.setAttribute('aria-pressed',String(active));button.disabled=!!hero.dead;}
+  for(const button of document.querySelectorAll<HTMLButtonElement>('[data-weapon]')){const active=button.dataset.weapon===hero.weapon;button.classList.toggle('selected',active);button.setAttribute('aria-pressed',String(active));button.disabled=!!hero.dead||!!hero.items.find(item=>item.id===hero.equipment.weapon&&item.definitionId);}
   $('cooldown').style.transform=`scaleX(${hero.attack?1-hero.attack.age/hero.attack.duration:0})`;
   interfaceUI.update();drawMap();
 }

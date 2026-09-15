@@ -1,3 +1,4 @@
+import {itemDefinition,ITEM_STAT_LABELS,rollValue} from './game/equipment-items.js';
 import type {Attributes, ClassId, EquipmentSlot, Item, StatSource, CharacterStats} from '../shared/types.js';
 // Shared item/class definitions. No renderer-specific units or sprites.
 export const EQUIPMENT_SLOTS: Record<EquipmentSlot, {name: string; stat: 'attack' | 'armor' | 'speed' | 'maxHp'; statName: string; symbol: string}>={
@@ -17,8 +18,8 @@ export const BAG_CAPACITY=16;
 const validClass=(id: unknown): ClassId=>id==='warrior'||id==='archer'||id==='mage'?id:'warrior';
 export const classFor=(id: unknown)=>CLASSES[validClass(id)];
 export const weaponClass=(item: Item | null | undefined)=>item?.classId||'warrior';
-export const canEquip=(hero: Pick<StatSource, 'classId'>,item: Item | null | undefined)=>!!item&&Object.hasOwn(EQUIPMENT_SLOTS,item.slot)&&(item.slot!=='weapon'||weaponClass(item)===(hero.classId||'warrior'));
-export const itemBonus=(item: Item)=>`+${item.power} ${EQUIPMENT_SLOTS[item.slot]?.statName||''}`;
+export const canEquip=(hero: Pick<StatSource, 'classId'|'level'>,item: Item | null | undefined)=>!!item&&Object.hasOwn(EQUIPMENT_SLOTS,item.slot)&&(item.definitionId?(!!itemDefinition(item.definitionId)&&item.classId===(hero.classId||'warrior')&&(hero.level??1)>=(item.itemLevel??1)):(item.slot!=='weapon'||weaponClass(item)===(hero.classId||'warrior')));
+export const itemBonus=(item: Item)=>item.rolls?.map(roll=>`${ITEM_STAT_LABELS[roll.key]} ${rollValue(roll)}`).join(' · ')||`+${item.power} ${EQUIPMENT_SLOTS[item.slot]?.statName||''}`;
 
 // One ruleset drives the authoritative simulation and the allocation preview.
 export const STAT_KEYS=Object.freeze(['strength','dexterity','vitality','energy'] as const);
@@ -66,12 +67,15 @@ export function characterStats(p: StatSource): CharacterStats{
     // Dexterity already grants the archer damage and accuracy. Its armor bonus
     // approaches 21, so investing in damage cannot replace defensive equipment.
     armor:attributes.dexterity*.35/(1+attributes.dexterity/60),hitChance:Math.min(.95,.72+.23*attributes.dexterity/(attributes.dexterity+18)),
-    speedScale:1,range:c.range,xpNeeded:level*65,specialManaCost:progression.specialManaCost,damageReduction:0,attackPower:0};
+    attackSpeed:0,speedScale:1,range:c.range,xpNeeded:level*65,specialManaCost:progression.specialManaCost,damageReduction:0,attackPower:0};
   for(const [slot,definition] of Object.entries(EQUIPMENT_SLOTS) as [EquipmentSlot, (typeof EQUIPMENT_SLOTS)[EquipmentSlot]][]){
     const item=p.items?.find(i=>i.id===p.equipment?.[slot]&&i.slot===slot&&canEquip(p,i));
-    if(!item)continue;const power=positive(item.power);
+    if(!item)continue;
+    if(item.definitionId&&item.rolls){for(const roll of item.rolls){const value=positive(roll.value);if(roll.key==='haste')s.attackSpeed+=value/100;else if(roll.key==='accuracy')s.hitChance+=value/100;else s[roll.key]+=value;}continue;}
+    const power=positive(item.power);
     if(slot==='boots')s.speedScale=1+Math.min(.18,power*.005);else if(definition.stat!=='speed')s[definition.stat]+=power;
   }
+  s.attackSpeed=Math.min(.3,s.attackSpeed);s.hitChance=Math.min(.95,s.hitChance);
   s.damageReduction=Math.min(.65,s.armor/(s.armor+70));s.attackPower=s.attack;
   return s;
 }

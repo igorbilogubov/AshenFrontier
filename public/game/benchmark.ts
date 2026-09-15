@@ -100,7 +100,8 @@ export class Benchmark {
       for(const scenario of list){
         if(this.interrupted)throw new Error('Прогон прерван: вкладка потеряла фокус или изменился размер окна. Запустите заново.');
         this.measuring=false;this.status.textContent=`${scenario.name}: подключение игроков…`;
-        await request('scenario',scenario);
+        const equipment=new URLSearchParams(location.search).get('equipment');
+        await request('scenario',{...scenario,equipment});
         this.variant='full';this.hooks.setVariant('full');
         const deadline=performance.now()+15000;
         while(this.hooks.game.players.length!==scenario.players||!this.hooks.modelsReady()){if(performance.now()>deadline)throw new Error('Не загрузились модели всех игроков');await pause(100);}
@@ -111,7 +112,7 @@ export class Benchmark {
         if(this.interrupted||document.hidden)throw new Error('Недействительный прогон: вкладка скрыта, окно/фокус изменились или было ручное управление.');
         if(!this.durations.length||this.counters.players?.some(count=>count!==scenario.players)||!this.hooks.game.connected)throw new Error('Недействительный прогон: потеряно соединение или изменилось число игроков.');
         const gl=this.gl,debug=gl.getExtension('WEBGL_debug_renderer_info');
-        const report={scenario,valid:true,measurementMs:performance.now()-started,frames:frameSummary(this.durations),cpuSections:Object.fromEntries(Object.entries(this.sections).map(([k,v])=>[k,distribution(v)])),counters:Object.fromEntries(Object.entries(this.counters).map(([k,v])=>[k,distribution(v)])),gpu:{available:!!this.extension,disjoint:this.gpuDisjoint,milliseconds:this.gpuDisjoint?null:distribution(this.gpuTimes)},longTasks:distribution(this.longTasks),browser:navigator.userAgent,hardware:environment.hardware,graphics:{renderer:debug?gl.getParameter(debug.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER),width:innerWidth,height:innerHeight,dpr:this.hooks.renderer.getPixelRatio(),displayDpr:devicePixelRatio,cameraPosition:this.hooks.camera.position.toArray(),cameraQuaternion:this.hooks.camera.quaternion.toArray(),cameraZoom:'zoom' in this.hooks.camera?this.hooks.camera.zoom:null,shadows:this.hooks.renderer.shadowMap.enabled},rawFrameMs:this.durations};
+        const report={scenario,equipmentProfile:equipment||'default',valid:true,measurementMs:performance.now()-started,frames:frameSummary(this.durations),cpuSections:Object.fromEntries(Object.entries(this.sections).map(([k,v])=>[k,distribution(v)])),counters:Object.fromEntries(Object.entries(this.counters).map(([k,v])=>[k,distribution(v)])),gpu:{available:!!this.extension,disjoint:this.gpuDisjoint,milliseconds:this.gpuDisjoint?null:distribution(this.gpuTimes)},longTasks:distribution(this.longTasks),browser:navigator.userAgent,hardware:environment.hardware,graphics:{renderer:debug?gl.getParameter(debug.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER),width:innerWidth,height:innerHeight,dpr:this.hooks.renderer.getPixelRatio(),displayDpr:devicePixelRatio,cameraPosition:this.hooks.camera.position.toArray(),cameraQuaternion:this.hooks.camera.quaternion.toArray(),cameraZoom:'zoom' in this.hooks.camera?this.hooks.camera.zoom:null,shadows:this.hooks.renderer.shadowMap.enabled},rawFrameMs:this.durations};
         const saved=await request('report',report);const frames=report.frames,cpu=report.counters.cpuFrame;
         this.results.textContent+=`${scenario.name}: ${frames.fps?.toFixed(1)} FPS · p95 ${frames.p95?.toFixed(1)} мс · >50мс ${frames.over50} · CPU ${cpu.mean?.toFixed(1)} мс\n`;
         console.info('Benchmark saved',saved.file);

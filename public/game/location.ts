@@ -1,7 +1,8 @@
 import {canOccupy,turnTowards,gaitProfile} from './motion.js';
 import type {Position} from './motion.js';
-import {OBSTACLES} from './terrain.js';
+import {nearbyObstacles} from './terrain.js';
 import {AFK_SPAWNS} from './afk.js';
+import {WORLD_BOUNDS,ROAMING_SPAWNS} from './world-layout.js';
 import type {AfkSpotId} from './afk.js';
 export {AFK_SPOTS,afkSpotAt,withinSpot} from './afk.js';
 export type {AfkSpot,AfkSpotId} from './afk.js';
@@ -11,7 +12,7 @@ export type {MobType,WeaponId} from '../../shared/types.js';
 export interface MovementInput {x?:number;z?:number;aim?:number|null}
 export interface MovingHero extends Position {vx:number;vz:number;running:boolean;speedScale?:number;attack:{yaw:number|null}|null;dead:boolean|number;runBlend:number;gait:number;moveBlend:number;targetYaw:number;yaw:number}
 export const CAMERA=Object.freeze({azimuth:.55,elevation:44*Math.PI/180});
-export const BOUNDS=Object.freeze({minX:-11,maxX:31,minZ:-15,maxZ:15});
+export const BOUNDS=WORLD_BOUNDS;
 export const CAMP=Object.freeze({x:-1,z:0,r:5.6});
 export const SPEED=2.35;
 export const RUN_SPEED=3.8;
@@ -26,10 +27,11 @@ export const SPAWNS:readonly Readonly<Position & {type:MobType;spotId?:AfkSpotId
   {type:'wolf',x:15.4,z:1.4},{type:'boar',x:18.2,z:-6.2},{type:'wolf',x:20.7,z:4.9},
   {type:'alpha',x:25,z:-1.2},
   ...AFK_SPAWNS,
+  ...ROAMING_SPAWNS,
 ]);
 export const safe=(p:Position)=>Math.hypot(p.x-CAMP.x,p.z-CAMP.z)<CAMP.r;
 
-export const stand=(x:number,z:number,r=.29)=>Number.isFinite(x)&&Number.isFinite(z)&&canOccupy(x,z,OBSTACLES,r,BOUNDS);
+export const stand=(x:number,z:number,r=.29)=>Number.isFinite(x)&&Number.isFinite(z)&&canOccupy(x,z,nearbyObstacles(x,z,r),r,BOUNDS);
 export const distance=(a:Position,b:Position)=>Math.hypot(a.x-b.x,a.z-b.z);
 export function clearPath(a:Position,b:Position){
   const steps=Math.ceil(distance(a,b)/.18);

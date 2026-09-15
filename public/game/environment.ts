@@ -4,6 +4,7 @@ import {box,cylinder,ellipsoid,joint,mesh,materials} from './models.js';
 import {BOUNDS,SPAWNS,CAMERA} from './location.js';
 import {OBSTACLES,TREE_POSITIONS} from './terrain.js';
 import {AFK_SPOTS,forestTrailDistance,withinSpot} from './afk.js';
+import {WORLD_CLEARINGS,WORLD_LANDMARKS,roadEdgeDistance} from './world-layout.js';
 import {surfaceMaterial} from './forms.js';
 import {pineGeometry,grassGeometry,fernGeometry,leafGeometry,windMaterial} from './vegetation.js';
 
@@ -13,7 +14,8 @@ export function createEnvironment(scene:T.Scene){
   const wood=surfaceMaterial('#574534',{grain:.16,frequency:24}),timber=surfaceMaterial('#3c332a',{grain:.18,frequency:18}),plaster=surfaceMaterial('#aaa18b',{grain:.075,frequency:35}),roofMats=['#3c5058','#496069','#526a70','#3b535b'].map(c=>surfaceMaterial(c,{grain:.07,frequency:26}));
   const rocks=['#60645c','#76776a','#515f59'].map(c=>surfaceMaterial(c,{grain:.15,frequency:22}));
   const breeze={value:0};
-  const groundG=new T.PlaneGeometry(100,70,160,112);groundG.rotateX(-Math.PI/2);groundG.translate(10,0,0);
+  const groundWidth=BOUNDS.maxX-BOUNDS.minX+32,groundDepth=BOUNDS.maxZ-BOUNDS.minZ+32;
+  const groundG=new T.PlaneGeometry(groundWidth,groundDepth,200,172);groundG.rotateX(-Math.PI/2);groundG.translate((BOUNDS.minX+BOUNDS.maxX)/2,0,(BOUNDS.minZ+BOUNDS.maxZ)/2);
   const positions=groundG.attributes.position,colors:number[]=[],wear:number[]=[];
   for(let i=0;i<positions.count;i++){
     const x=positions.getX(i),z=positions.getZ(i),distance=Math.hypot(x+1,z),path=forestTrailDistance(x,z);
@@ -23,9 +25,10 @@ export function createEnvironment(scene:T.Scene){
     const patches=Math.sin(x*.61+Math.sin(z*.32))*Math.cos(z*.73+x*.12);
     const color=new T.Color('#97a28d').lerp(new T.Color('#c7ab83'),dirt*.9);
     color.lerp(new T.Color('#929b91'),hollow*.62).lerp(new T.Color('#ad9575'),wallow*.72);
+    for(const field of WORLD_CLEARINGS){const influence=Math.exp(-((x-field.x)**2+(z-field.z)**2)/(field.radius**2*.75));color.lerp(new T.Color(field.tint),influence*.48);}
     color.multiplyScalar(1.05+patches*.11+random()*.04);
-    colors.push(color.r,color.g,color.b);wear.push(Math.max(1-T.MathUtils.smoothstep(distance,2.4,4.4),(1-T.MathUtils.smoothstep(path,.35,2.0))*.88,wallow*.52,hollow*.3));
-    if(x<BOUNDS.minX-1||x>BOUNDS.maxX+1||Math.abs(z)>16)positions.setY(i,Math.max(0,Math.sin(x*.5)*Math.cos(z*.3))*.8);
+    colors.push(color.r,color.g,color.b);wear.push(Math.max(1-T.MathUtils.smoothstep(distance,2.4,4.4),(1-T.MathUtils.smoothstep(roadEdgeDistance(x,z),-1.7,.5))*.88,wallow*.52,hollow*.3));
+    if(x<BOUNDS.minX-1||x>BOUNDS.maxX+1||z<BOUNDS.minZ-1||z>BOUNDS.maxZ+1)positions.setY(i,Math.max(0,Math.sin(x*.5)*Math.cos(z*.3))*.8);
   }
   groundG.setAttribute('color',new T.Float32BufferAttribute(colors,3));groundG.setAttribute('pathWear',new T.Float32BufferAttribute(wear,1));groundG.computeVertexNormals();
   const groundMaterial=new T.MeshStandardMaterial({vertexColors:true,roughness:1,bumpScale:.032});
@@ -42,7 +45,7 @@ export function createEnvironment(scene:T.Scene){
   };
   const ground=mesh(scene,groundG,groundMaterial);ground.castShadow=false;
   const ready=new T.TextureLoader().loadAsync(new URL('./materials/forest-floor-v1.png',import.meta.url).href).then(texture=>{
-    texture.colorSpace=T.SRGBColorSpace;texture.wrapS=texture.wrapT=T.RepeatWrapping;texture.repeat.set(100/5.6,70/5.6);texture.anisotropy=8;
+    texture.colorSpace=T.SRGBColorSpace;texture.wrapS=texture.wrapT=T.RepeatWrapping;texture.repeat.set(groundWidth/5.6,groundDepth/5.6);texture.anisotropy=8;
     groundMaterial.map=texture;groundMaterial.bumpMap=texture;groundMaterial.needsUpdate=true;
   });
   const obstacles=OBSTACLES;
@@ -127,27 +130,26 @@ export function createEnvironment(scene:T.Scene){
   }
   // Each hunting ground has a physical waymark and its own ground story. All
   // details use shared materials and join the static batches below.
-  const waymarkCanvas=document.createElement('canvas');waymarkCanvas.width=1024;waymarkCanvas.height=256;
+  const waymarkCanvas=document.createElement('canvas');waymarkCanvas.width=1024;waymarkCanvas.height=128*AFK_SPOTS.length;
   const waymarkInk=waymarkCanvas.getContext('2d');if(!waymarkInk)throw new Error('Canvas 2D is unavailable');
   waymarkInk.fillStyle='#d4c19b';waymarkInk.textAlign='center';waymarkInk.font='bold 70px serif';
   AFK_SPOTS.forEach((spot,i)=>waymarkInk.fillText(spot.name.toUpperCase(),512,86+i*128));
   const waymarkTexture=new T.CanvasTexture(waymarkCanvas);waymarkTexture.colorSpace=T.SRGBColorSpace;
   const waymarkMaterial=new T.MeshBasicMaterial({map:waymarkTexture,transparent:true,depthWrite:false});
-  for(const [i,x,z] of [[0,10.2,-1.2],[1,20.2,3.1]]){
+  for(const [i,x,z] of [[0,10.2,-1.2],[1,20.2,3.1],[2,-20,-19],[3,40,24.7]]){
     const post=joint(scene,x,0,z);post.rotation.y=CAMERA.azimuth;
     cylinder(post,.055,.085,1.15,wood,0,.575,0,7);
     box(post,2.65,.44,.11,timber,0,1.08,0);
     const faceGeometry=new T.PlaneGeometry(2.55,.40),uv=faceGeometry.attributes.uv;
-    for(let j=0;j<uv.count;j++)uv.setY(j,(uv.getY(j)+1-i)/2);
+    for(let j=0;j<uv.count;j++)uv.setY(j,(uv.getY(j)+AFK_SPOTS.length-1-i)/AFK_SPOTS.length);
     mesh(post,faceGeometry,waymarkMaterial,0,1.08,.06);
     for(const side of [-1,1]){
       const foot=mesh(post,new T.DodecahedronGeometry(.17,0),rocks[1],side*.13,.08,0);foot.scale.y=.5;
     }
   }
-  // A weathered escarpment behind the wolf hollow lies beyond the playable edge;
-  // it frames the den without introducing new collision into saved positions.
+  // Distant escarpment frames the northern frontier beyond the new boundary.
   for(let i=0;i<9;i++){
-    const x=9.4+i*.85,z=-16.3-Math.sin(i*.7)*.45,s=1.1+random()*.7;
+    const x=-20+i*2.1,z=BOUNDS.minZ-3-Math.sin(i*.7)*.45,s=1.1+random()*.7;
     const rock=mesh(scene,new T.DodecahedronGeometry(1,1),rocks[i%3],x,.45,z);
     rock.scale.set(s,s*(.65+random()*.5),s*.8);rock.rotation.set(.1,random()*3,.08);
   }
@@ -169,39 +171,73 @@ export function createEnvironment(scene:T.Scene){
       stone.scale.set(1.5,.4,.9);stone.rotation.y=a;
     }
   });
-  // Instanced forest and undergrowth keep the prototype small and inexpensive to draw.
+  // Recognizable landmarks occupy the wider clearings; their solid footprints
+  // come from the same layout as terrain.LANDMARK_OBSTACLES.
+  for(const landmark of WORLD_LANDMARKS){
+    const {x,z,kind}=landmark;
+    if(kind==='standing-stones'){
+      for(const i of [-1,0,1]){
+        const stone=mesh(scene,new T.DodecahedronGeometry(1,0),rocks[i+1],x+i*1.5,1.3+(.3*(i===0?1:0)),z+Math.abs(i)*.5);
+        stone.scale.set(.49,1.6+(i===0?.4:0),.47);stone.rotation.y=i*.3;
+        for(let mark=0;mark<3;mark++)box(scene,.15,.045,.018,materials.dark,x+i*1.5,1.05+mark*.22,z+Math.abs(i)*.5+.44);
+      }
+      for(let i=0;i<10;i++){const a=i/10*Math.PI*2,slab=box(scene,.55,.065,.4,rocks[1],x+Math.cos(a)*3,.035,z+Math.sin(a)*2.5);slab.rotation.y=a;slab.castShadow=false;}
+    }else if(kind==='fallen-oak'){
+      const oak=joint(scene,x,.56,z),trunk=cylinder(oak,.48,.65,5.4,timber,0,0,0,12);trunk.rotation.z=Math.PI/2;
+      for(const side of [-1,1]){const cut=cylinder(oak,.45,.45,.025,wood,side*2.71,0,0,12);cut.rotation.z=Math.PI/2;}
+      for(let i=0;i<5;i++){const branch=cylinder(oak,.045,.13,1.7,wood,-1.8+i*.75,.55,0,7);branch.rotation.z=(i%2?1:-1)*.6;}
+      const stump=cylinder(scene,.8,1.1,.3,timber,x-3.6,.15,z,11);stump.castShadow=false;
+    }else if(kind==='arches'){
+      for(const side of [-1,1])for(let row=0;row<8;row++)box(scene,.86,.38,1.05,rocks[row%3],x+side*1.8,.2+row*.38,z);
+      for(let i=0;i<9;i++){const a=i/8*Math.PI,block=box(scene,.67,.46,1.1,rocks[i%3],x+Math.cos(a)*1.8,3.0+Math.sin(a)*1.4,z);block.rotation.z=a-Math.PI/2;}
+      for(let i=0;i<12;i++){const slab=box(scene,.6,.04,.7,rocks[i%3],x+(i%3-1)*.85,.021,z+(Math.floor(i/3)-1.5)*.8);slab.rotation.y=(random()-.5)*.2;slab.castShadow=false;}
+    }else{
+      for(let row=0;row<3;row++)for(let i=0;i<4-row;i++){
+        const log=cylinder(scene,.24,.29,3.2,wood,x,.25+row*.42,z+(i-(3-row)/2)*.5,9);log.rotation.z=Math.PI/2;
+        for(const side of [-1,1]){const end=cylinder(scene,.225,.225,.018,timber,x+side*1.61,.25+row*.42,z+(i-(3-row)/2)*.5,9);end.rotation.z=Math.PI/2;}
+      }
+      for(const side of [-1,1]){const stake=cylinder(scene,.08,.1,1.8,timber,x+side*1.15,.9,z+1.05,7);stake.rotation.z=side*.09;}
+    }
+  }
+  // Spatially chunk instances so the fixed camera rejects distant vegetation.
+  // Detail counts grow 2.5× while area grows 7.86×; no per-frame allocations.
   const transforms=new T.Object3D(),treePositions=TREE_POSITIONS;
   const bark=surfaceMaterial('#514737',{grain:.18,frequency:22});
-  const trunks=new T.InstancedMesh(new T.CylinderGeometry(.055,.18,4.2,9),bark,treePositions.length);scene.add(trunks);trunks.castShadow=true;trunks.receiveShadow=true;
-  const foliage=new T.InstancedMesh(pineGeometry(),windMaterial(breeze,.009),treePositions.length);scene.add(foliage);foliage.castShadow=true;foliage.receiveShadow=true;
-  treePositions.forEach((p,i)=>{
-    transforms.position.set(p.x,2.02*p.s,p.z);transforms.scale.set(p.s,p.s,p.s);transforms.rotation.set(0,i*.71,0);transforms.updateMatrix();trunks.setMatrixAt(i,transforms.matrix);
-    transforms.position.y=0;transforms.updateMatrix();foliage.setMatrixAt(i,transforms.matrix);foliage.setColorAt(i,new T.Color().setHSL(.34,.08,.76+(i%4)*.045));
-    // The visible roots anchor trunks in the moss without closing the walking lane.
-    for(let j=0;j<4;j++){const a=j*Math.PI/2+i,root=cylinder(scene,.045,.07,.6*p.s,bark,p.x+Math.sin(a)*.18,.13,p.z+Math.cos(a)*.18,6);root.rotation.set(Math.cos(a)*.9,0,Math.sin(a)*-.9);}
-  });
-  const stones=new T.InstancedMesh(new T.DodecahedronGeometry(1,0),rocks[0],230);scene.add(stones);stones.castShadow=true;stones.receiveShadow=true;
-  for(let i=0;i<230;i++){
-    const x=-10+random()*40,z=(random()-.5)*28,s=.06+random()*.17;
-    transforms.position.set(x,s*.32,z);transforms.scale.set(s,s*.55,s*.8);transforms.rotation.set(random(),random(),random());transforms.updateMatrix();stones.setMatrixAt(i,transforms.matrix);
-  }
-  const grass=new T.InstancedMesh(grassGeometry(),windMaterial(breeze,.055),2000);scene.add(grass);grass.receiveShadow=true;
-  const ferns=new T.InstancedMesh(fernGeometry(),windMaterial(breeze,.035),260);scene.add(ferns);ferns.receiveShadow=true;
-  const leaves=new T.InstancedMesh(leafGeometry(),new T.MeshStandardMaterial({color:'#89704b',roughness:1,side:T.DoubleSide}),650);scene.add(leaves);leaves.receiveShadow=true;
-  for(let i=0;i<2000;i++){
-    const x=-12+random()*44,z=(random()-.5)*28,path=forestTrailDistance(x,z),noise=Math.sin(x*1.7+Math.cos(z))*Math.sin(z*2.3);
-    const inSpot=AFK_SPOTS.some(spot=>withinSpot({x,z},spot,.5));
-    const s=path<1.6||Math.hypot(x+1,z)<3.3?0:(.45+random()*.65)*(noise>-.1?1:.28)*(inSpot?.22:1);
-    transforms.position.set(x,.01,z);transforms.scale.set(s,s,s);transforms.rotation.set(0,random()*6.28,0);transforms.updateMatrix();grass.setMatrixAt(i,transforms.matrix);
-    if(i<260){
-      const fernScale=path<2.7||inSpot||Math.hypot(x+1,z)<4.5?0:.65+random()*.75;transforms.scale.setScalar(fernScale);transforms.updateMatrix();ferns.setMatrixAt(i,transforms.matrix);
+  const forestChunks:T.InstancedMesh[]=[];
+  function chunkedInstances(geometry:T.BufferGeometry,mat:T.Material,points:readonly {x:number;z:number}[],apply:(p:{x:number;z:number},i:number,object:T.Object3D)=>void,castShadow=false){
+    const chunks=new Map<string,number[]>();
+    points.forEach((p,i)=>{const key=`${Math.floor(p.x/18)},${Math.floor(p.z/18)}`;const group=chunks.get(key)??[];group.push(i);chunks.set(key,group);});
+    const meshes:T.InstancedMesh[]=[];
+    for(const indices of chunks.values()){
+      const batch=new T.InstancedMesh(geometry,mat,indices.length);batch.castShadow=castShadow;batch.receiveShadow=true;
+      indices.forEach((source,i)=>{transforms.position.set(0,0,0);transforms.rotation.set(0,0,0);transforms.scale.setScalar(1);apply(points[source],source,transforms);transforms.updateMatrix();batch.setMatrixAt(i,transforms.matrix);});
+      batch.computeBoundingSphere();scene.add(batch);meshes.push(batch);
     }
-    if(i<650){transforms.position.y=.018;transforms.scale.setScalar(.45+random()*.7);transforms.updateMatrix();leaves.setMatrixAt(i,transforms.matrix);leaves.setColorAt(i,new T.Color(i%3===0?'#c1a277':'#897656'));}
+    return meshes;
   }
+  forestChunks.push(...chunkedInstances(new T.CylinderGeometry(.055,.18,4.2,7),bark,treePositions,(point,i,o)=>{const p=treePositions[i];o.position.set(point.x,2.02*p.s,point.z);o.scale.setScalar(p.s);o.rotation.y=i*.71;},true));
+  forestChunks.push(...chunkedInstances(pineGeometry(),windMaterial(breeze,.009),treePositions,(point,i,o)=>{const p=treePositions[i];o.position.set(point.x,0,point.z);o.scale.setScalar(p.s);o.rotation.y=i*.71;},true));
+  // Root geometry is limited to older nearby trees; outer forests are instanced.
+  treePositions.filter(p=>p.solid&&p.x>-11&&p.x<31&&Math.abs(p.z)<15).forEach((p,i)=>{
+    for(let j=0;j<3;j++){const a=j*Math.PI*2/3+i,root=cylinder(scene,.045,.07,.6*p.s,bark,p.x+Math.sin(a)*.18,.13,p.z+Math.cos(a)*.18,5);root.rotation.set(Math.cos(a)*.9,0,Math.sin(a)*-.9);}
+  });
+  const detailPoints=Array.from({length:5000},()=>({x:BOUNDS.minX+random()*(BOUNDS.maxX-BOUNDS.minX),z:BOUNDS.minZ+random()*(BOUNDS.maxZ-BOUNDS.minZ),scale:.45+random()*.65,yaw:random()*Math.PI*2}));
+  const grassMaterial=windMaterial(breeze,.055),fernMaterial=windMaterial(breeze,.035);
+  chunkedInstances(grassGeometry(),grassMaterial,detailPoints,(p,i,o)=>{
+    const d=detailPoints[i],inSpot=AFK_SPOTS.some(spot=>withinSpot(p,spot,.5)),noise=Math.sin(p.x*1.7+Math.cos(p.z))*Math.sin(p.z*2.3);
+    const s=roadEdgeDistance(p.x,p.z)<.3||Math.hypot(p.x+1,p.z)<3.3?0:d.scale*(noise>-.1?1:.28)*(inSpot?.22:1);
+    o.position.set(p.x,.01,p.z);o.scale.setScalar(s);o.rotation.y=d.yaw;
+  });
+  chunkedInstances(fernGeometry(),fernMaterial,detailPoints.slice(0,520),(p,i,o)=>{
+    const s=roadEdgeDistance(p.x,p.z)<1.1||AFK_SPOTS.some(spot=>withinSpot(p,spot,.8))||Math.hypot(p.x+1,p.z)<4.5?0:detailPoints[i].scale;
+    o.position.set(p.x,.02,p.z);o.scale.setScalar(s);o.rotation.y=detailPoints[i].yaw;
+  });
+  chunkedInstances(leafGeometry(),new T.MeshStandardMaterial({color:'#89704b',roughness:1,side:T.DoubleSide}),detailPoints.slice(0,1000),(p,i,o)=>{o.position.set(p.x,.018,p.z);o.scale.setScalar(detailPoints[i].scale);o.rotation.y=detailPoints[i].yaw;});
+  chunkedInstances(new T.DodecahedronGeometry(1,0),rocks[0],detailPoints.slice(0,460),(p,i,o)=>{const s=.06+detailPoints[i].scale*.15;o.position.set(p.x,s*.32,p.z);o.scale.set(s,s*.55,s*.8);o.rotation.set(i,detailPoints[i].yaw,i*.3);});
   // Campside details frame the route while keeping the centre clear for combat.
   for(const [x,z] of [[-3.6,2.5],[2.2,-3.6],[5.7,-3.3],[7.5,4.7]]){
     const rock=mesh(scene,new T.DodecahedronGeometry(.35,0),rocks[2],x,.11,z);rock.scale.set(1.4,.5,1);rock.rotation.y=x;
-    for(let i=0;i<3;i++){const fern=mesh(scene,fernGeometry(),ferns.material,x+(random()-.5)*.7,.025,z+(random()-.5)*.7);fern.rotation.y=random()*6;fern.scale.setScalar(.75);fern.castShadow=false;}
+    for(let i=0;i<3;i++){const fern=mesh(scene,fernGeometry(),fernMaterial,x+(random()-.5)*.7,.025,z+(random()-.5)*.7);fern.rotation.y=random()*6;fern.scale.setScalar(.75);fern.castShadow=false;}
   }
   const marker=mesh(scene,new T.RingGeometry(.18,.21,40),new T.MeshBasicMaterial({color:'#d5bb80',transparent:true,opacity:.8,side:T.DoubleSide}));marker.rotation.x=-Math.PI/2;marker.position.y=.025;marker.visible=false;marker.userData.dynamic=true;
   // Bake static scenery per material. Hundreds of slate tiles and beams become
@@ -218,5 +254,5 @@ export function createEnvironment(scene:T.Scene){
     for(const object of batch.objects){object.removeFromParent();object.geometry.dispose();}for(const g of batch.geometries)g.dispose();
   }
   function animate(time:number){breeze.value=time;flames.forEach((flame,i)=>{flame.scale.set(.8+Math.sin(time*9+i)*.2,.85+Math.sin(time*11+i*4)*.25,.9+Math.sin(time*8+i)*.15);flame.rotation.z=Math.sin(time*5+i)*.15;});fireLight.intensity=32+Math.sin(time*12)*3+Math.sin(time*19)*2;}
-  return {ground,obstacles,animate,marker,ready,setTreesVisible:(visible:boolean)=>{trunks.visible=visible;foliage.visible=visible;}};
+  return {ground,obstacles,animate,marker,ready,setTreesVisible:(visible:boolean)=>{forestChunks.forEach(chunk=>{chunk.visible=visible;});}};
 }

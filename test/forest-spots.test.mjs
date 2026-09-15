@@ -4,14 +4,14 @@ import {World,newHero} from '../dist/world.js';
 import {AFK_SPOTS,SPAWNS,MOB_TYPES,CAMP,stand,safe,distance,translate} from '../dist/public/game/location.js';
 import {AFK_TRAILS,afkSpotAt,withinSpot} from '../dist/public/game/afk.js';
 
-test('the original route keeps its spawn ids and two disjoint hunting spots own twelve new mobs',()=>{
+test('the original route keeps its spawn ids and four disjoint hunting spots own twenty-four mobs',()=>{
   assert.deepEqual(SPAWNS.slice(0,7),[
     {type:'wolf',x:7.6,z:1.8},{type:'wolf',x:10.4,z:-4},{type:'boar',x:12.4,z:6.4},
     {type:'wolf',x:15.4,z:1.4},{type:'boar',x:18.2,z:-6.2},{type:'wolf',x:20.7,z:4.9},{type:'alpha',x:25,z:-1.2},
   ]);
-  assert.equal(SPAWNS.length,19);assert.equal(AFK_SPOTS.length,2);
-  assert(distance(...AFK_SPOTS)>AFK_SPOTS[0].radius+AFK_SPOTS[1].radius);
-  assert.deepEqual(AFK_SPOTS.flatMap(spot=>spot.spawnIds),Array.from({length:12},(_,i)=>i+7));
+  assert.equal(SPAWNS.length,41);assert.equal(AFK_SPOTS.length,4);
+  for(let i=0;i<AFK_SPOTS.length;i++)for(let j=i+1;j<AFK_SPOTS.length;j++)assert(distance(AFK_SPOTS[i],AFK_SPOTS[j])>AFK_SPOTS[i].radius+AFK_SPOTS[j].radius);
+  assert.deepEqual(AFK_SPOTS.flatMap(spot=>spot.spawnIds),Array.from({length:24},(_,i)=>i+7));
   for(const spot of AFK_SPOTS){
     assert(distance(spot,CAMP)>spot.radius+CAMP.r);
     for(const id of spot.spawnIds){
@@ -58,7 +58,7 @@ test('new clustered mobs respawn at their own homes without duplicate rewards',(
       assert.equal(world.hurtMob(player,mob,999),false);
     }
   }
-  assert.equal(player.kills,12);assert.equal(player.gold,6*8+6*12);
+  assert.equal(player.kills,24);assert.equal(player.gold,12*8+12*12);
   world.remove(player.id);
   for(let i=0;i<320;i++)world.tick(.05);
   // Allow a floating-point timer remainder to expire, without a patrol step.
@@ -67,5 +67,5 @@ test('new clustered mobs respawn at their own homes without duplicate rewards',(
     assert.equal(mob.state,'idle');assert.equal(mob.hp,MOB_TYPES[mob.type].hp);
     assert(distance(mob,SPAWNS[id])<.001);assert.equal(mob.spotId,spot.id);
   }
-  assert.equal(player.kills,12);assert.equal(player.gold,120);
+  assert.equal(player.kills,24);assert.equal(player.gold,240);
 });

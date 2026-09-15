@@ -1,3 +1,4 @@
+import {CAMP_OBSTACLES,campSafe,insideHouse} from './camp-layout.js';
 import {STADIUM_OBSTACLES} from './stadium.js';
 import type { Obstacle } from './motion.js';
 import {WORLD_BOUNDS,WORLD_CLEARINGS,WORLD_LANDMARKS,ROAMING_SPAWNS,EXTRA_ROAMING_SPAWNS,roadEdgeDistance} from './world-layout.js';
@@ -22,7 +23,7 @@ for(let i=0;i<150;i++){
     const dx=x-spot.x,dz=z-spot.z,depth=dx*Math.sin(.55)+dz*Math.cos(.55),side=dx*Math.cos(.55)-dz*Math.sin(.55);
     return withinSpot({x,z},spot,1.25)||(depth>0&&depth<8&&Math.abs(side)<4.3);
   });
-  if(!edge&&(coversSpot||forestTrailDistance(x,z)<2.15))continue;
+  if(campSafe({x,z})||insideHouse({x,z},1)||(!edge&&(coversSpot||forestTrailDistance(x,z)<2.15)))continue;
   // Former edge trees must disappear: this is open terrain now.
   if(!edge&&roadEdgeDistance(x,z)>.9)trees.push(Object.freeze({x,z,s,solid:true}));
 }
@@ -57,7 +58,7 @@ export const LANDMARK_OBSTACLES:readonly Readonly<Obstacle>[]=Object.freeze(WORL
   return [{x:p.x,z:p.z,w:3.2,d:2.2}];
 }).map(o=>Object.freeze(o)));
 export const OBSTACLES:readonly Readonly<Obstacle>[]=Object.freeze([
-  {x:-5,z:-4.6,w:4.8,d:4},{x:-2.3,z:-.6,r:1.02},{x:-4,z:-.5,r:.6},{x:-2.1,z:-2.25,r:.6},{x:-.4,z:-4.2,r:.6},
+  ...CAMP_OBSTACLES,
   ...[[22.6,-3.4],[28,-3.4],[28,2.5]].map(([x,z])=>({x,z,r:.42})),
   ...[[23,-4.7,2.3],[27,-4.7,2],[28.8,.3,.6]].map(([x,z,w])=>({x,z,w,d:.6})),
   ...[[8.5,-8,.85],[14,10,.9],[18.5,6.5,.65],[20,-10,1.1],[29,8,.8],[10,-11,.6]].map(([x,z,r])=>({x,z,r:r*.8})),

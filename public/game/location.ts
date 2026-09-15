@@ -1,3 +1,4 @@
+import {campSafe} from './camp-layout.js';
 import {canOccupy,turnTowards,gaitProfile} from './motion.js';
 import type {Position} from './motion.js';
 import {nearbyObstacles} from './terrain.js';
@@ -35,7 +36,7 @@ export const SPAWNS:readonly Readonly<Position & {type:MobType;spotId?:AfkSpotId
   ...BEAR_AFK_SPAWNS,
   ...STADIUM_SPAWNS.slice(18),
 ]);
-export const safe=(p:Position)=>Math.hypot(p.x-CAMP.x,p.z-CAMP.z)<CAMP.r||stadiumSafe(p);
+export const safe=(p:Position)=>campSafe(p)||stadiumSafe(p);
 
 export const stand=(x:number,z:number,r=.29)=>Number.isFinite(x)&&Number.isFinite(z)&&canOccupy(x,z,nearbyObstacles(x,z,r),r,boundsForPosition({x,z}));
 export const distance=(a:Position,b:Position)=>Math.hypot(a.x-b.x,a.z-b.z);

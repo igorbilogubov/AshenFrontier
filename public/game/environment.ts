@@ -1,3 +1,5 @@
+import {createCampHouse} from './camp-house.js';
+import {CAMP_FIRE,CAMP_FENCES,insideHouse,campSafe} from './camp-layout.js';
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 import {box,cylinder,ellipsoid,joint,mesh,materials} from './models.js';
@@ -50,39 +52,7 @@ export function createEnvironment(scene:T.Scene){
     groundMaterial.map=texture;groundMaterial.bumpMap=texture;groundMaterial.needsUpdate=true;
   });
   const obstacles=OBSTACLES;
-  const house=joint(scene,-5,0,-4.6);
-  box(house,5,.32,4.2,rocks[0],0,.16,0);
-  box(house,4.65,2.6,3.8,plaster,0,1.55,0);
-  for(const x of [-2.32,0,2.32])box(house,.20,2.8,.24,timber,x,1.65,1.94);
-  for(const z of [-1.9,0,1.9])box(house,.24,2.8,.20,timber,2.36,1.65,z);
-  for(const y of [.5,2.3,2.83]){box(house,4.9,.16,4.0,timber,0,y,0);}
-  // Roof is a pair of actual pitched surfaces with overlapping slate tiles.
-  const pitch=.57;
-  for(const side of [-1,1]){
-    const roof=joint(house,0,3.30,side*1.08);roof.rotation.x=side*pitch;
-    box(roof,5.5,.14,2.7,roofMats[0]);
-    for(let row=0;row<5;row++)for(let col=0;col<12;col++){
-      const tile=box(roof,.46,.08,.59,roofMats[Math.floor(random()*roofMats.length)],-2.5+col*.455+(row%2)*.12,.12+row*.008,-1.08+row*.51);
-      tile.rotation.y=(random()-.5)*.025;
-    }
-  }
-  // Gables close the triangular space beneath the ridge.
-  const tri=new T.Shape();tri.moveTo(-1.95,0);tri.lineTo(0,1.25);tri.lineTo(1.95,0);tri.closePath();
-  for(const x of [-2.32,2.32]){const g=mesh(house,new T.ShapeGeometry(tri),plaster,x,2.82,0);g.rotation.y=Math.PI/2;g.material=plaster.clone();g.material.side=T.DoubleSide;}
-  box(house,.92,1.85,.12,wood,-.65,1.24,1.97);
-  for(let i=0;i<6;i++)box(house,.022,1.74,.014,timber,-1.03+i*.15,1.24,2.04);
-  for(const y of [.65,1.8])box(house,.85,.08,.04,materials.dark,-.65,y,2.06);
-  ellipsoid(house,-.31,1.25,2.07,.037,.037,.037,materials.gold);
-  for(const x of [-1.7,1.12]){
-    const glowMat=new T.MeshStandardMaterial({color:'#e9aa51',emissive:'#e9a042',emissiveIntensity:1.1});
-    box(house,.64,.75,.06,glowMat,x,1.82,1.97);
-    box(house,.74,.075,.10,timber,x,2.24,2.03);box(house,.74,.075,.10,timber,x,1.40,2.03);
-    box(house,.045,.78,.12,timber,x,1.82,2.04);box(house,.68,.055,.12,timber,x,1.83,2.04);
-  }
-  for(let i=0;i<3;i++)box(house,1.55,.14*(i+1),.45,rocks[1],-.65,.07*(i+1),3.02-i*.4);
-  for(let row=0;row<5;row++)for(let col=0;col<3;col++)box(house,.39,.23,.65,rocks[(col+row)%3],1.25+col*.37,3.2+row*.22,-.3);
-
-  const fire=joint(scene,-2.3,0,-.6);
+  const fire=joint(scene,CAMP_FIRE.x,0,CAMP_FIRE.z);
   cylinder(fire,.9,.93,.045,material('#282722'),0,.015,0,32);
   for(let i=0;i<11;i++){
     const a=i/11*Math.PI*2;const stone=mesh(fire,new T.DodecahedronGeometry(.27,1),rocks[i%3],Math.cos(a)*.83,.16,Math.sin(a)*.83);stone.scale.set(1,.65,.85);stone.rotation.set(random(),random(),random());
@@ -92,21 +62,28 @@ export function createEnvironment(scene:T.Scene){
   for(let i=0;i<9;i++){
     const flame=mesh(fire,new T.ConeGeometry(.16+random()*.16,.7+random()*.55,7),new T.MeshBasicMaterial({color:i%2?'#ffbb4d':'#ff7434',transparent:true,opacity:.7,depthWrite:false}), (random()-.5)*.55,.56,(random()-.5)*.55);flame.castShadow=false;flame.userData.dynamic=true;flames.push(flame);
   }
-  const fireLight=new T.PointLight('#ffab4e',35,10,2);fireLight.position.set(-2.3,1.3,-.6);scene.add(fireLight);
+  const fireLight=new T.PointLight('#ffab4e',35,10,2);fireLight.position.set(CAMP_FIRE.x,1.3,CAMP_FIRE.z);scene.add(fireLight);
 
   for(const [x,z,rot] of [[-4,-.5,0],[-2.1,-2.25,Math.PI/2]]){
     const log=cylinder(scene,.23,.23,1.8,wood,x,.28,z);log.rotation.z=Math.PI/2;log.rotation.y=rot;
 
   }
-  const chest=joint(scene,-.4,0,-4.2);
-  box(chest,1.13,.6,.7,wood,0,.3,0);const lid=cylinder(chest,.36,.36,1.13,wood,0,.6,0);lid.rotation.z=Math.PI/2;lid.scale.z=1.02;
-  for(const x of [-.4,.4])box(chest,.07,.77,.73,materials.dark,x,.39,0);
-  box(chest,.16,.22,.06,materials.gold,0,.5,.38);
   for(const [x,z] of [[-7,-1.8],[-6.4,-2.0]]){
     cylinder(scene,.34,.30,.8,wood,x,.4,z);
     for(const y of [.12,.65]){const band=mesh(scene,new T.TorusGeometry(.32,.035,6,16),materials.dark,x,y,z);band.rotation.x=Math.PI/2;}
   }
 
+  // Low split rails follow the exact safe-town perimeter, with broad road gates.
+  for(const fence of CAMP_FENCES){
+    const alongX=fence.w!>fence.d!,length=alongX?fence.w!:fence.d!,count=Math.max(1,Math.ceil(length/1.6));
+    for(let i=0;i<=count;i++){
+      const offset=-length/2+i*length/count;
+      const x=fence.x+(alongX?offset:0),z=fence.z+(alongX?0:offset);
+      box(scene,.16,.78,.16,timber,x,.39,z);
+      if(i===0||i===count){const cap=mesh(scene,new T.ConeGeometry(.14,.11,4),wood,x,.835,z);cap.rotation.y=Math.PI/4;}
+    }
+    for(const y of [.29,.61]){const rail=box(scene,length,.08,.10,wood,fence.x,y,fence.z);if(!alongX)rail.rotation.y=Math.PI/2;}
+  }
   // The first route leaves camp to the east and ends at a ruined watchpost.
   const sign=joint(scene,4.7,0,-.7);cylinder(sign,.07,.09,1.6,wood,0,.8,0);box(sign,1.85,.48,.12,timber,0,1.48,0);
   const signCanvas=document.createElement('canvas');signCanvas.width=512;signCanvas.height=128;const ink=signCanvas.getContext('2d');if(!ink)throw new Error('Canvas 2D is unavailable');ink.fillStyle='#b59a6a';ink.font='bold 38px serif';ink.textAlign='center';ink.fillText('ОПУШКА  →',256,78);
@@ -226,15 +203,15 @@ export function createEnvironment(scene:T.Scene){
   const grassMaterial=windMaterial(breeze,.055),fernMaterial=windMaterial(breeze,.035);
   chunkedInstances(grassGeometry(),grassMaterial,detailPoints,(p,i,o)=>{
     const d=detailPoints[i],inSpot=AFK_SPOTS.some(spot=>withinSpot(p,spot,.5)),noise=Math.sin(p.x*1.7+Math.cos(p.z))*Math.sin(p.z*2.3);
-    const s=roadEdgeDistance(p.x,p.z)<.3||Math.hypot(p.x+1,p.z)<3.3?0:d.scale*(noise>-.1?1:.28)*(inSpot?.22:1);
+    const s=insideHouse(p,.4)||roadEdgeDistance(p.x,p.z)<.3||Math.hypot(p.x+1,p.z)<3.3?0:d.scale*(noise>-.1?1:.28)*(inSpot?.22:1);
     o.position.set(p.x,.01,p.z);o.scale.setScalar(s);o.rotation.y=d.yaw;
   });
   chunkedInstances(fernGeometry(),fernMaterial,detailPoints.slice(0,520),(p,i,o)=>{
-    const s=roadEdgeDistance(p.x,p.z)<1.1||AFK_SPOTS.some(spot=>withinSpot(p,spot,.8))||Math.hypot(p.x+1,p.z)<4.5?0:detailPoints[i].scale;
+    const s=campSafe(p)||roadEdgeDistance(p.x,p.z)<1.1||AFK_SPOTS.some(spot=>withinSpot(p,spot,.8))||Math.hypot(p.x+1,p.z)<4.5?0:detailPoints[i].scale;
     o.position.set(p.x,.02,p.z);o.scale.setScalar(s);o.rotation.y=detailPoints[i].yaw;
   });
-  chunkedInstances(leafGeometry(),new T.MeshStandardMaterial({color:'#89704b',roughness:1,side:T.DoubleSide}),detailPoints.slice(0,1000),(p,i,o)=>{o.position.set(p.x,.018,p.z);o.scale.setScalar(detailPoints[i].scale);o.rotation.y=detailPoints[i].yaw;});
-  chunkedInstances(new T.DodecahedronGeometry(1,0),rocks[0],detailPoints.slice(0,460),(p,i,o)=>{const s=.06+detailPoints[i].scale*.15;o.position.set(p.x,s*.32,p.z);o.scale.set(s,s*.55,s*.8);o.rotation.set(i,detailPoints[i].yaw,i*.3);});
+  chunkedInstances(leafGeometry(),new T.MeshStandardMaterial({color:'#89704b',roughness:1,side:T.DoubleSide}),detailPoints.slice(0,1000),(p,i,o)=>{o.position.set(p.x,.018,p.z);o.scale.setScalar(insideHouse(p,.4)?0:detailPoints[i].scale);o.rotation.y=detailPoints[i].yaw;});
+  chunkedInstances(new T.DodecahedronGeometry(1,0),rocks[0],detailPoints.slice(0,460),(p,i,o)=>{const s=insideHouse(p,.4)?0:.06+detailPoints[i].scale*.15;o.position.set(p.x,s*.32,p.z);o.scale.set(s,s*.55,s*.8);o.rotation.set(i,detailPoints[i].yaw,i*.3);});
   // Campside details frame the route while keeping the centre clear for combat.
   for(const [x,z] of [[-3.6,2.5],[2.2,-3.6],[5.7,-3.3],[7.5,4.7]]){
     const rock=mesh(scene,new T.DodecahedronGeometry(.35,0),rocks[2],x,.11,z);rock.scale.set(1.4,.5,1);rock.rotation.y=x;
@@ -254,6 +231,7 @@ export function createEnvironment(scene:T.Scene){
     const baked=mesh(scene,combined,batch.material);baked.castShadow=batch.castShadow;baked.receiveShadow=batch.receiveShadow;
     for(const object of batch.objects){object.removeFromParent();object.geometry.dispose();}for(const g of batch.geometries)g.dispose();
   }
+  const campHouse=createCampHouse(scene);
   function animate(time:number){breeze.value=time;flames.forEach((flame,i)=>{flame.scale.set(.8+Math.sin(time*9+i)*.2,.85+Math.sin(time*11+i*4)*.25,.9+Math.sin(time*8+i)*.15);flame.rotation.z=Math.sin(time*5+i)*.15;});fireLight.intensity=32+Math.sin(time*12)*3+Math.sin(time*19)*2;}
-  return {ground,obstacles,animate,marker,ready,setTreesVisible:(visible:boolean)=>{forestChunks.forEach(chunk=>{chunk.visible=visible;});}};
+  return {ground,obstacles,animate,marker,ready,campHouse,setTreesVisible:(visible:boolean)=>{forestChunks.forEach(chunk=>{chunk.visible=visible;});}};
 }

@@ -45,12 +45,22 @@ process.once('exit',()=>{try{if(readFileSync(lockFile,'utf8')===lockValue)unlink
 if(!process.env.DATABASE_URL)throw new Error('DATABASE_URL is required for PostgreSQL hero storage');
 const store=await openHeroStore({connectionString:process.env.DATABASE_URL,writer:true});
 const world=new World(),sessions=new Map<string,Session>(),connections=new Map<WebSocket,Session>(),chat: ChatEntry[]=[];
-const stress=stressModule?await stressModule.createStressController(world,dataDir,host):null;
 const alive=new WeakMap<WebSocket,boolean>();
 const joining=new Set<string>();
 const commands=new Map<WebSocket,{move:unknown|null; actions:unknown[]}>();
 const economy=(p:PersistentHero)=>JSON.stringify([p.gold,p.xp,p.level,p.kills,p.items,p.pendingItems,p.equipment,p.allocatedStats,p.statRevision,p.potions,p.questKills,p.questClaimed,p.boss]);
 let lastSavedAt=Date.now(),lastCheckpoint=Date.now(),saveHealthy=true,shuttingDown=false,busy=false,pending:PendingCommit|null=null,retryTimer:ReturnType<typeof setTimeout>|null=null,writerLost=false,noticeSent=false;
+const stress=stressModule?await stressModule.createStressController(world,dataDir,host,async()=>{
+  // Test-only scenario reset: old camp inputs must not cancel freshly placed AFK
+  // heroes on the next authoritative tick. Wait for in-flight saves first.
+  const deadline=Date.now()+5000;
+  while(busy||pending){
+    if(writerLost||Date.now()>=deadline)throw new Error('Stress scenario reset cannot reach a durable idle point');
+    await new Promise<void>(resolve=>setTimeout(resolve,25));
+  }
+  if(writerLost)throw new Error('Stress scenario writer unavailable');
+  commands.clear();
+}):null;
 function changedEntries(force=false){
   return [...sessions.values()].flatMap(entry=>{
     const hero=persistentHero(entry.p);

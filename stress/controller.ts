@@ -19,9 +19,9 @@ const delay=(ms:number)=>new Promise<void>(resolve=>setTimeout(resolve,ms));
 export async function assertStressSandbox(dataDir:string,host:string){
   if(process.env.NODE_ENV==='production'||host!=='127.0.0.1'||!path.resolve(dataDir).startsWith(path.join(tmpdir(),'ashen-stress-'))||await readFile(path.join(dataDir,'.stress-sandbox'),'utf8')!=='temporary benchmark world\n')throw new Error('Stress mode requires the isolated npm run stress runner');
 }
-export async function createStressController(world:World,dataDir:string,host:string){
+export async function createStressController(world:World,dataDir:string,host:string,beforeScenario:()=>Promise<void>){
   await assertStressSandbox(dataDir,host);
-  return new StressController(world);
+  return new StressController(world,beforeScenario);
 }
 class StressController {
   private bots:Bot[]=[];
@@ -37,7 +37,7 @@ class StressController {
   private projectilePeak=0;
   private histogram=monitorEventLoopDelay({resolution:10});
   private timer:ReturnType<typeof setInterval>;
-  constructor(private world:World){this.histogram.enable();this.timer=setInterval(()=>this.drive(),100);}
+  constructor(private world:World,private beforeScenario:()=>Promise<void>){this.histogram.enable();this.timer=setInterval(()=>this.drive(),100);}
   recordTick(simulation:number,broadcast:number,total:number,interval:number){
     for(const [key,value] of Object.entries({simulation,broadcast,tick:total,interval}) as [keyof typeof this.samples,number][]){const a=this.samples[key];a.push(value);if(a.length>2000)a.shift();}
     this.projectilePeak=Math.max(this.projectilePeak,this.world.projectiles.length);
@@ -138,7 +138,9 @@ class StressController {
     const deadline=Date.now()+7000;while(this.world.players.size!==players){if(Date.now()>deadline)throw new Error('Expected player count not reached');await delay(50);}
     const observer=[...this.world.players.values()].find(hero=>!this.bots.some(bot=>bot.id===hero.id));
     if(mode==='afk'&&observer?.classId!=='warrior')throw new Error('AFK benchmark requires a warrior observer; use a new test session');
-    this.mode=mode;this.errors=[];
+    this.mode=mode;
+    await this.beforeScenario();
+    this.errors=[];
     this.world.mobs=new World().mobs;this.world.projectiles=[];this.world.groundLoot=[];this.world.events=[];
     const participants=mode==='afk'?[observer!,...[...this.world.players.values()].filter(hero=>hero!==observer)]:[...this.world.players.values()];
     let index=0,playerIndex=0;for(const hero of participants){

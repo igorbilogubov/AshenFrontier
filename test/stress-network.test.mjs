@@ -31,6 +31,14 @@ async function scenario(server,players,mode,equipment){
   assert.equal(body.bots,players-1);
   return body;
 }
+async function sustainedAfk(server){
+  await new Promise(resolve=>setTimeout(resolve,1300));
+  const response=await fetch(server.url+'/__stress/info');
+  assert.equal(response.status,200);
+  const body=await response.json();
+  assert.equal(body.server.players,16);
+  assert.equal(body.server.activeAfk,16,'Queued camp movement cancelled the AFK benchmark after transition');
+}
 
 test('isolated PostgreSQL stress profiles survive 1 → 16 AFK → 1 → 16 AFK without reissuing item instances',
   {skip:!hasTestDatabase,timeout:90000},async()=>{
@@ -43,6 +51,7 @@ test('isolated PostgreSQL stress profiles survive 1 → 16 AFK → 1 → 16 AFK 
       await scenario(server,1,'camp','legacy-warrior');
       const first=await scenario(server,16,'afk','mixed-warrior');
       assert.equal(first.activeAfk,16);
+      await sustainedAfk(server);
       await until(()=>client.state?.self.afk&&client.state.self.items.length===10,{timeout:10000,message:'First AFK profile was not published'});
       const firstIds=new Set(client.state.self.items.map(item=>item.id));
 
@@ -50,6 +59,7 @@ test('isolated PostgreSQL stress profiles survive 1 → 16 AFK → 1 → 16 AFK 
       await until(()=>!client.state?.self.afk&&client.state?.self.items.length===2,{timeout:10000,message:'Camp profile was not published'});
       const second=await scenario(server,16,'afk','mixed-warrior');
       assert.equal(second.activeAfk,16);
+      await sustainedAfk(server);
       await until(()=>client.state?.self.afk&&client.state.self.items.length===10&&client.state.self.items.every(item=>!firstIds.has(item.id)),
         {timeout:10000,message:'Fresh immutable item instances were not published'});
       assert.equal((await fetch(server.url+'/health')).status,200);

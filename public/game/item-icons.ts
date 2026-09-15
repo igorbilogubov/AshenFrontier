@@ -26,8 +26,8 @@ const definitionIcons=new Set(EQUIPMENT_ITEMS.map(item=>item.id));
 export function itemArtKey(item:Item,ownerClass:ClassId='warrior',weapon:WeaponId='sword'){
   if(item.definitionId&&definitionIcons.has(item.definitionId))return item.definitionId;
   const classId=item.classId??ownerClass;
-  if(item.slot==='weapon')return classId==='archer'?'legacy-bow':classId==='mage'?'legacy-staff':weapon==='axe'?'legacy-axe':'wanderer-blade';
-  if(item.slot==='armor')return classId==='warrior'?'watch-armor':classId+'-armor';
+  if(item.slot==='weapon')return classId==='archer'?'ranger-bow':classId==='mage'?'acolyte-staff':weapon==='axe'?'legacy-axe':'wanderer-blade';
+  if(item.slot==='armor')return classId==='archer'?'ranger-armor':classId==='mage'?'acolyte-armor':'watch-armor';
   if(classId==='archer')return {helmet:'ranger-hood',boots:'ranger-boots',ring:'hawk-ring',amulet:'leaf-amulet'}[item.slot];
   if(classId==='mage')return {helmet:'acolyte-hood',boots:'acolyte-boots',ring:'rune-ring',amulet:'moon-amulet'}[item.slot];
   return {helmet:'watch-helm',boots:'watch-boots',ring:'copper-ring',amulet:'ember-amulet'}[item.slot];

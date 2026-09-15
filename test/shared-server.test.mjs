@@ -72,9 +72,13 @@ test('real WebSockets share movement/boss rewards and keep identity, loot and co
       assert.equal(c.state.self.gold,35);assert(c.state.self.items.length>=2&&c.state.self.items.length<=3);
     }
     const earned={id:ca.state.self.id,gold:ca.state.self.gold,xp:ca.state.self.xp,items:ca.state.self.items,boss:ca.state.self.boss};
-    ca.send({type:'potion'});await delay(80);const hp=ca.state.self.hp;
+    const beforePotion=ca.state.self;ca.send({type:'potion'});
+    if(beforePotion.hp<beforePotion.maxHp&&beforePotion.potions>0&&!beforePotion.potionCooldown)await until(()=>ca.state.self.potions<beforePotion.potions);
+    const hp=ca.state.self.hp,hpAt=ca.state.t,hpRegen=ca.state.self.hpRegen;
     await close(ca);const rejoined=await connect(server,{token:keys[0]});clients.push(rejoined);
-    assert.equal(rejoined.state.self.id,earned.id);assert(rejoined.state.self.hp<=hp);assert.deepEqual(rejoined.state.self.items,earned.items);assert.equal(rejoined.state.self.gold,35);
+    assert.equal(rejoined.state.self.id,earned.id);
+    // Rejoining cannot refill health; normal regeneration may run while a save/rejoin waits.
+    assert(rejoined.state.self.hp<=hp+hpRegen*Math.max(0,rejoined.state.t-hpAt)/1000+.1);assert.deepEqual(rejoined.state.self.items,earned.items);assert.equal(rejoined.state.self.gold,35);
     const thirdClient=await connect(server,{token:keys[2]});clients.push(thirdClient);assert.equal(thirdClient.state.self.classId,'archer');assert.equal(thirdClient.state.self.gold,2189);assert.equal(thirdClient.state.self.level,10);assert.equal(thirdClient.state.self.xp,317);
     // Real acknowledged input is visible to a different client, with no coordinate command.
     const startX=thirdClient.state.self.x;for(let seq=1;seq<=8;seq++){thirdClient.send({type:'input',x:1,z:0,aim:Math.PI/2,seq});await delay(55);}

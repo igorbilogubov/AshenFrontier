@@ -206,7 +206,8 @@ wss.on('connection',ws=>{
           entry.revision=receipt[0].revision;entry.durable=economy(persistentHero(p));lastSavedAt=Date.now();
         }
         if(ws.readyState!==WebSocket.OPEN){entry=null;return;}
-        if(shuttingDown||pending||writerLost){entry=null;reject('storage_unavailable','Хранилище недоступно. Повторите подключение');return;}
+        // An unrelated checkpoint must not discard the key of an already committed new hero.
+        if(shuttingDown||writerLost){entry=null;reject('storage_unavailable','Хранилище недоступно. Повторите подключение');return;}
         sessions.set(token,entry);
       }
       world.add(entry.p);connections.set(ws,entry);clearTimeout(helloTimeout);

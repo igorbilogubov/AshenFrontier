@@ -1,0 +1,151 @@
+{
+  "status": "proposal_not_calibrated_in_game",
+  "target": {
+    "levelCap": 100,
+    "activeHoursPerDayRange": [
+      2,
+      3
+    ],
+    "referenceActiveHoursPerDay": 2.5,
+    "assumedAfkHoursPerDay": 8,
+    "afkXpPerHourRelativeToActive": 0.25,
+    "afkHoursPerSession": 8,
+    "dailyAfkLimit": null,
+    "normalizedXpWorkHours": 400,
+    "activeHourBasis": "average mixed session including hunting, quests, travel, preparation and time without XP; not uninterrupted combat"
+  },
+  "levelBands": [
+    {
+      "fromLevel": 1,
+      "toLevel": 20,
+      "workHours": 9,
+      "cumulativeWorkHours": 9,
+      "referenceDayReached": 2.0
+    },
+    {
+      "fromLevel": 20,
+      "toLevel": 40,
+      "workHours": 36,
+      "cumulativeWorkHours": 45,
+      "referenceDayReached": 10.0
+    },
+    {
+      "fromLevel": 40,
+      "toLevel": 60,
+      "workHours": 81,
+      "cumulativeWorkHours": 126,
+      "referenceDayReached": 28.0
+    },
+    {
+      "fromLevel": 60,
+      "toLevel": 80,
+      "workHours": 126,
+      "cumulativeWorkHours": 252,
+      "referenceDayReached": 56.0
+    },
+    {
+      "fromLevel": 80,
+      "toLevel": 100,
+      "workHours": 148,
+      "cumulativeWorkHours": 400,
+      "referenceDayReached": 88.89
+    }
+  ],
+  "world": {
+    "towns": 1,
+    "fieldRegions": 5,
+    "spotsPerRegion": 3,
+    "afkPenLevelBands": 5,
+    "dungeonLayouts": 2,
+    "arenaLayouts": 1,
+    "ordinaryEnemyArchetypesPerRegion": 3,
+    "eliteVariantsPerRegion": 1,
+    "fieldBossesPerRegion": 1,
+    "dungeonBossesPerLayout": 1,
+    "authoredQuests": 30,
+    "repeatableContractTemplates": 10,
+    "repeatableEventTypes": 2
+  },
+  "equipment": {
+    "classes": 3,
+    "tiers": 5,
+    "tierEquipLevels": [
+      1,
+      20,
+      40,
+      60,
+      80
+    ],
+    "classBasesPerTier": {
+      "weapon": 2,
+      "armor": 1,
+      "helmet": 1,
+      "boots": 1
+    },
+    "sharedBasesPerTier": {
+      "ring": 2,
+      "amulet": 2
+    },
+    "setsPerClass": 2,
+    "piecesPerSet": 3,
+    "setTiers": [
+      3,
+      5
+    ],
+    "setVersionsCountedAsNewBases": false,
+    "maximumUpgrade": 6,
+    "gearModifiesSkills": false,
+    "hasteCap": 0.3
+  },
+  "skills": {
+    "activePerClass": 4,
+    "basicAttacksPerClass": 1,
+    "masteryInMvp": false
+  },
+  "personas": [
+    {
+      "name": "Target lower active time",
+      "active": 2,
+      "afk": 8,
+      "daysToCap": 100.0
+    },
+    {
+      "name": "Reference",
+      "active": 2.5,
+      "afk": 8,
+      "daysToCap": 88.89
+    },
+    {
+      "name": "Target higher active time",
+      "active": 3,
+      "afk": 8,
+      "daysToCap": 80.0
+    },
+    {
+      "name": "Intensive",
+      "active": 5,
+      "afk": 16,
+      "daysToCap": 44.44
+    },
+    {
+      "name": "Mostly AFK",
+      "active": 0.5,
+      "afk": 8,
+      "daysToCap": 160.0
+    }
+  ],
+  "totals": {
+    "classSpecificBasesPerClass": 25,
+    "sharedJewelryBases": 20,
+    "basesUsablePerClass": 45,
+    "uniqueItemBases": 95,
+    "sets": 6,
+    "setItemVersions": 18,
+    "fieldSpots": 15,
+    "ordinaryEnemyArchetypes": 15,
+    "eliteVariants": 5,
+    "bosses": 7,
+    "spaces": 9,
+    "classActiveSkills": 12
+  }
+}

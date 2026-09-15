@@ -107,7 +107,9 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
   function showConsumableTooltip(element:HTMLElement){
     const definition=consumableDefinition(element.dataset.consumableDefinition),stack=game.player.consumableInventory.find(value=>value.id===element.dataset.consumableId);
     if(!definition||!stack||dragging)return;
+    const key=JSON.stringify([definition.id,stack.quantity]);if(hover===element&&hoverSignature===key&&!tooltip.hidden)return;
     hideTooltip();hover=element;element.setAttribute('aria-describedby',tooltip.id);tooltip.replaceChildren();
+    hoverSignature=key;
     const heading=node('div','tooltip-heading'),art=node('div','tooltip-art');art.innerHTML=actionIcon(definition.kind==='mana'?'mana-potion':'potion');
     const text=node('div');text.append(node('p','eyebrow',definition.kind==='hp'?'ЗДОРОВЬЕ':'МАНА'),node('h3','',definition.name));heading.append(art,text);
     tooltip.append(heading,node('p','tooltip-requirements',`Восстанавливает ${definition.restore} ${definition.kind==='hp'?'HP':'MP'} · в стопке ${stack.quantity} / ${definition.stackLimit}`),node('p','tooltip-footer','Перетащите бутылку на Q или W, чтобы назначить. Зелье останется в рюкзаке.'));tooltip.hidden=false;
@@ -214,7 +216,7 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
     for(const element of inventory.querySelectorAll<HTMLElement>('.bag-cell,.equipment-slot')){element.draggable=false;element.removeAttribute('title');}
     for(const element of wares.querySelectorAll<HTMLElement>('.vendor-item')){const listing=shopItems().find(value=>value.definitionId===element.dataset.definitionId);element.classList.toggle('unaffordable',game.player.gold<(listing?.price||0));}
     const hint=document.getElementById('inventory-hint')!;hint.textContent=stashOpened?'Сундук открыт · ПКМ или перетаскивание — переложить вещь':opened?'Магазин открыт · ПКМ по вещи — продать · перетащите зелье на Q/W':'Зелье — перетащите на Q/W · вещь — ПКМ или перетащите в слот';
-    if(hover&&!tooltip.hidden){if(!itemFor(hover))hideTooltip();else showTooltip(hover);}
+    if(hover&&!tooltip.hidden){if(hover.dataset.consumableDefinition){if(!game.player.consumableInventory.some(stack=>stack.id===hover!.dataset.consumableId))hideTooltip();else showConsumableTooltip(hover);}else if(!itemFor(hover))hideTooltip();else showTooltip(hover);}
   }
   function onEvent(event:WorldEvent){if(event.type==='shopOpen'&&event.npcId===SHOP.id)setOpen(true);if(event.type==='stashOpened'&&event.npcId===PERSONAL_CHEST.id)setStashOpen(true);if(event.type==='death'||event.type==='camp'){setOpen(false);setStashOpen(false,false);}}
   return {update,onEvent,isOpen:()=>opened||stashOpened,canTrade,hideTooltip,sell:(item:Item)=>itemAction(item,'sell')};

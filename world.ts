@@ -3,9 +3,9 @@ import type {ClassId, EquipmentSlot, Item, Hero, PersistentHero, HeroAttack, Mob
 import {isRecord, isClassId, isEquipmentSlot, isWeaponId} from './shared/types.js';
 import {randomUUID} from 'node:crypto';
 import {CLASSES,EQUIPMENT_SLOTS,BAG_CAPACITY,backpackItems,classFor,canEquip,STAT_KEYS,CLASS_PROGRESSION,characterStats,normalizedAllocations} from './public/rules.js';
-import {BOUNDS,CAMP,SPAWNS,MOB_TYPES,WEAPONS,safe,stand,clearPath,distance,translate,moveHero} from './public/game/location.js';
+import {BOUNDS,CAMP,SPAWNS,MOB_TYPES,WEAPONS,AFK_SPOTS,afkSpotAt,withinSpot,safe,stand,clearPath,distance,translate,moveHero} from './public/game/location.js';
 import {angleDelta,turnTowards,inStrike} from './public/game/motion.js';
-import {SKILLS,legacySkillId} from './public/game/skills.js';
+import {SKILLS,skillsForClass,legacySkillId} from './public/game/skills.js';
 export {CLASSES,EQUIPMENT_SLOTS,CAMP,BOUNDS};
 export const SAVE_VERSION=3;
 const finite=(value: unknown,fallback=0)=>typeof value==='number'&&Number.isFinite(value)?value:fallback;
@@ -34,7 +34,7 @@ function savedItems(value: unknown): Item[]{
 }
 function savedAttack(value: unknown,classId: ClassId): HeroAttack | null{
   if(!value)return null;
-  if(!isRecord(value)||!['id','age','duration'].every(key=>typeof value[key]==='number'&&Number.isFinite(value[key]))||(value.yaw!==null&&(typeof value.yaw!=='number'||!Number.isFinite(value.yaw)))||typeof value.hit!=='boolean'||typeof value.special!=='boolean'||(value.weapon!==undefined&&!isWeaponId(value.weapon))||(value.skillId!==undefined&&(!Object.hasOwn(SKILLS,String(value.skillId))||SKILLS[value.skillId as SkillId].classId!==classId)))throw new Error('Invalid saved attack');
+  if(!isRecord(value)||!['id','age','duration'].every(key=>typeof value[key]==='number'&&Number.isFinite(value[key]))||(value.yaw!==null&&(typeof value.yaw!=='number'||!Number.isFinite(value.yaw)))||typeof value.hit!=='boolean'||typeof value.special!=='boolean'||(value.weapon!==undefined&&!isWeaponId(value.weapon))||(value.automatic!==undefined&&typeof value.automatic!=='boolean')||(value.skillId!==undefined&&(!Object.hasOwn(SKILLS,String(value.skillId))||SKILLS[value.skillId as SkillId].classId!==classId)))throw new Error('Invalid saved attack');
   // The legacy V2 format may omit the weapon; preserve it exactly on migration.
   return structuredClone(value) as unknown as HeroAttack;
 }
@@ -52,6 +52,7 @@ export function safeHero(saved: unknown): Hero{
   const skillCooldowns: SkillCooldowns={};
   if(isRecord(raw.skillCooldowns))for(const skill of Object.values(SKILLS))if(skill.classId===classId&&Object.hasOwn(raw.skillCooldowns,skill.id))skillCooldowns[skill.id]=nonnegative(raw.skillCooldowns[skill.id]);
   skillCooldowns[legacyId]=Math.max(specialCooldown,skillCooldowns[legacyId]??0);
+  const restoredAttack=legacy?null:savedAttack(raw.attack,classId);
   const p: Hero={
     schemaVersion:SAVE_VERSION,id:typeof raw.id==='string'?raw.id:randomUUID(),name:String(raw.name||'Странник').replace(/[\p{C}<>]/gu,'').slice(0,18),
     classId,level,xp:nonnegative(raw.xp),gold:nonnegative(raw.gold??raw.coins),kills:Math.floor(nonnegative(raw.kills)),items,pendingItems,equipment,
@@ -59,8 +60,8 @@ export function safeHero(saved: unknown): Hero{
     ...position,yaw,targetYaw:yaw,weapon:raw.weapon==='axe'?'axe':'sword',
     questKills:legacy?0:nonnegative(raw.questKills),boss:legacy?false:!!raw.boss,questClaimed:legacy?false:!!raw.questClaimed,
     potions:Math.min(3,Math.floor(nonnegative(raw.potions,3))),potionCooldown:legacy?0:nonnegative(raw.potionCooldown),specialCooldown:skillCooldowns[legacyId]??0,skillCooldowns,dead:legacy?0:nonnegative(raw.dead),combatUntil:legacy?0:nonnegative(raw.combatUntil),
-    hp:0,mana:0,attack:legacy?null:savedAttack(raw.attack,classId),attackSerial:nonnegative(raw.attackSerial),
-    vx:0,vz:0,hurt:0,gait:0,moveBlend:0,runBlend:0,running:!!raw.running,input:{x:0,z:0,aim:null,seq:0},inputAt:0,ack:0,connected:true,disconnectAt:0
+    hp:0,mana:0,attack:restoredAttack?.automatic?null:restoredAttack,attackSerial:nonnegative(raw.attackSerial),
+    vx:0,vz:0,hurt:0,gait:0,moveBlend:0,runBlend:0,running:!!raw.running,input:{x:0,z:0,aim:null,seq:0},inputAt:0,ack:0,connected:true,disconnectAt:0,afk:null
   };
   p.hp=Math.min(stats(p).maxHp,nonnegative(raw.hp,stats(p).maxHp));if(!p.hp&&!p.dead)p.dead=2.5;
   // V2 had no mana. Grant its initial pool once; reconnecting V3 never refills it.
@@ -84,10 +85,26 @@ export class World{
     this.t=Date.now();this.age=0;this.players=new Map();this.events=[];this.projectiles=[];
     this.mobs=SPAWNS.map((s,id)=>({...s,id,homeX:s.x,homeZ:s.z,hp:MOB_TYPES[s.type].hp,state:'idle',timer:1,yaw:Math.PI,targetYaw:Math.PI,age:0,gait:0,speed:0,flash:0,target:null,contributors:new Map()}));
   }
-  add(p: Hero){this.players.set(p.id,p);p.connected=true;p.disconnectAt=0;}
+  add(p: Hero){this.stopAfk(p);this.players.set(p.id,p);p.connected=true;p.disconnectAt=0;p.afk=null;}
   emit<K extends keyof EventPayloads>(type: K,data: EventPayloads[K],owner?: string){this.events.push({type,...data,...(owner?{owner}:{})} as WorldEvent);}
-  remove(id: string){this.players.delete(id);}
+  remove(id: string){const p=this.players.get(id);if(p)this.stopAfk(p);this.players.delete(id);}
   notice(p: Hero,text: string){this.emit('notice',{text},p.id);}
+  stopAfk(p: Hero,reason?: string){
+    if(!p.afk)return false;
+    p.afk=null;p.input={...p.input,x:0,z:0,aim:null};p.vx=p.vz=0;
+    if(p.attack?.automatic)p.attack=null;
+    for(const b of this.projectiles)if(b.owner===p.id&&b.automatic)b.remaining=0;
+    if(reason&&p.connected)this.notice(p,reason);
+    return true;
+  }
+  startAfk(p: Hero){
+    if(!p.connected||p.dead){this.notice(p,'Автоохота доступна только живому подключённому герою');return false;}
+    const spot=afkSpotAt(p);
+    if(!spot||!withinSpot(p,spot,-.46)){this.notice(p,'Войдите в отмеченный лесной спот для автоохоты');return false;}
+    if(backpackItems(p).length>=BAG_CAPACITY&&p.pendingItems.length>=BAG_CAPACITY){this.notice(p,'Рюкзак и очередь добычи заполнены');return false;}
+    p.afk={spotId:spot.id,targetId:null};p.input={...p.input,x:0,z:0,aim:null};p.vx=p.vz=0;
+    return true;
+  }
   clampResources(p: Hero){const s=stats(p);p.hp=Math.min(p.hp,s.maxHp);p.mana=Math.min(p.mana,s.maxMana);}
   updateStats(p: Hero,msg: Record<string,unknown>){
     const reply=(ok: boolean,message?: string)=>this.emit('statResult',{ok,revision:p.statRevision,...(message?{message}:{})},p.id);
@@ -109,8 +126,8 @@ export class World{
     }
     p.statRevision++;this.clampResources(p);reply(true);
   }
-  patrol(m: Mob,dt: number){
-    const cfg=MOB_TYPES[m.type],route=m.patrol??={goal:null,pause:.8+m.id*.17,leg:0,speed:0,age:0};
+  patrol(m: Mob,dt: number,speedScale=1){
+    const cfg=MOB_TYPES[m.type],spot=m.spotId?AFK_SPOTS.find(candidate=>candidate.id===m.spotId):null,route=m.patrol??={goal:null,pause:.8+m.id*.17,leg:0,speed:0,age:0};
     if(route.pause>0){route.pause=Math.max(0,route.pause-dt);return;}
     const rest=()=>{route.goal=null;route.speed=0;route.pause=1.1+(m.id+route.leg)%4*.3;};
     if(!route.goal){
@@ -119,7 +136,7 @@ export class World{
       for(let attempt=0;attempt<12;attempt++){
         const angle=(++route.leg)*2.399963+m.id*1.7,radius=1.15+(route.leg%4)*.24;
         const goal={x:m.homeX+Math.sin(angle)*radius,z:m.homeZ+Math.cos(angle)*radius},d=distance(m,goal);
-        if(d<.8)continue;
+        if(d<.8||(spot&&!withinSpot(goal,spot,-cfg.radius)))continue;
         const steps=Math.ceil(d/.16);let reachable=true;
         for(let i=1;i<=steps;i++){
           const point={x:m.x+(goal.x-m.x)*i/steps,z:m.z+(goal.z-m.z)*i/steps};
@@ -135,10 +152,11 @@ export class World{
     m.yaw=m.type==='wolf'?m.yaw+Math.max(-1.5*dt,Math.min(1.5*dt,angleDelta(m.yaw,angle))):turnTowards(m.yaw,angle,dt,4);
     const alignment=Math.max(0,Math.cos(angleDelta(m.yaw,angle)));
     const walkSpeed=m.type==='boar'?.50:m.type==='alpha'?.82:.62;
-    const desired=Math.min(walkSpeed,Math.sqrt(2*.9*d))*alignment**3;
+    const desired=Math.min(walkSpeed*speedScale,Math.sqrt(2*.9*d))*alignment**3;
     route.speed+=Math.max(-1.4*dt,Math.min(.9*dt,desired-route.speed));
     const step=Math.min(d,route.speed*dt);
-    const moved=translate(m,Math.sin(m.yaw)*step,Math.cos(m.yaw)*step,cfg.radius,true);
+    const start={x:m.x,z:m.z},moved=translate(m,Math.sin(m.yaw)*step,Math.cos(m.yaw)*step,cfg.radius,true);
+    if(spot&&!withinSpot(m,spot,-cfg.radius)){m.x=start.x;m.z=start.z;rest();m.speed=0;return;}
     m.speed=dt>0?moved/dt:0;
     if(step>.001&&moved<step*.25)rest();
   }
@@ -146,16 +164,23 @@ export class World{
     if(!isRecord(msg))return;
     if(msg.type==='class'){this.notice(p,'Класс выбирается при создании героя и не меняется');return;}
     if(msg.type==='allocateStats'||msg.type==='resetStats'){this.updateStats(p,msg);return;}
+    if(msg.type==='afk'){
+      if(typeof msg.enabled!=='boolean')return;
+      if(msg.enabled)this.startAfk(p);else this.stopAfk(p);
+      return;
+    }
     if(msg.type==='input'){
       if(typeof msg.x!=='number'||typeof msg.z!=='number'||!Number.isFinite(msg.x)||!Number.isFinite(msg.z)||Math.abs(msg.x)>1||Math.abs(msg.z)>1||(msg.aim!==null&&(typeof msg.aim!=='number'||!Number.isFinite(msg.aim)))||typeof msg.seq!=='number'||!Number.isSafeInteger(msg.seq)||msg.seq<=p.input.seq)return;
+      if(p.afk&&(Math.hypot(msg.x,msg.z)>.01))this.stopAfk(p);
       p.input={x:msg.x,z:msg.z,aim:msg.aim,seq:msg.seq};p.inputAt=this.t;return;
     }
-    if(msg.type==='attack'){if(typeof msg.yaw==='number'&&Number.isFinite(msg.yaw))this.attack(p,msg.yaw,msg.special===true);return;}
-    if(msg.type==='skill'){if(typeof msg.yaw==='number'&&Number.isFinite(msg.yaw)&&typeof msg.skillId==='string'&&Object.hasOwn(SKILLS,msg.skillId))this.castSkill(p,msg.skillId as SkillId,msg.yaw);return;}
+    if(msg.type==='attack'){this.stopAfk(p);if(typeof msg.yaw==='number'&&Number.isFinite(msg.yaw))this.attack(p,msg.yaw,msg.special===true);return;}
+    if(msg.type==='skill'){this.stopAfk(p);if(typeof msg.yaw==='number'&&Number.isFinite(msg.yaw)&&typeof msg.skillId==='string'&&Object.hasOwn(SKILLS,msg.skillId))this.castSkill(p,msg.skillId as SkillId,msg.yaw);return;}
     if(msg.type==='potion'){this.potion(p);return;}
     if(msg.type==='run'&&typeof msg.running==='boolean'&&!p.dead){p.running=msg.running;return;}
     if(msg.type==='weapon'&&isWeaponId(msg.weapon)&&!p.attack&&!p.dead){const weapon=p.items.find(item=>item.id===p.equipment.weapon);if(weapon?.definitionId){this.notice(p,'Вид оружия определяется надетым предметом');return;}p.weapon=msg.weapon;return;}
     if(msg.type==='camp'){
+      this.stopAfk(p);
       if(p.dead||p.combatUntil>this.t||this.mobs.some(m=>m.target===p.id&&['chase','windup','recover'].includes(m.state))){this.notice(p,'Сначала оторвитесь от врагов');return;}
       this.camp(p,false);return;
     }
@@ -175,7 +200,7 @@ export class World{
     if(safe(p)){this.emit('safe',{},p.id);return false;}
     p.targetYaw=Math.atan2(Math.sin(yaw),Math.cos(yaw));
     const c=classFor(p.classId),duration=(p.classId==='warrior'?WEAPONS[p.weapon].duration:c.duration)/(1+stats(p).attackSpeed);
-    p.attack={id:++p.attackSerial,age:0,duration,weapon:p.weapon,yaw:null,hit:false,special:false};
+    p.attack={id:++p.attackSerial,age:0,duration,weapon:p.weapon,yaw:null,hit:false,special:false,...(p.afk?{automatic:true}:{})};
     p.combatUntil=this.t+15000;
     return true;
   }
@@ -189,7 +214,7 @@ export class World{
     if(p.mana<skill.manaCost){this.notice(p,'Не хватает маны. Обычная атака не расходует ману');return false;}
     p.targetYaw=Math.atan2(Math.sin(yaw),Math.cos(yaw));
     const c=classFor(p.classId),base=(p.classId==='warrior'?WEAPONS[p.weapon].duration:c.duration)/(1+stats(p).attackSpeed);
-    p.attack={id:++p.attackSerial,age:0,duration:base*skill.durationScale,weapon:p.weapon,yaw:null,hit:false,special:true,skillId};
+    p.attack={id:++p.attackSerial,age:0,duration:base*skill.durationScale,weapon:p.weapon,yaw:null,hit:false,special:true,skillId,...(p.afk?{automatic:true}:{})};
     p.combatUntil=this.t+15000;p.mana-=skill.manaCost;
     (p.skillCooldowns??={})[skillId]=skill.cooldown;
     if(skillId===legacySkillId(p.classId))p.specialCooldown=skill.cooldown;
@@ -200,6 +225,7 @@ export class World{
     const amount=Math.min(45,stats(p).maxHp-p.hp);p.potions--;p.hp+=amount;p.potionCooldown=4;this.emit('heal',{amount,x:p.x,z:p.z},p.id);return true;
   }
   camp(p: Hero,respawn: boolean){
+    this.stopAfk(p);
     Object.assign(p,{x:.5,z:2,yaw:Math.PI*.25,targetYaw:Math.PI*.25,vx:0,vz:0,dead:0,attack:null,moveBlend:0,runBlend:0,gait:0,input:{...p.input,x:0,z:0,aim:null}});
     if(respawn){p.hp=stats(p).maxHp;p.mana=stats(p).maxMana;p.potions=3;}
     this.emit('camp',{},p.id);
@@ -208,42 +234,46 @@ export class World{
     if(p.dead||safe(p))return;
     const damage=Math.max(1,Math.round(amount*(1-stats(p).damageReduction)));
     p.hp=Math.max(0,p.hp-damage);p.hurt=.35;p.combatUntil=this.t+15000;this.emit('hurt',{x:p.x,z:p.z,amount:damage},p.id);
-    if(!p.hp){p.dead=2.5;p.attack=null;p.vx=p.vz=p.moveBlend=p.runBlend=0;this.emit('death',{},p.id);}
+    if(!p.hp){this.stopAfk(p);p.dead=2.5;p.attack=null;p.vx=p.vz=p.moveBlend=p.runBlend=0;this.emit('death',{},p.id);}
   }
-  hurtMob(p: Hero,m: Mob,amount: number){
+  hurtMob(p: Hero,m: Mob,amount: number,automatic=false){
     if(p.dead||safe(p)||m.state==='dead'||m.state==='return'||!clearPath(p,m))return false;
     const dealt=Math.min(m.hp,Math.max(0,Math.round(amount)));if(!dealt)return false;
-    m.hp-=dealt;m.flash=.2;p.combatUntil=this.t+15000;m.contributors.set(p.id,{at:this.t,damage:(m.contributors.get(p.id)?.damage||0)+dealt});
+    const earlier=m.contributors.get(p.id);
+    m.hp-=dealt;m.flash=.2;p.combatUntil=this.t+15000;m.contributors.set(p.id,{at:this.t,damage:(earlier?.damage||0)+dealt,automatic:(earlier?.automatic??automatic)&&automatic});
     this.emit('hit',{x:m.x,z:m.z,amount:dealt,id:m.id});
     if(!m.hp)this.kill(m);else if(m.state==='idle'){m.state='chase';m.target=p.id;}
     return true;
   }
-  strikeMob(p: Hero,m: Mob,amount: number){
+  strikeMob(p: Hero,m: Mob,amount: number,automatic=false){
     if(p.dead||safe(p)||m.state==='dead'||m.state==='return'||!clearPath(p,m))return false;
     if(this.random()>=stats(p).hitChance){
       p.combatUntil=this.t+15000;
       if(m.state==='idle'){m.state='chase';m.target=p.id;}
       this.emit('miss',{x:m.x,z:m.z,id:m.id},p.id);return false;
     }
-    return this.hurtMob(p,m,amount);
+    return this.hurtMob(p,m,amount,automatic);
   }
   kill(m: Mob){
     if(m.state==='dead')return;
-    m.state='dead';m.timer=m.type==='alpha'?40:24;m.age=0;m.speed=0;m.slowUntil=0;
+    m.state='dead';m.timer=m.spotId?16:m.type==='alpha'?40:24;m.age=0;m.speed=0;m.slowUntil=0;
     const cfg=MOB_TYPES[m.type];
     // Recent nearby contributors receive personal rewards. A final hit cannot steal the kill.
     for(const [id,contribution] of m.contributors){
       const p=this.players.get(id);if(!p||p.dead||this.t-contribution.at>20000||distance(p,m)>12||contribution.damage<cfg.hp*.05)continue;
-      p.kills++;p.questKills++;p.xp+=cfg.xp;p.gold+=cfg.coins;if(m.type==='alpha')p.boss=true;
+      const automatic=contribution.automatic===true;
+      p.kills++;if(!automatic)p.questKills++;p.xp+=cfg.xp;p.gold+=cfg.coins;if(m.type==='alpha')p.boss=true;
       while(p.xp>=stats(p).xpNeeded){p.xp-=stats(p).xpNeeded;p.level++;p.statRevision++;this.emit('level',{level:p.level,points:5},p.id);}
       // Every third personal kill and each boss gives a real persisted item.
-      if(p.questKills===1||p.questKills%3===0||m.type==='alpha'){
-        const slots=Object.keys(EQUIPMENT_SLOTS) as EquipmentSlot[],slot=slots[p.classId==='warrior'?Math.floor(p.questKills/3)%slots.length:(p.questKills-1)%slots.length];
+      const dropCount=automatic?p.kills:p.questKills;
+      if((automatic?dropCount%3===0:dropCount===1||dropCount%3===0)||m.type==='alpha'){
+        const slots=Object.keys(EQUIPMENT_SLOTS) as EquipmentSlot[],slot=slots[p.classId==='warrior'?Math.floor(dropCount/3)%slots.length:(dropCount-1)%slots.length];
         const choices=WARRIOR_ITEMS.filter(definition=>definition.slot===slot);
         const item=p.classId==='warrior'?rollEquipment(choices[Math.floor(this.random()*choices.length)].id,randomUUID(),this.random):makeLoot(p.classId,Math.min(12,p.level+1),m.type==='alpha'?2:1,slot);
         const pending=backpackItems(p).length>=BAG_CAPACITY;
         if(pending)p.pendingItems.push(item);else p.items.push(item);
         this.emit('item',{name:item.name,pending},p.id);
+        if(automatic&&backpackItems(p).length>=BAG_CAPACITY&&p.pendingItems.length>=BAG_CAPACITY)this.stopAfk(p,'Автоохота остановлена: рюкзак и очередь добычи заполнены');
       }
       this.emit('kill',{id:m.id,name:cfg.name,xp:cfg.xp},p.id);this.emit('loot',{id:m.id,x:m.x,z:m.z,amount:cfg.coins},p.id);
     }
@@ -255,13 +285,19 @@ export class World{
     if(p.classId==='warrior'){
       const range=skill?.range??WEAPONS[a.weapon??p.weapon].range,halfAngle=skill?.halfAngle??.9;
       const targets=this.mobs.filter(m=>m.state!=='dead'&&m.state!=='return'&&inStrike(p,m,yaw,range,halfAngle))
-        .sort((left,right)=>distance(p,left)-distance(p,right)||left.id-right.id).slice(0,skill?.maxTargets??this.mobs.length);
-      for(const m of targets)this.strikeMob(p,m,baseDamage*(skill?.damageScale??1));
+        .sort((left,right)=>distance(p,left)-distance(p,right)||left.id-right.id).slice(0,skill?.maxTargets??1);
+      for(const m of targets){
+        if(a.automatic&&!p.afk)break;
+        this.strikeMob(p,m,baseDamage*(skill?.damageScale??1),a.automatic===true);
+      }
       if(skillId)this.emit('skillImpact',{x:p.x,z:p.z,skillId,caster:p.id,attackId:a.id,yaw});
     }else if(skillId==='mage-frost'){
       const targets=this.mobs.filter(m=>m.state!=='dead'&&m.state!=='return'&&inStrike(p,m,yaw,skill!.range,Math.PI))
         .sort((left,right)=>distance(p,left)-distance(p,right)||left.id-right.id).slice(0,skill!.maxTargets);
-      for(const m of targets)if(this.strikeMob(p,m,attackPower*skill!.damageScale)&&m.state!=='dead')m.slowUntil=Math.max(m.slowUntil??0,this.t+2000);
+      for(const m of targets){
+        if(a.automatic&&!p.afk)break;
+        if(this.strikeMob(p,m,attackPower*skill!.damageScale,a.automatic===true)&&m.state!=='dead')m.slowUntil=Math.max(m.slowUntil??0,this.t+2000);
+      }
       this.emit('skillImpact',{x:p.x,z:p.z,skillId,caster:p.id,attackId:a.id,yaw});
     }else{
       const sharedHits: number[]=[],angles=skillId==='archer-volley'?[-.27,0,.27]:[0];
@@ -269,9 +305,48 @@ export class World{
         id:randomUUID(),owner:p.id,x:p.x,z:p.z,yaw:yaw+offset,remaining:skill?.range??stats(p).range,
         speed:skill?.projectileSpeed??(p.classId==='archer'?13:9),kind:p.classId,
         damage:attackPower*(skill?.damageScale??1),aoe:skillId==='mage-fireball'?skill!.radius??0:0,
-        ...(skillId?{skillId,attackId:a.id,maxTargets:skill!.maxTargets,hitIds:skillId==='archer-volley'?sharedHits:[],pierce:skillId==='archer-piercing',damageScaleOnPierce:.82}:{})
+        ...(skillId?{skillId,attackId:a.id,maxTargets:skill!.maxTargets,hitIds:skillId==='archer-volley'?sharedHits:[],pierce:skillId==='archer-piercing',damageScaleOnPierce:.82}:{}),
+        ...(a.automatic?{automatic:true}:{})
       });
     }
+  }
+  afkTargets(p: Hero){
+    const spot=AFK_SPOTS.find(candidate=>candidate.id===p.afk?.spotId);
+    if(!spot)return [];
+    return this.mobs.filter(m=>spot.spawnIds.includes(m.id)&&m.spotId===spot.id&&m.state!=='dead'&&m.state!=='return'&&withinSpot(m,spot,-MOB_TYPES[m.type].radius)&&clearPath(p,m))
+      .sort((left,right)=>distance(p,left)-distance(p,right)||left.id-right.id);
+  }
+  driveAfk(p: Hero){
+    if(!p.afk)return {x:0,z:0,aim:null};
+    if(!p.connected||p.dead){this.stopAfk(p);return {x:0,z:0,aim:null};}
+    const spot=AFK_SPOTS.find(candidate=>candidate.id===p.afk?.spotId);
+    if(!spot||!withinSpot(p,spot,-.46)){this.stopAfk(p,'Автоохота остановлена: герой вышел из спота');return {x:0,z:0,aim:null};}
+    if(backpackItems(p).length>=BAG_CAPACITY&&p.pendingItems.length>=BAG_CAPACITY){this.stopAfk(p,'Автоохота остановлена: рюкзак и очередь добычи заполнены');return {x:0,z:0,aim:null};}
+    const target=this.afkTargets(p)[0];p.afk.targetId=target?.id??null;
+    if(p.attack)return {x:0,z:0,aim:target?Math.atan2(target.x-p.x,target.z-p.z):null};
+    if(!target){
+      if(distance(p,spot)<.6||!clearPath(p,spot))return {x:0,z:0,aim:null};
+      const d=distance(p,spot);return {x:(spot.x-p.x)/d,z:(spot.z-p.z)/d,aim:null};
+    }
+    const yaw=Math.atan2(target.x-p.x,target.z-p.z),d=distance(p,target),limit=Math.max(1.5,stats(p).range-.35);
+    return d>limit?{x:Math.sin(yaw),z:Math.cos(yaw),aim:yaw}:{x:0,z:0,aim:yaw};
+  }
+  autoAttack(p: Hero){
+    if(!p.afk||p.attack||p.dead)return false;
+    const targets=this.afkTargets(p),target=targets.find(m=>m.id===p.afk?.targetId)??targets[0];
+    if(!target)return false;
+    p.afk.targetId=target.id;
+    const yaw=Math.atan2(target.x-p.x,target.z-p.z),d=distance(p,target);
+    const [q,e]=skillsForClass(p.classId);
+    const ready=(skill: typeof q)=>p.mana>=skill.manaCost&&Math.max(p.skillCooldowns?.[skill.id]??0,skill.id===legacySkillId(p.classId)?p.specialCooldown:0)<=0;
+    let clustered=false;
+    if(p.classId==='warrior'||p.classId==='mage')clustered=targets.filter(m=>distance(p,m)<=e.range).length>=2;
+    else clustered=targets.filter(m=>distance(p,m)<=e.range&&Math.abs(angleDelta(yaw,Math.atan2(m.x-p.x,m.z-p.z)))<=.42).length>=2;
+    if(p.classId==='mage'&&p.hp/stats(p).maxHp<.5&&d<=e.range)clustered=true;
+    if(clustered&&d<=e.range&&ready(e)&&this.castSkill(p,e.id,yaw))return true;
+    if(d<=q.range&&ready(q)&&this.castSkill(p,q.id,yaw))return true;
+    if(d<=stats(p).range&&this.attack(p,yaw))return true;
+    return false;
   }
   tick(dt: number,now=this.t+dt*1000){
     dt=Math.max(0,Math.min(.1,dt));this.t=now;this.age+=dt;
@@ -282,8 +357,14 @@ export class World{
       p.specialCooldown=Math.max(0,p.specialCooldown-dt,p.skillCooldowns?.[legacyId]??0);
       (p.skillCooldowns??={})[legacyId]=p.specialCooldown;
       if(p.dead>0){p.dead=Math.max(0,p.dead-dt);if(!p.dead)this.camp(p,true);continue;}
-      const input=p.connected&&this.t-p.inputAt<350?p.input:{x:0,z:0,aim:null};
-      const s=stats(p);p.speedScale=s.speedScale;moveHero(p,dt,input);p.ack=p.input.seq;
+      if(p.afk&&p.hp/stats(p).maxHp<.4)this.potion(p);
+      const input=p.afk?this.driveAfk(p):p.connected&&this.t-p.inputAt<350?p.input:{x:0,z:0,aim:null};
+      const s=stats(p),before={x:p.x,z:p.z,gait:p.gait};p.speedScale=s.speedScale;moveHero(p,dt,input);p.ack=p.input.seq;
+      if(p.afk){
+        const spot=AFK_SPOTS.find(candidate=>candidate.id===p.afk?.spotId);
+        if(!spot||!withinSpot(p,spot,-.46)){p.x=before.x;p.z=before.z;p.vx=p.vz=0;p.gait=before.gait;p.moveBlend=p.runBlend=0;}
+        this.autoAttack(p);
+      }
       if(p.attack){
         const a=p.attack;a.age+=dt;if(a.yaw===null&&a.age>=a.duration*.3)a.yaw=p.yaw;
         const attackSkill=a.skillId??(a.special?legacySkillId(p.classId):undefined);
@@ -303,6 +384,7 @@ export class World{
     for(const m of this.mobs){
       const cfg=MOB_TYPES[m.type],home={x:m.homeX,z:m.homeZ};m.age+=dt;m.flash=Math.max(0,m.flash-dt);m.speed=0;
       if(m.state==='dead'){m.patrol=null;m.timer-=dt;if(m.timer<=0){Object.assign(m,{x:home.x,z:home.z,hp:cfg.hp,state:'idle',timer:1,age:0,target:null,slowUntil:0});m.contributors.clear();}continue;}
+      const spot=m.spotId?AFK_SPOTS.find(candidate=>candidate.id===m.spotId):null;
       let p=m.target===null?undefined:this.players.get(m.target);
       if(m.state==='idle'){
         p=[...this.players.values()].filter(p=>!p.dead&&!safe(p)&&distance(p,m)<cfg.aggro&&clearPath(p,m)).sort((a,b)=>distance(a,m)-distance(b,m))[0];
@@ -312,7 +394,7 @@ export class World{
         const replacement=[...this.players.values()].filter(other=>!other.dead&&!safe(other)&&distance(other,m)<cfg.aggro&&clearPath(other,m)).sort((a,b)=>distance(a,m)-distance(b,m))[0];
         if(replacement){p=replacement;m.target=p.id;}
       }
-      if(['chase','windup','recover'].includes(m.state)&&(!p||p.dead||safe(p)||distance(m,home)>7.4||distance(p,m)>10.5)){
+      if(['chase','windup','recover'].includes(m.state)&&(!p||p.dead||safe(p)||distance(m,home)>7.4||distance(p,m)>10.5||(spot&&!withinSpot(m,spot,-cfg.radius)))){
         m.state='return';m.target=null;m.timer=0;m.contributors.clear();
       }
       if(m.state!=='idle'&&m.patrol){m.patrol.goal=null;m.patrol.speed=0;m.patrol.pause=1.1;}
@@ -328,7 +410,7 @@ export class World{
         if(distance(p,m)<cfg.range&&Math.abs(angleDelta(m.yaw,a))<.25){m.state='windup';m.timer=cfg.windup;m.targetYaw=a;m.age=0;}
         else m.speed=translate(m,Math.sin(a)*cfg.speed*slowScale*dt,Math.cos(a)*cfg.speed*slowScale*dt,cfg.radius,true)/dt;
       }else if(m.state==='idle'){
-        this.patrol(m,dt*slowScale);
+        this.patrol(m,dt,slowScale);
       }
       m.gait+=m.speed*dt*5.8;
     }
@@ -336,6 +418,7 @@ export class World{
       const b=this.projectiles[i],owner=this.players.get(b.owner);let hit=false;
       const steps=Math.max(1,Math.ceil(b.speed*dt/.15));
       for(let k=0;k<steps&&!hit;k++){
+        if(b.automatic&&!owner?.afk){hit=true;break;}
         b.x+=Math.sin(b.yaw)*b.speed*dt/steps;b.z+=Math.cos(b.yaw)*b.speed*dt/steps;b.remaining-=b.speed*dt/steps;
         if(!owner||b.remaining<=0||!stand(b.x,b.z,0)||safe(b)){
           if(b.skillId&&b.attackId!==undefined)this.emit('skillImpact',{x:b.x,z:b.z,skillId:b.skillId,caster:b.owner,attackId:b.attackId,yaw:b.yaw});
@@ -347,12 +430,15 @@ export class World{
         if(b.aoe){
           const targets=this.mobs.filter(other=>other.state!=='dead'&&other.state!=='return'&&(other===m||distance(other,m)<=b.aoe))
             .sort((left,right)=>(left===m?-1:right===m?1:distance(left,m)-distance(right,m))||left.id-right.id).slice(0,b.maxTargets??this.mobs.length);
-          for(const target of targets){b.hitIds?.push(target.id);this.strikeMob(owner,target,b.damage*(target===m?1:.65));}
+          for(const target of targets){
+            if(b.automatic&&!owner.afk)break;
+            b.hitIds?.push(target.id);this.strikeMob(owner,target,b.damage*(target===m?1:.65),b.automatic===true);
+          }
           hit=true;
         }else{
           const ordinal=b.hitIds?.length??0;
           b.hitIds?.push(m.id);
-          this.strikeMob(owner,m,b.damage*(b.pierce?(b.damageScaleOnPierce??1)**ordinal:1));
+          this.strikeMob(owner,m,b.damage*(b.pierce?(b.damageScaleOnPierce??1)**ordinal:1),b.automatic===true);
           hit=!b.pierce||(b.hitIds?.length??0)>=(b.maxTargets??1);
         }
       }
@@ -361,6 +447,6 @@ export class World{
   }
   snapshot(forId: string): WorldSnapshot{
     const p=this.players.get(forId);
-    return {t:this.t,players:[...this.players.values()].map(p=>({id:p.id,name:p.name,classId:p.classId,x:p.x,z:p.z,yaw:p.yaw,weapon:p.weapon,hp:p.hp,maxHp:stats(p).maxHp,level:p.level,dead:p.dead,hurt:p.hurt,attack:p.attack,moveBlend:p.moveBlend,runBlend:p.runBlend,gait:p.gait,vx:p.vx,vz:p.vz,connected:p.connected,...(p.classId==='warrior'?{appearance:equipmentAppearance(p)}:{})})),mobs:this.mobs.map(({contributors,patrol,slowUntil,slow,...m})=>({...m,slow:Math.max(0,((slowUntil??0)-this.t)/1000)})),projectiles:this.projectiles.map(({damage,aoe,maxTargets,hitIds,pierce,damageScaleOnPierce,...b})=>b),self:p?{...stats(p),...persistentHero(p),appearance:equipmentAppearance(p),attackPower:stats(p).attack,targetYaw:p.targetYaw,vx:p.vx,vz:p.vz,hurt:p.hurt,gait:p.gait,moveBlend:p.moveBlend,runBlend:p.runBlend,ack:p.ack}:null,events:this.events.filter(e=>!e.owner||e.owner===forId)};
+    return {t:this.t,players:[...this.players.values()].map(p=>({id:p.id,name:p.name,classId:p.classId,x:p.x,z:p.z,yaw:p.yaw,weapon:p.weapon,hp:p.hp,maxHp:stats(p).maxHp,level:p.level,dead:p.dead,hurt:p.hurt,attack:p.attack,moveBlend:p.moveBlend,runBlend:p.runBlend,gait:p.gait,vx:p.vx,vz:p.vz,connected:p.connected,...(p.classId==='warrior'?{appearance:equipmentAppearance(p)}:{})})),mobs:this.mobs.map(({contributors,patrol,slowUntil,slow,...m})=>({...m,slow:Math.max(0,((slowUntil??0)-this.t)/1000)})),projectiles:this.projectiles.map(({damage,aoe,maxTargets,hitIds,pierce,damageScaleOnPierce,automatic,...b})=>b),self:p?{...stats(p),...persistentHero(p),appearance:equipmentAppearance(p),attackPower:stats(p).attack,targetYaw:p.targetYaw,vx:p.vx,vz:p.vz,hurt:p.hurt,gait:p.gait,moveBlend:p.moveBlend,runBlend:p.runBlend,ack:p.ack,afk:p.afk}:null,events:this.events.filter(e=>!e.owner||e.owner===forId)};
   }
 }

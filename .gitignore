@@ -21,6 +21,3 @@ online-heroes.json
 *.blend[0-9]*
 __pycache__/
 *.pyc
-.godot/
-godot-prototype/assets/
-godot-prototype/generated/

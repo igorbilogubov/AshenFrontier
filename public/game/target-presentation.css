@@ -5,18 +5,16 @@
 #target-panel .bar[hidden],#target-panel .target-loot[hidden]{display:none}
 #target-panel .bar{height:7px;background:#101810;border:1px solid #c0a3733d}
 #target-fill{background:linear-gradient(90deg,#914b3e,#d38a68)}
-.target-loot{margin-top:8px;padding-top:6px;border-top:1px solid #b69b6950}
-.target-loot-heading{font:700 8px/1.3 system-ui;letter-spacing:.7px;color:#c8b48e;margin-bottom:6px}
-.target-loot-row{display:flex;align-items:stretch;justify-content:center;gap:5px;flex-wrap:wrap}
-.target-loot-category{min-width:43px;flex:1 1 43px;max-width:52px;min-height:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;border:1px solid currentColor;border-radius:3px;background:#789d6620;box-shadow:inset 0 1px #f5e8c320;color:#96c979}
+.target-loot{margin-top:5px;padding-top:5px;border-top:1px solid #b69b6950}
+.target-loot-row{display:flex;align-items:center;justify-content:center;gap:3px;flex-wrap:wrap}
+.target-loot-category{width:24px;height:24px;flex:0 0 24px;display:flex;align-items:center;justify-content:center;border:1px solid currentColor;border-radius:3px;background:#789d6620;box-shadow:inset 0 1px #f5e8c320;color:#96c979}
 .target-loot-category.gold{color:#e8c278;background:#bf8b3424}
 .target-loot-category.rarity-0{color:#d5d6cf;background:#8b8e8620}
 .target-loot-category.rarity-2{color:#8ac5e9;background:#5eafd024}
 .target-loot-category.rarity-3{color:#d6aaeb;background:#a668c124}
-.target-loot-symbol{display:block;width:25px;height:25px}
+.target-loot-symbol{display:block;width:18px;height:18px}
 .target-loot-symbol svg{display:block;width:100%;height:100%}
-.target-loot-category small{font:8px/1 system-ui;color:inherit;white-space:nowrap}
-@media(max-width:600px){#target-panel{top:76px;width:min(218px,calc(100vw - 18px));padding:7px 9px 8px}#target-name{font-size:14px}.target-loot-category{min-width:37px;flex-basis:37px;min-height:44px}.target-loot-category small{font-size:7px}}
+@media(max-width:600px){#target-panel{top:76px;width:min(218px,calc(100vw - 18px));padding:7px 9px 8px}#target-name{font-size:14px}}
 
 html,body,#scene{cursor:url('/game/cursors/ashen-pointer.svg') 2 2,auto}
 button,select,summary,[role="button"],.vendor-world-label,.ground-loot-label{cursor:url('/game/cursors/ashen-interact.svg') 2 2,pointer}

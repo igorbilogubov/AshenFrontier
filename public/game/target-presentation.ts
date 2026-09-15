@@ -21,8 +21,7 @@ export function bindTargetPresentation(scene:T.Scene):(target:PresentedTarget|nu
   const bar=panel?.querySelector<HTMLElement>('.bar');
   if(!panel||!name||!health||!fill||!bar)throw new Error('Target presentation requires the existing target-panel/name/health/fill markup');
   const loot=document.createElement('div');loot.className='target-loot';loot.hidden=true;
-  const heading=document.createElement('div');heading.className='target-loot-heading';
-  const row=document.createElement('div');row.className='target-loot-row';loot.append(heading,row);panel.append(loot);
+  const row=document.createElement('div');row.className='target-loot-row';loot.append(row);panel.append(loot);
   const geometry=new T.RingGeometry(.88,1,48),material=new T.MeshBasicMaterial({color:'#d7a469',transparent:true,opacity:.8,side:T.DoubleSide,depthWrite:false});
   const ring=new T.Mesh(geometry,material);ring.rotation.x=-Math.PI/2;ring.position.y=.08;ring.renderOrder=4;ring.visible=false;ring.castShadow=false;ring.userData.dynamic=true;scene.add(ring);
   let shownLootType:MobType|null=null;
@@ -31,15 +30,14 @@ export function bindTargetPresentation(scene:T.Scene):(target:PresentedTarget|nu
     if(shownLootType===type)return;
     shownLootType=type;
     const available=possibleLoot(type);
-    heading.textContent=`ВОЗМОЖНАЯ ДОБЫЧА · вещь ${Math.round(available.itemChance*100)}%`;
     row.replaceChildren();
     for(const category of available.categories){
       const badge=document.createElement('div');badge.className=`target-loot-category ${category.rarity==='gold'?'gold':`rarity-${category.rarity}`}`;
       const rarity=category.rarity==='gold'?'Гарантированная личная стопка':RARITY_NAMES[category.rarity]??`Редкость ${category.rarity}`;
-      badge.setAttribute('role','img');badge.setAttribute('aria-label',`${category.name}: ${rarity}${category.id==='gold'?`, ${available.gold} золота`:'. Если выпадет вещь, категория случайна'}`);
+      badge.setAttribute('role','img');badge.setAttribute('aria-label',`${category.name}: ${rarity}${category.id==='gold'?`, ${available.gold} золота после убийства`:`, общий шанс вещи ${Math.round(available.itemChance*100)}%, категория случайна`}`);
       badge.title=badge.getAttribute('aria-label')??'';
       const symbol=document.createElement('span');symbol.className='target-loot-symbol';symbol.innerHTML=`<svg viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">${ICONS[category.id]}</svg>`;
-      const label=document.createElement('small');label.textContent=category.name;badge.append(symbol,label);row.append(badge);
+      badge.append(symbol);row.append(badge);
     }
   }
   return (target)=>{

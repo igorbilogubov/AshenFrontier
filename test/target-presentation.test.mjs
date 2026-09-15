@@ -50,10 +50,12 @@ test('selected mob gets center name/HP/real loot and ring; vendor/player remove 
     assert.equal(names['target-name'].textContent,'Пепельный медведь');
     assert.equal(names['target-health'].textContent,'72 / 145');
     assert.equal(names['target-fill'].style.transform,`scaleX(${72/145})`);
-    const loot=names['target-panel'].children[0],row=loot.children[1];
+    const loot=names['target-panel'].children[0],row=loot.children[0];
     assert.equal(loot.hidden,false);assert.equal(row.children.length,4);
-    assert(loot.children[0].textContent.includes('10%'));
+    assert.equal(loot.children.length,1,'drop row has no visible heading');
+    assert(row.children.every(badge=>badge.children.length===1),'drop badges contain symbols only');
     assert(row.children[0].getAttribute('aria-label').includes('21 золота'));
+    assert(row.children.slice(1).every(badge=>badge.title.includes('10%')));
     assert(row.children.slice(1).every(badge=>badge.className.includes('rarity-1')));
     assert.equal(ring.visible,true);assert.equal(ring.position.x,12);assert.equal(ring.position.z,7);
     update({kind:'vendor',id:'camp-vendor',name:'Торговец',x:2,z:-2});

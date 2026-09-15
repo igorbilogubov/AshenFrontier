@@ -176,7 +176,7 @@ export function createAnimatedWarrior(gltf:{scene:T.Object3D;animations:T.Animat
     const blend=1-Math.exp(-dt*(hero.dead?22:hero.attack?30:16));
     for(const name of CLIP_NAMES){weights[name]+=(target[name]-weights[name])*blend;actions[name].setEffectiveWeight(weights[name]);}
     combat.update(dt,hero.classId||'warrior',hero.attack,!!hero.dead);
-    if(sampleAnimation){mixer.update(dt);bowPresentation.update(hero);}lastAttack=hero.attack;lastHurt=hero.hurt;wasDead=!!hero.dead;
+    if(sampleAnimation){mixer.update(dt);bowPresentation.update(hero,dt);}lastAttack=hero.attack;lastHurt=hero.hurt;wasDead=!!hero.dead;
   }
   function previewClip(name:WarriorClip){
     if(!clips[name])return;
@@ -191,7 +191,7 @@ export function createAnimatedWarrior(gltf:{scene:T.Object3D;animations:T.Animat
     mixer.update(0);bowPresentation.update({weapon:'sword',classId,dead:preview==='Death',attack:null,moveBlend:0,runBlend:0,gait:0,hurt:0});
   }
   // Initialize the skeleton before the first rendered frame, avoiding a T-pose flash.
-  mixer.update(0);root.updateMatrixWorld(true);
+  mixer.update(0);bowPresentation.update({weapon:'sword',classId,dead:0,attack:null,moveBlend:0,runBlend:0,gait:0,hurt:0},0);root.updateMatrixWorld(true);
   return {root,model,mixer,clips,animate,equipment,previewClip,samplePreview,disposeExtras:()=>bowPresentation.dispose(),
     get state(){return state;},get weights(){return {...weights};}};
 }

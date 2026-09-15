@@ -1,11 +1,13 @@
 import {CLASS_ITEMS,rollEquipment,validateEquipment,equipmentAppearance} from './public/game/equipment-items.js';
-import type {ClassId, EquipmentSlot, Item, Hero, PersistentHero, HeroAttack, Mob, Projectile, WorldEvent, EventPayloads, WorldSnapshot, SkillId, SkillCooldowns} from './shared/types.js';
+import type {ClassId, EquipmentSlot, Item, Hero, PersistentHero, HeroAttack, Mob, Projectile, WorldEvent, EventPayloads, WorldSnapshot, SkillId, SkillCooldowns, GroundDrop} from './shared/types.js';
 import {isRecord, isClassId, isEquipmentSlot, isWeaponId} from './shared/types.js';
 import {randomUUID} from 'node:crypto';
 import {CLASSES,EQUIPMENT_SLOTS,BAG_CAPACITY,backpackItems,classFor,canEquip,STAT_KEYS,CLASS_PROGRESSION,characterStats,normalizedAllocations} from './public/rules.js';
 import {BOUNDS,CAMP,SPAWNS,MOB_TYPES,WEAPONS,AFK_SPOTS,afkSpotAt,withinSpot,safe,stand,clearPath,distance,translate,moveHero} from './public/game/location.js';
 import {angleDelta,turnTowards,inStrike} from './public/game/motion.js';
 import {SKILLS,skillsForClass,legacySkillId} from './public/game/skills.js';
+import {LOOT_TTL_MS,MAX_GROUND_DROPS_PER_HERO,PICKUP_RANGE,gearDrops} from './public/game/loot-rules.js';
+import {SHOP,shopPrice,sellPrice} from './public/game/shop.js';
 export {CLASSES,EQUIPMENT_SLOTS,CAMP,BOUNDS};
 export const SAVE_VERSION=3;
 const finite=(value: unknown,fallback=0)=>typeof value==='number'&&Number.isFinite(value)?value:fallback;
@@ -61,7 +63,7 @@ export function safeHero(saved: unknown): Hero{
     questKills:legacy?0:nonnegative(raw.questKills),boss:legacy?false:!!raw.boss,questClaimed:legacy?false:!!raw.questClaimed,
     potions:Math.min(3,Math.floor(nonnegative(raw.potions,3))),potionCooldown:legacy?0:nonnegative(raw.potionCooldown),specialCooldown:skillCooldowns[legacyId]??0,skillCooldowns,dead:legacy?0:nonnegative(raw.dead),combatUntil:legacy?0:nonnegative(raw.combatUntil),
     hp:0,mana:0,attack:restoredAttack?.automatic?null:restoredAttack,attackSerial:nonnegative(raw.attackSerial),
-    vx:0,vz:0,hurt:0,gait:0,moveBlend:0,runBlend:0,running:!!raw.running,input:{x:0,z:0,aim:null,seq:0},inputAt:0,ack:0,connected:true,disconnectAt:0,afk:null
+    vx:0,vz:0,hurt:0,gait:0,moveBlend:0,runBlend:0,running:!!raw.running,input:{x:0,z:0,aim:null,seq:0},inputAt:0,ack:0,connected:true,disconnectAt:0,afk:null,interactionTarget:null,shopActive:false
   };
   p.hp=Math.min(stats(p).maxHp,nonnegative(raw.hp,stats(p).maxHp));if(!p.hp&&!p.dead)p.dead=2.5;
   // V2 had no mana. Grant its initial pool once; reconnecting V3 never refills it.
@@ -80,15 +82,96 @@ export class World{
   events: WorldEvent[];
   projectiles: Projectile[];
   mobs: Mob[];
+  groundLoot: (GroundDrop & {owner:string})[];
+  purchaseReceipts:Map<string,string[]>;
   constructor({random=Math.random}={}){
     this.random=random;
-    this.t=Date.now();this.age=0;this.players=new Map();this.events=[];this.projectiles=[];
+    this.t=Date.now();this.age=0;this.players=new Map();this.events=[];this.projectiles=[];this.groundLoot=[];this.purchaseReceipts=new Map();
     this.mobs=SPAWNS.map((s,id)=>({...s,id,homeX:s.x,homeZ:s.z,hp:MOB_TYPES[s.type].hp,state:'idle',timer:1,yaw:Math.PI,targetYaw:Math.PI,age:0,gait:0,speed:0,flash:0,target:null,contributors:new Map()}));
   }
-  add(p: Hero){this.stopAfk(p);this.players.set(p.id,p);p.connected=true;p.disconnectAt=0;p.afk=null;}
+  add(p: Hero){this.stopAfk(p);this.stopInteraction(p);this.players.set(p.id,p);p.connected=true;p.disconnectAt=0;p.afk=null;p.shopActive=false;}
   emit<K extends keyof EventPayloads>(type: K,data: EventPayloads[K],owner?: string){this.events.push({type,...data,...(owner?{owner}:{})} as WorldEvent);}
-  remove(id: string){const p=this.players.get(id);if(p)this.stopAfk(p);this.players.delete(id);}
+  remove(id: string){const p=this.players.get(id);if(p){this.stopAfk(p);this.stopInteraction(p);p.shopActive=false;}this.players.delete(id);this.purchaseReceipts.delete(id);}
   notice(p: Hero,text: string){this.emit('notice',{text},p.id);}
+  stopInteraction(p:Hero){
+    if(!p.interactionTarget)return false;
+    p.interactionTarget=null;p.input={...p.input,x:0,z:0,aim:null};p.vx=p.vz=0;return true;
+  }
+  addGroundDrop(owner:string,drop:GroundDrop){
+    this.groundLoot=this.groundLoot.filter(candidate=>candidate.expiresAt>this.t);
+    while(this.groundLoot.filter(candidate=>candidate.owner===owner).length>=MAX_GROUND_DROPS_PER_HERO){
+      const oldest=this.groundLoot.findIndex(candidate=>candidate.owner===owner);
+      if(oldest<0)break;this.groundLoot.splice(oldest,1);
+    }
+    this.groundLoot.push({...drop,owner});
+  }
+  groundDrop(p:Hero,id:unknown){return typeof id==='string'?this.groundLoot.find(drop=>drop.id===id&&drop.owner===p.id&&drop.expiresAt>this.t):undefined;}
+  pickUp(p:Hero,id:unknown){
+    const drop=this.groundDrop(p,id);
+    if(!drop||!p.connected||p.dead||p.attack){this.stopInteraction(p);return false;}
+    if(distance(p,drop)>PICKUP_RANGE||!clearPath(p,drop))return false;
+    if(drop.kind==='item'){
+      if(!drop.item)return false;
+      if(backpackItems(p).length>=BAG_CAPACITY){this.notice(p,'Рюкзак полон. Вещь остаётся на земле');this.stopInteraction(p);return false;}
+      // Remove first; a repeated command cannot award the same instance twice.
+      this.groundLoot.splice(this.groundLoot.indexOf(drop),1);
+      p.items.push(drop.item);this.emit('item',{name:drop.item.name,pending:false},p.id);
+    }else{
+      const amount=drop.amount;
+      if(typeof amount!=='number'||!Number.isSafeInteger(amount)||amount<=0)return false;
+      this.groundLoot.splice(this.groundLoot.indexOf(drop),1);
+      p.gold+=amount;this.emit('loot',{id:-1,x:drop.x,z:drop.z,amount},p.id);
+    }
+    this.stopInteraction(p);return true;
+  }
+  startPickup(p:Hero,id:unknown){
+    this.stopAfk(p);
+    const drop=this.groundDrop(p,id);
+    if(!drop||!p.connected||p.dead||p.attack)return false;
+    if(!clearPath(p,drop)){this.notice(p,'К добыче нет прямого прохода');return false;}
+    if(distance(p,drop)<=PICKUP_RANGE)return this.pickUp(p,id);
+    this.stopInteraction(p);p.interactionTarget={kind:'loot',id:drop.id};p.input={...p.input,x:0,z:0,aim:null};return true;
+  }
+  vendorAvailable(p:Hero){return p.connected&&!p.dead&&!p.attack&&p.combatUntil<=this.t&&safe(p)&&distance(p,SHOP)<=SHOP.range&&clearPath(p,SHOP);}
+  openShop(p:Hero){
+    if(!this.vendorAvailable(p))return false;
+    this.stopInteraction(p);p.shopActive=true;this.emit('shopOpen',{npcId:SHOP.id},p.id);return true;
+  }
+  startVendor(p:Hero,npcId:unknown){
+    this.stopAfk(p);
+    if(npcId!==SHOP.id||!p.connected||p.dead)return false;
+    if(p.attack||p.combatUntil>this.t){this.notice(p,'Торговец доступен вне боя');return false;}
+    if(!clearPath(p,SHOP)){this.notice(p,'К торговцу нет прямого прохода');return false;}
+    if(distance(p,SHOP)<=SHOP.range)return this.openShop(p);
+    this.stopInteraction(p);p.interactionTarget={kind:'vendor',id:SHOP.id};p.input={...p.input,x:0,z:0,aim:null};return true;
+  }
+  buy(p:Hero,definitionId:unknown,requestId:unknown){
+    if(!p.shopActive||!this.vendorAvailable(p))return false;
+    const price=shopPrice(definitionId);
+    if(price===undefined)return false;
+    if(typeof requestId==='string'){
+      if(requestId.length>80||requestId.length===0)return false;
+      if(this.purchaseReceipts.get(p.id)?.includes(requestId))return false;
+    }else if(requestId!==undefined)return false;
+    if(backpackItems(p).length>=BAG_CAPACITY){this.notice(p,'Рюкзак полон');return false;}
+    if(p.gold<price){this.notice(p,'Не хватает золота');return false;}
+    const item=rollEquipment(String(definitionId),randomUUID(),()=>0);
+    p.gold-=price;p.items.push(item);
+    if(typeof requestId==='string'){
+      const receipts=this.purchaseReceipts.get(p.id)??[];receipts.push(requestId);
+      if(receipts.length>64)receipts.shift();this.purchaseReceipts.set(p.id,receipts);
+    }
+    this.notice(p,`Куплено: ${item.name}`);return true;
+  }
+  interactionInput(p:Hero){
+    const target=p.interactionTarget;if(!target)return {x:0,z:0,aim:null};
+    const point=target.kind==='vendor'?SHOP:this.groundDrop(p,target.id);
+    if(!point||!p.connected||p.dead||p.attack||!clearPath(p,point)){this.stopInteraction(p);return {x:0,z:0,aim:null};}
+    const limit=target.kind==='vendor'?SHOP.range:PICKUP_RANGE,d=distance(p,point);
+    if(d<=limit){if(target.kind==='vendor')this.openShop(p);else this.pickUp(p,target.id);return {x:0,z:0,aim:null};}
+    const yaw=Math.atan2(point.x-p.x,point.z-p.z);
+    return {x:Math.sin(yaw),z:Math.cos(yaw),aim:yaw};
+  }
   stopAfk(p: Hero,reason?: string){
     if(!p.afk)return false;
     p.afk=null;p.input={...p.input,x:0,z:0,aim:null};p.vx=p.vz=0;
@@ -171,16 +254,20 @@ export class World{
     }
     if(msg.type==='input'){
       if(typeof msg.x!=='number'||typeof msg.z!=='number'||!Number.isFinite(msg.x)||!Number.isFinite(msg.z)||Math.abs(msg.x)>1||Math.abs(msg.z)>1||(msg.aim!==null&&(typeof msg.aim!=='number'||!Number.isFinite(msg.aim)))||typeof msg.seq!=='number'||!Number.isSafeInteger(msg.seq)||msg.seq<=p.input.seq)return;
-      if(p.afk&&(Math.hypot(msg.x,msg.z)>.01))this.stopAfk(p);
+      if(Math.hypot(msg.x,msg.z)>.01){this.stopAfk(p);this.stopInteraction(p);}
       p.input={x:msg.x,z:msg.z,aim:msg.aim,seq:msg.seq};p.inputAt=this.t;return;
     }
-    if(msg.type==='attack'){this.stopAfk(p);if(typeof msg.yaw==='number'&&Number.isFinite(msg.yaw))this.attack(p,msg.yaw,msg.special===true);return;}
-    if(msg.type==='skill'){this.stopAfk(p);if(typeof msg.yaw==='number'&&Number.isFinite(msg.yaw)&&typeof msg.skillId==='string'&&Object.hasOwn(SKILLS,msg.skillId))this.castSkill(p,msg.skillId as SkillId,msg.yaw);return;}
-    if(msg.type==='potion'){this.potion(p);return;}
+    if(msg.type==='attack'){this.stopAfk(p);this.stopInteraction(p);if(typeof msg.yaw==='number'&&Number.isFinite(msg.yaw))this.attack(p,msg.yaw,msg.special===true);return;}
+    if(msg.type==='skill'){this.stopAfk(p);this.stopInteraction(p);if(typeof msg.yaw==='number'&&Number.isFinite(msg.yaw)&&typeof msg.skillId==='string'&&Object.hasOwn(SKILLS,msg.skillId))this.castSkill(p,msg.skillId as SkillId,msg.yaw);return;}
+    if(msg.type==='potion'){this.stopInteraction(p);this.potion(p);return;}
+    if(msg.type==='pickup'){this.startPickup(p,msg.id);return;}
+    if(msg.type==='interact'){this.startVendor(p,msg.npcId);return;}
+    if(msg.type==='cancelInteraction'){this.stopInteraction(p);return;}
+    if(msg.type==='buy'){this.buy(p,msg.definitionId,msg.requestId);return;}
     if(msg.type==='run'&&typeof msg.running==='boolean'&&!p.dead){p.running=msg.running;return;}
     if(msg.type==='weapon'&&isWeaponId(msg.weapon)&&!p.attack&&!p.dead){const weapon=p.items.find(item=>item.id===p.equipment.weapon);if(weapon?.definitionId){this.notice(p,'Вид оружия определяется надетым предметом');return;}p.weapon=msg.weapon;return;}
     if(msg.type==='camp'){
-      this.stopAfk(p);
+      this.stopAfk(p);this.stopInteraction(p);p.shopActive=false;
       if(p.dead||p.combatUntil>this.t||this.mobs.some(m=>m.target===p.id&&['chase','windup','recover'].includes(m.state))){this.notice(p,'Сначала оторвитесь от врагов');return;}
       this.camp(p,false);return;
     }
@@ -190,7 +277,7 @@ export class World{
       const item=p.items.find(i=>i.id===msg.id);if(!item)return;
       if(msg.type==='equip'&&canEquip(p,item)){p.equipment[item.slot]=item.id;if(item.definitionId&&item.slot==='weapon')p.weapon='sword';this.clampResources(p);}
       if(msg.type==='unequip'&&p.equipment[item.slot]===item.id){if(backpackItems(p).length>=BAG_CAPACITY){this.notice(p,'Рюкзак полон. Освободите ячейку, чтобы снять вещь.');return;}p.equipment[item.slot]=null;this.clampResources(p);}
-      if(msg.type==='sell'&&!item.bound&&!Object.values(p.equipment).includes(item.id)){p.gold+=Math.max(1,Math.round(nonnegative(item.power)*3+5));p.items=p.items.filter(i=>i.id!==item.id);}
+      if(msg.type==='sell'&&p.shopActive&&this.vendorAvailable(p)&&!item.bound&&!Object.values(p.equipment).includes(item.id)){p.gold+=sellPrice(item);p.items=p.items.filter(i=>i.id!==item.id);}
     }
   }
   attack(p: Hero,yaw: number,special=false){
@@ -234,7 +321,7 @@ export class World{
     if(p.dead||safe(p))return;
     const damage=Math.max(1,Math.round(amount*(1-stats(p).damageReduction)));
     p.hp=Math.max(0,p.hp-damage);p.hurt=.35;p.combatUntil=this.t+15000;this.emit('hurt',{x:p.x,z:p.z,amount:damage},p.id);
-    if(!p.hp){this.stopAfk(p);p.dead=2.5;p.attack=null;p.vx=p.vz=p.moveBlend=p.runBlend=0;this.emit('death',{},p.id);}
+    if(!p.hp){this.stopAfk(p);this.stopInteraction(p);p.shopActive=false;p.dead=2.5;p.attack=null;p.vx=p.vz=p.moveBlend=p.runBlend=0;this.emit('death',{},p.id);}
   }
   hurtMob(p: Hero,m: Mob,amount: number,automatic=false){
     if(p.dead||safe(p)||m.state==='dead'||m.state==='return'||!clearPath(p,m))return false;
@@ -262,20 +349,16 @@ export class World{
     for(const [id,contribution] of m.contributors){
       const p=this.players.get(id);if(!p||p.dead||this.t-contribution.at>20000||distance(p,m)>12||contribution.damage<cfg.hp*.05)continue;
       const automatic=contribution.automatic===true;
-      p.kills++;if(!automatic)p.questKills++;p.xp+=cfg.xp;p.gold+=cfg.coins;if(m.type==='alpha')p.boss=true;
+      p.kills++;if(!automatic)p.questKills++;p.xp+=cfg.xp;if(m.type==='alpha')p.boss=true;
       while(p.xp>=stats(p).xpNeeded){p.xp-=stats(p).xpNeeded;p.level++;p.statRevision++;this.emit('level',{level:p.level,points:5},p.id);}
-      // Every third personal kill and each boss gives a real persisted item.
-      const dropCount=automatic?p.kills:p.questKills;
-      if((automatic?dropCount%3===0:dropCount===1||dropCount%3===0)||m.type==='alpha'){
-        const slots=Object.keys(EQUIPMENT_SLOTS) as EquipmentSlot[],slot=slots[Math.floor(dropCount/3)%slots.length];
-        const choices=CLASS_ITEMS[p.classId].filter(definition=>definition.slot===slot);
-        const item=rollEquipment(choices[Math.floor(this.random()*choices.length)].id,randomUUID(),this.random);
-        const pending=backpackItems(p).length>=BAG_CAPACITY;
-        if(pending)p.pendingItems.push(item);else p.items.push(item);
-        this.emit('item',{name:item.name,pending},p.id);
-        if(automatic&&backpackItems(p).length>=BAG_CAPACITY&&p.pendingItems.length>=BAG_CAPACITY)this.stopAfk(p,'Автоохота остановлена: рюкзак и очередь добычи заполнены');
+      this.addGroundDrop(p.id,{id:randomUUID(),kind:'gold',x:m.x,z:m.z,amount:cfg.coins,expiresAt:this.t+LOOT_TTL_MS});
+      if(gearDrops(m.type,this.random)){
+        const choices=CLASS_ITEMS[p.classId],definition=choices[Math.floor(this.random()*choices.length)];
+        const item=rollEquipment(definition.id,randomUUID(),this.random);
+        const shifted=stand(m.x+.22,m.z+.12),x=shifted?m.x+.22:m.x,z=shifted?m.z+.12:m.z;
+        this.addGroundDrop(p.id,{id:randomUUID(),kind:'item',x,z,item,expiresAt:this.t+LOOT_TTL_MS});
       }
-      this.emit('kill',{id:m.id,name:cfg.name,xp:cfg.xp},p.id);this.emit('loot',{id:m.id,x:m.x,z:m.z,amount:cfg.coins},p.id);
+      this.emit('kill',{id:m.id,name:cfg.name,xp:cfg.xp},p.id);
     }
     m.contributors.clear();m.target=null;
   }
@@ -350,7 +433,9 @@ export class World{
   }
   tick(dt: number,now=this.t+dt*1000){
     dt=Math.max(0,Math.min(.1,dt));this.t=now;this.age+=dt;
+    this.groundLoot=this.groundLoot.filter(drop=>drop.expiresAt>this.t);
     for(const p of this.players.values()){
+      if(p.shopActive&&!this.vendorAvailable(p))p.shopActive=false;
       p.hurt=Math.max(0,p.hurt-dt);p.potionCooldown=Math.max(0,p.potionCooldown-dt);
       for(const id of Object.keys(p.skillCooldowns??{}) as SkillId[])p.skillCooldowns![id]=Math.max(0,(p.skillCooldowns![id]??0)-dt);
       const legacyId=legacySkillId(p.classId);
@@ -358,8 +443,9 @@ export class World{
       (p.skillCooldowns??={})[legacyId]=p.specialCooldown;
       if(p.dead>0){p.dead=Math.max(0,p.dead-dt);if(!p.dead)this.camp(p,true);continue;}
       if(p.afk&&p.hp/stats(p).maxHp<.4)this.potion(p);
-      const input=p.afk?this.driveAfk(p):p.connected&&this.t-p.inputAt<350?p.input:{x:0,z:0,aim:null};
+      const input=p.afk?this.driveAfk(p):p.interactionTarget?this.interactionInput(p):p.connected&&this.t-p.inputAt<350?p.input:{x:0,z:0,aim:null};
       const s=stats(p),before={x:p.x,z:p.z,gait:p.gait};p.speedScale=s.speedScale;moveHero(p,dt,input);p.ack=p.input.seq;
+      if(p.interactionTarget)this.interactionInput(p);
       if(p.afk){
         const spot=AFK_SPOTS.find(candidate=>candidate.id===p.afk?.spotId);
         if(!spot||!withinSpot(p,spot,-.46)){p.x=before.x;p.z=before.z;p.vx=p.vz=0;p.gait=before.gait;p.moveBlend=p.runBlend=0;}
@@ -447,6 +533,6 @@ export class World{
   }
   snapshot(forId: string): WorldSnapshot{
     const p=this.players.get(forId);
-    return {t:this.t,players:[...this.players.values()].map(p=>({id:p.id,name:p.name,classId:p.classId,x:p.x,z:p.z,yaw:p.yaw,weapon:p.weapon,hp:p.hp,maxHp:stats(p).maxHp,level:p.level,dead:p.dead,hurt:p.hurt,attack:p.attack,moveBlend:p.moveBlend,runBlend:p.runBlend,gait:p.gait,vx:p.vx,vz:p.vz,connected:p.connected,appearance:equipmentAppearance(p)})),mobs:this.mobs.map(({contributors,patrol,slowUntil,slow,...m})=>({...m,slow:Math.max(0,((slowUntil??0)-this.t)/1000)})),projectiles:this.projectiles.map(({damage,aoe,maxTargets,hitIds,pierce,damageScaleOnPierce,automatic,...b})=>b),self:p?{...stats(p),...persistentHero(p),appearance:equipmentAppearance(p),attackPower:stats(p).attack,targetYaw:p.targetYaw,vx:p.vx,vz:p.vz,hurt:p.hurt,gait:p.gait,moveBlend:p.moveBlend,runBlend:p.runBlend,ack:p.ack,afk:p.afk}:null,events:this.events.filter(e=>!e.owner||e.owner===forId)};
+    return {t:this.t,players:[...this.players.values()].map(p=>({id:p.id,name:p.name,classId:p.classId,x:p.x,z:p.z,yaw:p.yaw,weapon:p.weapon,hp:p.hp,maxHp:stats(p).maxHp,level:p.level,dead:p.dead,hurt:p.hurt,attack:p.attack,moveBlend:p.moveBlend,runBlend:p.runBlend,gait:p.gait,vx:p.vx,vz:p.vz,connected:p.connected,appearance:equipmentAppearance(p)})),mobs:this.mobs.map(({contributors,patrol,slowUntil,slow,...m})=>({...m,slow:Math.max(0,((slowUntil??0)-this.t)/1000)})),projectiles:this.projectiles.map(({damage,aoe,maxTargets,hitIds,pierce,damageScaleOnPierce,automatic,...b})=>b),groundLoot:this.groundLoot.filter(drop=>drop.owner===forId).map(({owner,...drop})=>drop),self:p?{...stats(p),...persistentHero(p),appearance:equipmentAppearance(p),attackPower:stats(p).attack,targetYaw:p.targetYaw,vx:p.vx,vz:p.vz,hurt:p.hurt,gait:p.gait,moveBlend:p.moveBlend,runBlend:p.runBlend,ack:p.ack,afk:p.afk,interactionTarget:p.interactionTarget,shopActive:p.shopActive}:null,events:this.events.filter(e=>!e.owner||e.owner===forId)};
   }
 }

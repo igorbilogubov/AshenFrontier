@@ -1,3 +1,4 @@
+import {skillsForClass} from './skills.js';
 import {renderItemRolls} from './item-details.js';
 import {CLASSES,EQUIPMENT_SLOTS,BAG_CAPACITY,backpackItems,canEquip,itemBonus,STAT_KEYS,STAT_DEFINITIONS,CLASS_PROGRESSION,characterStats} from '../rules.js';
 import {safe} from './location.js';
@@ -203,7 +204,14 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
     write($('hero-name'),`${p.name} · ${c.name} ${p.level}`);write($('xp'),p.xpNeeded>0?`${p.xp} / ${p.xpNeeded} XP`:'Макс. уровень');
     write($('mana-text'),`${Math.floor(p.mana||0)} / ${p.maxMana||0}`);$('mana-fill').style.height=`${clampRatio(p.mana,p.maxMana)*100}%`;
     $('mana-orb').setAttribute('aria-valuemax',String(p.maxMana||0));$('mana-orb').setAttribute('aria-valuenow',String(Math.floor(p.mana||0)));$('hud-xp-fill').style.transform=`scaleX(${clampRatio(p.xp,p.xpNeeded)})`;
-    const special=$('special'),manaCost=p.specialManaCost||0;write(special,p.specialCooldown>0?`${c.special} ${Math.ceil(p.specialCooldown)}с`:`${c.special} · Q`);special.disabled=!game.connected||!!p.dead||p.specialCooldown>0||(p.mana||0)<manaCost;special.title=`${c.special} · Q · ${manaCost} маны`;
+    for(const [index,skill] of skillsForClass(p.classId).entries()){
+      const button=$(index===0?'special':'skill-secondary'),remaining=p.skillCooldowns?.[skill.id]||0;
+      button.dataset.skill=skill.id;button.style.setProperty('--cooldown',`${Math.min(1,remaining/skill.cooldown)*100}%`);
+      write(button.querySelector('.skill-name')!,skill.name);write(button.querySelector('.skill-meta')!,remaining>0?`${remaining.toFixed(1)}с`:`${skill.manaCost} маны`);
+      button.disabled=!game.connected||!!p.dead||!!p.attack||safe(p)||remaining>0||p.mana<skill.manaCost;
+      button.title=`${skill.name} · ${skill.slot} · ${skill.manaCost} маны · ${skill.cooldown}с\n${skill.description}`;
+      button.setAttribute('aria-label',button.title);
+    }
     document.querySelector<HTMLElement>('.weapon-controls')!.hidden=p.classId!=='warrior';write($('unspent-badge'),p.unspentPoints||0);$('unspent-badge').hidden=!p.unspentPoints;$('character-toggle').title=`Характеристики · C${p.unspentPoints?` · ${p.unspentPoints} свободных очков`:''}`;
     write($('save-status'),!game.connected?'Восстанавливаем соединение…':!game.save?.ok?'Ошибка сохранения — оставьте игру открытой':game.save?.at?'Общий мир · прогресс сохранён на сервере':'Общий мир · сохраняем героя…');
     updateStats();updateInventory();

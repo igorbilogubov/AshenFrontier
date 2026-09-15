@@ -1,6 +1,6 @@
 import {moveHero,stand} from './location.js';
 import {characterStats} from '../rules.js';
-import type {SelfSnapshot,PublicPlayer,PublicMob,PublicProjectile,WorldEvent,ChatEntry,ClientMessage,ServerMessage,ClassId,WeaponId,HeroInput} from '../../shared/types.js';
+import type {SelfSnapshot,PublicPlayer,PublicMob,PublicProjectile,WorldEvent,ChatEntry,ClientMessage,ServerMessage,ClassId,WeaponId,HeroInput,SkillId} from '../../shared/types.js';
 
 export type ClientPlayer=SelfSnapshot & {coins:number};
 export interface ConnectionOptions {name?:string;classId?:ClassId;token?:string}
@@ -71,7 +71,7 @@ export class NetworkGame{
         const self=m.self;this.pending=this.pending.filter(input=>input.seq>self.ack);
         this.serverTime=m.t;
         const next:ClientPlayer={...self,coins:self.gold};
-        for(const input of this.pending)moveHero(next,.05,input);
+        if(next.afk)this.pending=[];else for(const input of this.pending)moveHero(next,.05,input);
         this.player=next;this.mobs=m.mobs;this.players=m.players;this.projectiles=m.projectiles;this.save=m.save;
         this.events.push(...m.events);this.onStatus('online',m.save.ok?'В общем мире':'Ошибка сохранения — не закрывайте игру');
         this.resolveJoin?.();this.resolveJoin=null;return;
@@ -93,10 +93,12 @@ export class NetworkGame{
     while(this.accumulator>=.05){
       this.accumulator-=.05;const frame:InputFrame={type:'input',x:input.x||0,z:input.z||0,aim:typeof input.aim==='number'&&Number.isFinite(input.aim)?input.aim:null,seq:++this.seq};
       this.send(frame);this.pending.push(frame);if(this.pending.length>40){this.socket?.close();this.pending=[];return;}
-      moveHero(this.player,.05,frame);
+      if(!this.player.afk)moveHero(this.player,.05,frame);
     }
   }
   attack(yaw:number,special=false){if(this.connected&&performance.now()-this.lastAttack>100){this.lastAttack=performance.now();this.send({type:'attack',yaw,special});}}
+  skill(skillId:SkillId,yaw:number){if(this.connected)this.send({type:'skill',skillId,yaw});}
+  setAfk(enabled:boolean){if(this.connected)this.send({type:'afk',enabled});}
   potion(){if(this.connected)this.send({type:'potion'});}
   toggleRun(){if(this.connected)this.send({type:'run',running:!this.player.running});}
   returnToCamp(){if(this.connected)this.send({type:'camp'});}

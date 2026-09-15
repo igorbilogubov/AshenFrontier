@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="game/hud.css">
 </head>
 <body>
-  <canvas id="scene" tabindex="0" aria-label="Пепельная опушка. Камера с постоянным углом, колёсико мыши — приближение и отдаление. Удерживайте левую кнопку мыши — идти за курсором; отпустите — остановиться. Над мобом удерживайте левую кнопку для атаки. Shift — переключить ходьбу и бег, пробел или правая кнопка — удар к курсору, R — зелье, 1 и 2 — оружие."></canvas>
+  <canvas id="scene" tabindex="0" aria-label="Пепельная опушка. Камера с постоянным углом, колёсико мыши — приближение и отдаление. Удерживайте левую кнопку мыши — идти за курсором; отпустите — остановиться. Над мобом удерживайте левую кнопку для атаки. Shift — переключить ходьбу и бег, пробел или правая кнопка — удар к курсору, Q и E — навыки, R — зелье, F — автоохота на споте, 1 и 2 — оружие."></canvas>
   <div id="world-ui" aria-hidden="true"></div>
   <div id="hurt-vignette" aria-hidden="true"></div>
   <header>
@@ -26,7 +26,7 @@
   </aside>
   <aside class="map-panel" aria-label="Карта локации">
     <canvas id="minimap" width="240" height="126" aria-label="Карта: лагерь слева, опушка в центре, руины справа."></canvas>
-    <div class="map-legend"><span>ЛАГЕРЬ</span><span>ОПУШКА</span><span>РУИНЫ</span></div>
+    <div class="map-legend"><span>ЛАГЕРЬ</span><span>◯ СПОТЫ</span><span>РУИНЫ</span></div>
   </aside>
   <div id="target-panel" hidden><span id="target-name"></span><small id="target-health"></small><div class="bar"><i id="target-fill"></i></div></div>
   <div id="notice" role="status" aria-live="polite"></div>
@@ -39,6 +39,7 @@
         <div class="hero-status">
           <b id="hero-name">Воин</b>
           <div class="resources"><span id="gold">0 золота</span><span id="xp">0 опыта</span></div>
+          <button id="afk-toggle" type="button" aria-pressed="false" disabled><span id="afk-status">Автоохота на споте</span><kbd>F</kbd></button>
           <button id="movement" type="button" aria-pressed="false" aria-label="Бег" title="Перейти на бег · Shift"><span id="movement-label">Ходьба</span><kbd>Shift</kbd></button>
         </div>
         <div class="dock">
@@ -47,7 +48,8 @@
             <button type="button" class="weapon" data-weapon="axe" aria-pressed="false"><kbd>2</kbd><span class="weapon-icon" aria-hidden="true">⛏</span><span>Топор</span></button>
           </div>
           <button id="attack" type="button"><span class="attack-icon" aria-hidden="true">↗</span><span>Ударить<small>Пробел / ПКМ</small></span><i id="cooldown"></i></button>
-          <button id="special" type="button" title="Особый навык · Q">Вихрь <kbd>Q</kbd></button>
+          <button id="special" class="skill-button" type="button"><kbd>Q</kbd><span class="skill-sigil" aria-hidden="true">✧</span><span class="skill-name">Навык</span><small class="skill-meta">Мана</small></button>
+          <button id="skill-secondary" class="skill-button" type="button"><kbd>E</kbd><span class="skill-sigil" aria-hidden="true">❖</span><span class="skill-name">Навык</span><small class="skill-meta">Мана</small></button>
           <button id="character-toggle" type="button" title="Характеристики · C" aria-controls="character-panel" aria-expanded="false">Герой <kbd>C</kbd><b id="unspent-badge" hidden>0</b></button>
           <button id="inventory-toggle" type="button" title="Снаряжение · I" aria-controls="inventory-panel" aria-expanded="false">Вещи <kbd>I</kbd></button>
           <button id="potion" type="button"><span aria-hidden="true">✚</span><span>Зелье <b id="potions">3</b><small>R · +45 здоровья</small></span></button>

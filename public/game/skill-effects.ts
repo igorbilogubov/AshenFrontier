@@ -7,7 +7,7 @@ export function createSkillEffects(scene:T.Scene){
   const ringGeometry=new T.RingGeometry(.86,1,56),arcGeometry=new T.RingGeometry(.72,1,32,1,-.78,1.56);
   const effects=Array.from({length:24},()=>{
     const material=new T.MeshBasicMaterial({transparent:true,depthWrite:false,side:T.DoubleSide,blending:T.AdditiveBlending});
-    const mesh=new T.Mesh(ringGeometry,material);mesh.rotation.x=-Math.PI/2;mesh.visible=false;mesh.renderOrder=2;scene.add(mesh);
+    const mesh=new T.Mesh(ringGeometry,material);mesh.rotation.x=-Math.PI/2;mesh.visible=false;mesh.userData.dynamic=true;mesh.renderOrder=2;scene.add(mesh);
     return {mesh,age:0,duration:.5,radius:1,active:false};
   });
   const slowRings=new Map<number,T.Mesh<T.RingGeometry,T.MeshBasicMaterial>>();

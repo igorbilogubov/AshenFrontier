@@ -12,7 +12,7 @@ export type ItemStatKey = 'attack' | 'armor' | 'maxHp' | 'maxMana' | 'hpRegen' |
 export interface ItemRoll { key:ItemStatKey; value:number; min:number; max:number; step?:number }
 export type ItemAppearance = Partial<Record<EquipmentSlot,string|null>>;
 export interface Item { definitionId?:string; rollVersion?:1; itemLevel?:number; rolls?:ItemRoll[]; id: string; name: string; slot: EquipmentSlot; rarity: number; power: number; classId?: ClassId; bound?: boolean }
-export interface HeroAttack { id: number; age: number; duration: number; weapon?: WeaponId; yaw: number | null; hit: boolean; special: boolean; skillId?: SkillId; automatic?: boolean }
+export interface HeroAttack { id: number; age: number; duration: number; weapon?: WeaponId; yaw: number | null; hit: boolean; special: boolean; skillId?: SkillId; automatic?: boolean; targetId?: number; target?: Point }
 export interface HeroInput extends Point { aim: number | null; seq: number }
 export interface StatSource { classId?: ClassId; level?: number; allocatedStats?: unknown; statRevision?: number; items?: Item[]; equipment?: Equipment }
 export interface CharacterStats {
@@ -47,7 +47,7 @@ export interface Mob extends PublicMob {
   patrol?: { goal: Point | null; pause: number; leg: number; speed: number; age: number } | null;
 }
 export interface PublicProjectile extends Point { id: string; owner: string; yaw: number; remaining: number; speed: number; kind: 'archer' | 'mage'; skillId?: SkillId; attackId?: number }
-export interface Projectile extends PublicProjectile { damage: number; aoe: number; maxTargets?: number; hitIds?: number[]; pierce?: boolean; damageScaleOnPierce?: number; slowMs?: number; automatic?: boolean }
+export interface Projectile extends PublicProjectile { damage: number; aoe: number; maxTargets?: number; hitIds?: number[]; pierce?: boolean; damageScaleOnPierce?: number; slowMs?: number; automatic?: boolean; targetId?:number }
 export type PublicPlayer = Pick<Hero, 'id' | 'name' | 'classId' | 'x' | 'z' | 'yaw' | 'weapon' | 'hp' | 'level' | 'dead' | 'hurt' | 'attack' | 'moveBlend' | 'runBlend' | 'gait' | 'vx' | 'vz' | 'connected'> & { maxHp: number; appearance?:ItemAppearance };
 export type SelfSnapshot = PersistentHero & {appearance?:ItemAppearance;afk?:AfkState|null;interactionTarget?:InteractionTarget|null;shopActive?:boolean} & Omit<CharacterStats, 'attack'> & Pick<Hero, 'targetYaw' | 'vx' | 'vz' | 'hurt' | 'gait' | 'moveBlend' | 'runBlend' | 'ack'>;
 export interface EventPayloads {
@@ -65,7 +65,7 @@ export type GameEvent = WorldEvent;
 export interface WorldSnapshot { t: number; players: PublicPlayer[]; mobs: PublicMob[]; projectiles: PublicProjectile[]; groundLoot:GroundDrop[]; self: SelfSnapshot | null; events: WorldEvent[] }
 export interface ChatEntry { name: string; text: string; t: number }
 export type ClientCommand =
-  | ({ type: 'input' } & HeroInput) | { type: 'attack'; yaw: number; special?: boolean } | { type: 'skill'; skillId: SkillId; yaw: number } | { type: 'afk'; enabled: boolean }
+  | ({ type: 'input' } & HeroInput) | { type: 'attack'; yaw: number; special?: boolean; targetId?:number } | { type: 'skill'; skillId: SkillId; yaw: number; targetId?:number; target?:Point } | { type: 'afk'; enabled: boolean }
   | { type: 'potion' | 'camp' | 'claim' } | { type: 'run'; running: boolean } | { type: 'weapon'; weapon: WeaponId }
   | { type: 'equip' | 'unequip' | 'sell'; id: string } | { type: 'allocateStats'; revision: number; points: Partial<Attributes> }
   | {type:'pickup';id:string} | {type:'interact';npcId:string} | {type:'cancelInteraction'}

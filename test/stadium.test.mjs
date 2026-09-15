@@ -50,16 +50,17 @@ test('portal approaches and teleportation are server owned, preserve resources a
   assert(world.startPortal(p,'stadium-camp'));for(let i=0;i<100&&locationAt(p)==='stadium';i++)world.tick(.05);assert.equal(locationAt(p),'forest');assert.equal(p.gold,57);
 });
 
-test('dead, fighting, chased and malformed portal requests never teleport; manual movement cancels approach',()=>{
+test('dead and malformed portal requests never teleport; safe arrival clears fighting and pursuit',()=>{
   for(const state of ['dead','attack','combat','chased']){
     const world=new World(),p=newHero(state);world.add(p);Object.assign(p,{x:PORTALS[0].x,z:PORTALS[0].z});
     if(state==='dead')p.dead=2;if(state==='attack')p.attack={id:1,age:0,duration:1,yaw:0,hit:false,special:false};if(state==='combat')p.combatUntil=world.t+1;if(state==='chased')Object.assign(world.mobs[0],{state:'chase',target:p.id});
-    assert.equal(world.startPortal(p,'camp-stadium'),false);assert.equal(locationAt(p),'forest');
+    assert.equal(world.startPortal(p,'camp-stadium'),state!=='dead');
+    assert.equal(locationAt(p),state==='dead'?'forest':'stadium');
   }
   const world=new World(),p=newHero('Вход');world.add(p);
   for(const portalId of [null,[],{},'unknown','stadium-camp'])assert.equal(world.startPortal(p,portalId),false);
   assert(world.startPortal(p,'camp-stadium'));world.command(p,{type:'input',x:1,z:0,aim:null,seq:1});assert.equal(p.interactionTarget,null);
-  assert(world.startPortal(p,'camp-stadium'));p.combatUntil=world.t+5000;step(world);assert.equal(p.interactionTarget,null);assert.equal(locationAt(p),'forest');
+  assert(world.startPortal(p,'camp-stadium'));p.combatUntil=world.t+5000;step(world);assert.equal(p.combatUntil,world.t);
 });
 
 test('snapshots isolate players, mobs, ground loot and spatial effects by region',()=>{

@@ -98,6 +98,7 @@ class StressController {
     bot.socket.terminate();throw new Error('Bot join retry deadline exceeded');
   }
   private drive(){
+    if(this.busy)return;
     const time=(Date.now()-this.epoch)/1000;
     for(const bot of this.bots){
       const p=bot.state;if(!p)continue;
@@ -143,6 +144,18 @@ class StressController {
     const observer=[...this.world.players.values()].find(hero=>!this.bots.some(bot=>bot.id===hero.id));
     if(mode==='afk'&&observer?.classId!=='warrior')throw new Error('AFK benchmark requires a warrior observer; use a new test session');
     this.mode=mode;
+    // Drain packets already sent before the scenario change. Clearing the server
+    // queue alone cannot remove movement still buffered in a WebSocket.
+    const markers=this.bots.map(bot=>{
+      const seq=++bot.seq;
+      this.send(bot,{type:'input',x:0,z:0,aim:null,seq});
+      return {bot,seq};
+    });
+    const drainDeadline=Date.now()+10000;
+    while(markers.some(({bot,seq})=>(bot.state?.ack??-1)<seq)){
+      if(Date.now()>drainDeadline)throw new Error('Stress scenario input acknowledgement timed out');
+      await delay(25);
+    }
     await this.beforeScenario();
     this.errors=[];
     this.world.mobs=new World().mobs;this.world.projectiles=[];this.world.groundLoot=[];this.world.events=[];
@@ -150,6 +163,8 @@ class StressController {
     let index=0,playerIndex=0;for(const hero of participants){
       const fresh=newHero(hero.name,equipment==='mixed-warrior'||equipment==='legacy-warrior'?'warrior':hero.classId),oldId=hero.id;
       Object.assign(hero,fresh,{id:oldId,connected:true,x:mode==='camp'?.5:8.5,z:mode==='camp'?2:0});
+      const bot=this.bots.find(candidate=>candidate.id===oldId);
+      if(bot){hero.input.seq=bot.seq;hero.ack=bot.seq;}
       hero.afk=null;
       const scenarioIndex=playerIndex++;
       if(mode==='afk'){
@@ -179,7 +194,6 @@ class StressController {
         if(!hero.afk)throw new Error('AFK command was not accepted after stress placement');
       }
     }
-    for(const bot of this.bots)bot.seq=0;
     this.resetMetrics();return this.snapshot();
   }
   async http(req:IncomingMessage,res:ServerResponse):Promise<boolean>{

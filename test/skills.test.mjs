@@ -34,7 +34,7 @@ test('twelve 1/2/3/4 skills have fixed class ownership, private cooldowns and se
     const owner=w.snapshot(p.id).self,peer=newHero('Свидетель');w.add(peer);
     assert.equal(owner.skillCooldowns[q.id],q.cooldown);
     assert(!('skillCooldowns' in w.snapshot(peer.id).players.find(player=>player.id===p.id)));
-    p.attack=null;cast(w,p,q.id);assert.equal(p.attack,null);assert.equal(p.mana,start-q.manaCost);
+    p.attack=null;p.skillCooldowns[q.id]=2.4;cast(w,p,q.id);assert.equal(p.attack,null);assert.equal(p.mana,start-q.manaCost);
     cast(w,p,e.id);assert.equal(p.attack.skillId,e.id);assert.equal(p.mana,start-q.manaCost-e.manaCost);
   }
 });
@@ -45,7 +45,7 @@ test('regular attacks remain free; old special command and V3 cooldown map to it
     p.mana=0;assert.equal(w.attack(p,east),true);assert.equal(p.mana,0);p.attack=null;
     assert.equal(w.attack(p,east,true),false);
     p.mana=SKILLS[legacyId].manaCost;w.command(p,{type:'attack',yaw:east,special:true});
-    assert.equal(p.attack.skillId,legacyId);assert.equal(p.specialCooldown,5);assert.equal(p.mana,0);
+    assert.equal(p.attack.skillId,legacyId);assert.equal(p.specialCooldown,0);assert.equal(p.mana,0);
     const old={...persistentHero(p),specialCooldown:2.4};delete old.skillCooldowns;
     const restored=safeHero(old);assert.equal(restored.specialCooldown,2.4);assert.equal(restored.skillCooldowns[legacyId],2.4);
     assert.deepEqual(persistentHero(safeHero(persistentHero(restored))),persistentHero(restored));
@@ -168,8 +168,9 @@ test('every new Z/X cast ignores forged client cost, starts one private cooldown
     cast(w,p,skill.id,{manaCost:0,cooldown:0,damage:100000});
     assert.equal(p.attack?.skillId,skill.id);assert.equal(p.mana,before-skill.manaCost);
     assert.equal(p.skillCooldowns[skill.id],skill.cooldown);
-    p.attack=null;cast(w,p,skill.id);assert.equal(p.attack,null);
-    assert.equal(p.mana,before-skill.manaCost);
+    p.attack=null;
+    if(skill.cooldown){cast(w,p,skill.id);assert.equal(p.attack,null);assert.equal(p.mana,before-skill.manaCost);}
+    else {cast(w,p,skill.id);assert.equal(p.attack?.skillId,skill.id);assert.equal(p.mana,before-2*skill.manaCost);}
   }
 });
 

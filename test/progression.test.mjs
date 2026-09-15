@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {World,newHero,safeHero,persistentHero,stats,makeLoot,SAVE_VERSION} from '../dist/world.js';
 import {STAT_KEYS,CLASS_PROGRESSION,baseAttributes,statBudget,characterStats} from '../dist/public/rules.js';
 import {safe,MOB_TYPES} from '../dist/public/game/location.js';
+import {SKILLS,legacySkillId} from '../dist/public/game/skills.js';
 
 const fixture=(classId='warrior',random=()=>0)=>{
   const w=new World({random}),p=newHero('Развитие',classId);w.add(p);return {w,p};
@@ -153,15 +154,15 @@ test('class formulas give their main attribute damage and all classes benefit fr
   assert.equal(stats(p).damageReduction,.65);
 });
 
-test('normal attacks remain usable with zero mana; specials consume mana once and keep the five-second cooldown',()=>{
+test('normal attacks remain free; repeatable specials spend mana once and respect attack recovery',()=>{
   for(const classId of Object.keys(CLASS_PROGRESSION)){
     const {w,p}=fixture(classId);field(w,p);p.mana=0;
     assert.equal(w.attack(p,Math.PI/2,true),false);assert.equal(p.specialCooldown,0);assert.equal(p.attack,null);
     assert.equal(w.attack(p,Math.PI/2,false),true);assert.equal(p.mana,0);p.attack=null;
-    p.mana=stats(p).specialManaCost;
-    assert.equal(w.attack(p,Math.PI/2,true),true);assert.equal(p.mana,0);assert.equal(p.specialCooldown,5);
+    const skill=SKILLS[legacySkillId(classId)];p.mana=skill.manaCost;
+    assert.equal(w.attack(p,Math.PI/2,true),true);assert.equal(p.mana,0);assert.equal(p.specialCooldown,0);
     assert.equal(w.attack(p,Math.PI/2,true),false);assert.equal(p.mana,0);
-    p.attack=null;p.mana=stats(p).maxMana;assert.equal(w.attack(p,Math.PI/2,true),false);
+    p.attack=null;p.mana=stats(p).maxMana;assert.equal(w.attack(p,Math.PI/2,true),true);
   }
 });
 

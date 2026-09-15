@@ -63,7 +63,7 @@ test('weapon appearance follows the item and haste shortens attacks without shor
   const sword=rollEquipment('watch-blade','sword',()=>1-Number.EPSILON),ring=rollEquipment('copper-ring','ring',()=>1-Number.EPSILON);
   p.items.push(sword,ring);world.command(p,{type:'equip',id:sword.id});world.command(p,{type:'equip',id:ring.id});
   world.command(p,{type:'weapon',weapon:'axe'});assert.equal(p.weapon,'sword');assert.equal(stats(p).attackSpeed,.08);
-  p.x=10;assert(world.attack(p,0,true));assert.equal(p.specialCooldown,5);
+  p.x=10;assert(world.attack(p,0,true));assert.equal(p.specialCooldown,0);
   assert.ok(Math.abs(p.attack.duration-(.64/1.08*1.2))<1e-10);
   // Derived rules retain the global cap, even if a future catalog expands sources.
   for(const item of p.items.filter(i=>i.rolls))for(const r of item.rolls)if(r.key==='haste')r.value=25;

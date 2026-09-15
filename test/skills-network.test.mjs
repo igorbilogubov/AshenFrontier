@@ -15,7 +15,7 @@ async function connect(server,join){
 }
 async function close(c){if(!c||c.ws.readyState===WebSocket.CLOSED)return;const ended=once(c.ws,'close');c.ws.close();await ended;}
 
-test('real skill packets expose only public cast/impact, and private mana/cooldowns survive server restart',{skip:!hasTestDatabase},async()=>{
+test('real skill packets expose only public cast/impact, and private mana/cooldown state survives server restart',{skip:!hasTestDatabase},async()=>{
   const database=await createTestDatabase(),token='f'.repeat(48),hero=newHero('Сетевая магия','mage');
   Object.assign(hero,{x:6.3,z:1.8,yaw:Math.PI/2,targetYaw:Math.PI/2});
   await database.seed(token,persistentHero(hero));
@@ -26,18 +26,18 @@ test('real skill packets expose only public cast/impact, and private mana/cooldo
     const originalMana=owner.state.self.mana;
     owner.ws.send(JSON.stringify({type:'skill',skillId:'mage-fireball',yaw:Math.PI/2,damage:999999,manaCost:0,cooldown:0}));
     await until(()=>owner.states.some(state=>state.self?.attack?.skillId==='mage-fireball'));
-    assert(owner.state.self.mana>=originalMana-24&&owner.state.self.mana<originalMana-23.5);
+    assert(owner.state.self.mana>=originalMana-17&&owner.state.self.mana<originalMana-16.5);
     await until(()=>observer.states.some(state=>state.players.some(p=>p.id===hero.id&&p.attack?.skillId==='mage-fireball')));
     assert(!('skillCooldowns' in observer.state.players.find(p=>p.id===hero.id)));
     await until(()=>observer.events.some(event=>event.type==='skillImpact'&&event.skillId==='mage-fireball'));
     assert(observer.events.some(event=>event.type==='skillImpact'&&event.yaw===Math.PI/2));
-    assert(owner.state.self.skillCooldowns['mage-fireball']>0);
+    assert.equal(owner.state.self.skillCooldowns['mage-fireball'],0);
     await close(owner);await close(observer);await stopTestServer(server);
     const saved=(await database.load(token)).hero;
-    assert.equal(saved.mana<originalMana,true);assert(saved.skillCooldowns['mage-fireball']>0);
+    assert.equal(saved.mana<originalMana,true);assert.equal(saved.skillCooldowns['mage-fireball'],0);
     server=await startTestServer(database);const restored=await connect(server,{token});clients.push(restored);
     assert.equal(restored.state.self.classId,'mage');assert(restored.state.self.mana>=saved.mana&&restored.state.self.mana<originalMana);
-    assert(restored.state.self.skillCooldowns['mage-fireball']>0);
+    assert.equal(restored.state.self.skillCooldowns['mage-fireball'],0);
     await until(()=>restored.state.self.attack===null);
     restored.ws.send(JSON.stringify({type:'skill',skillId:'mage-meteor',yaw:Math.PI/2,damage:999999}));
     await until(()=>restored.states.some(state=>state.self?.attack?.skillId==='mage-meteor'));

@@ -179,8 +179,15 @@ wss.on('connection',ws=>{
       if(existing?.ws&&existing.ws.readyState===WebSocket.OPEN){reject('in_use','Герой уже открыт в другой вкладке. Закройте её и повторите вход.');return;}
       if(!candidate&&msg.classId!==undefined&&!isClassId(msg.classId)){reject('invalid_class','Выберите воина, лучника или мага');return;}
       const loaded=candidate&&!existing?await store.load(candidate):null;
+      if(ws.readyState!==WebSocket.OPEN)return;
+      // Test-only pause exposes saves that begin while an asynchronous join is in flight.
+      if(process.env.NODE_ENV==='test'&&process.env.GAME_TEST_JOIN_PAUSE_MS){
+        const pause=Number(process.env.GAME_TEST_JOIN_PAUSE_MS);
+        if(Number.isFinite(pause)&&pause>0&&pause<=1000){ws.ping('join-pause');await new Promise<void>(resolve=>setTimeout(resolve,pause));}
+      }
+      if(ws.readyState!==WebSocket.OPEN)return;
+      if(shuttingDown||pending||writerLost){reject('storage_unavailable','Хранилище недоступно. Повторите подключение');return;}
       if(candidate&&!existing&&!loaded){reject('invalid_key','Ключ героя не найден на этом сервере');return;}
-      if(ws.readyState!==WebSocket.OPEN||shuttingDown||pending||writerLost)return;
       const token=reservation;
       if(existing){entry=existing;entry.ws=ws;entry.p.input={x:0,z:0,aim:null,seq:0};entry.p.ack=0;}
       else{
@@ -198,7 +205,8 @@ wss.on('connection',ws=>{
           if(receipt.length!==1||receipt[0].id!==p.id||!Number.isSafeInteger(receipt[0].revision))throw new Error('Incomplete hero normalization receipt');
           entry.revision=receipt[0].revision;entry.durable=economy(persistentHero(p));lastSavedAt=Date.now();
         }
-        if(ws.readyState!==WebSocket.OPEN||shuttingDown||writerLost){entry=null;return;}
+        if(ws.readyState!==WebSocket.OPEN){entry=null;return;}
+        if(shuttingDown||pending||writerLost){entry=null;reject('storage_unavailable','Хранилище недоступно. Повторите подключение');return;}
         sessions.set(token,entry);
       }
       world.add(entry.p);connections.set(ws,entry);clearTimeout(helloTimeout);

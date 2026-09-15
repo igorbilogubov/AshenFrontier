@@ -58,8 +58,8 @@ test('AFK rewards use real kill ledger without advancing the active quest; saved
   toggle(w,p,true);p.kills=2;p.questKills=4;
   const m=w.mobs[0];m.hp=60;assert(clearPath(p,m));
   assert(w.hurtMob(p,m,100,true));
-  assert.equal(p.kills,3);assert.equal(p.questKills,4);assert.equal(p.xp,12);assert.equal(p.gold,8);
-  assert.equal(p.items.length,3);assert.equal(m.state,'dead');
+  assert.equal(p.kills,3);assert.equal(p.questKills,4);assert.equal(p.xp,12);assert.equal(p.gold,0);
+  assert.equal(p.items.length,2);assert.equal(w.snapshot(p.id).groundLoot.length,2);assert.equal(m.state,'dead');
   const saved=persistentHero(p);assert(!('afk' in saved));
   const restored=safeHero(saved);assert.equal(restored.afk,null);assert.equal(restored.kills,3);
   assert.equal(restored.questKills,4);assert.deepEqual(restored.items,p.items);
@@ -98,15 +98,16 @@ test('full backpack and sixteen pending items stop AFK before storage can grow w
   assert(w.events.some(e=>e.type==='notice'&&e.text.includes('заполнены')));
 });
 
-test('a multi-target AFK strike stops at the final storage cell, without an extra queued drop',()=>{
+test('multi-target AFK kills leave personal rewards on the ground without adding pending equipment',()=>{
   const {w,p,spot}=fixture();
   w.mobs=w.mobs.filter(m=>spot.spawnIds.slice(0,3).includes(m.id));
   for(const [i,m] of w.mobs.entries())Object.assign(m,{x:spot.x+.9+i*.35,z:spot.z,hp:10,state:'recover',timer:100,target:p.id});
   while(p.items.length<18)p.items.push(makeLoot(p.classId,1,0,'ring'));
   p.pendingItems=Array.from({length:15},()=>makeLoot(p.classId,1,0,'amulet'));p.kills=2;
-  toggle(w,p,true);for(let i=0;i<30&&p.afk;i++)step(w);
-  assert.equal(p.afk,null);assert.equal(p.pendingItems.length,16);
-  assert.equal(w.mobs.filter(m=>m.state==='dead').length,1);
+  toggle(w,p,true);for(let i=0;i<30;i++)step(w);
+  assert.equal(p.pendingItems.length,15);assert.equal(p.items.length,18);
+  assert(w.mobs.some(m=>m.state==='dead'));
+  assert(w.snapshot(p.id).groundLoot.some(drop=>drop.kind==='gold'));
 });
 
 test('all six members of each spot respawn at their homes after sixteen seconds; original boss timer remains forty',()=>{

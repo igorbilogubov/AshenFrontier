@@ -58,7 +58,8 @@ test('new clustered mobs respawn at their own homes without duplicate rewards',(
       assert.equal(world.hurtMob(player,mob,999),false);
     }
   }
-  assert.equal(player.kills,12);assert.equal(player.gold,6*8+6*12);
+  assert.equal(player.kills,12);assert.equal(player.gold,0);
+  assert.equal(world.snapshot(player.id).groundLoot.filter(drop=>drop.kind==='gold').reduce((sum,drop)=>sum+drop.amount,0),6*8+6*12);
   world.remove(player.id);
   for(let i=0;i<320;i++)world.tick(.05);
   // Allow a floating-point timer remainder to expire, without a patrol step.
@@ -67,5 +68,5 @@ test('new clustered mobs respawn at their own homes without duplicate rewards',(
     assert.equal(mob.state,'idle');assert.equal(mob.hp,MOB_TYPES[mob.type].hp);
     assert(distance(mob,SPAWNS[id])<.001);assert.equal(mob.spotId,spot.id);
   }
-  assert.equal(player.kills,12);assert.equal(player.gold,120);
+  assert.equal(player.kills,12);assert.equal(player.gold,0);
 });

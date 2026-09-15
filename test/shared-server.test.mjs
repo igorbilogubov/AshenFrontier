@@ -46,7 +46,16 @@ test('real WebSockets share movement/boss rewards and keep identity, loot and co
     const attack=()=>{for(const c of [ca,cb]){const boss=c.state.mobs[6],p=c.state.self;if(boss.state!=='dead')c.send({type:'attack',yaw:Math.atan2(boss.x-p.x,boss.z-p.z),damage:99999});}};
     const attacking=setInterval(attack,180);
     try{await until(()=>ca.state.self.boss&&cb.state.self.boss,9000);}finally{clearInterval(attacking);}
-    for(const c of [ca,cb]){assert.equal(c.state.self.gold,35);assert.equal(c.state.self.questKills,5);assert.equal(c.state.self.items.length,3);assert(c.state.self.xp>0);assert.equal(c.state.mobs[6].state,'dead');}
+    for(const c of [ca,cb]){
+      assert.equal(c.state.self.gold,0);assert.equal(c.state.self.questKills,5);assert.equal(c.state.self.items.length,2);assert(c.state.self.xp>0);assert.equal(c.state.mobs[6].state,'dead');
+      assert(c.state.groundLoot.some(drop=>drop.kind==='gold'&&drop.amount===35));
+      for(const drop of [...c.state.groundLoot]){
+        await until(()=>!c.state.self.attack,9000);
+        c.send({type:'pickup',id:drop.id});
+        await until(()=>c.state.groundLoot.every(candidate=>candidate.id!==drop.id),9000);
+      }
+      assert.equal(c.state.self.gold,35);assert(c.state.self.items.length>=2&&c.state.self.items.length<=3);
+    }
     const earned={id:ca.state.self.id,gold:ca.state.self.gold,xp:ca.state.self.xp,items:ca.state.self.items,boss:ca.state.self.boss};
     ca.send({type:'potion'});await delay(80);const hp=ca.state.self.hp;
     await close(ca);const rejoined=await connect(server,{token:keys[0]});clients.push(rejoined);

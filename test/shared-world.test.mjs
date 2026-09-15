@@ -40,17 +40,21 @@ test('attacks use server range, timing and cooldown rather than packet damage',(
 test('both nearby contributors earn personal persistent loot and a distant/idle bystander does not',()=>{
   const {w,p}=setup(),m=isolated(w,p),other=newHero('Союзник'),idle=newHero('Наблюдатель');Object.assign(other,{x:7,z:2.3});w.add(other);w.add(idle);
   w.hurtMob(p,m,25);w.hurtMob(other,m,35);
-  for(const player of [p,other]){assert.equal(player.gold,8);assert.equal(player.xp,12);assert.equal(player.questKills,1);assert.equal(player.items.length,3);}
+  for(const player of [p,other]){assert.equal(player.gold,0);assert.equal(player.xp,12);assert.equal(player.questKills,1);assert.equal(player.items.length,2);assert.equal(w.snapshot(player.id).groundLoot.length,2);}
   assert.equal(idle.gold,0);assert.equal(idle.items.length,2);
-  const reward=p.gold;w.kill(m);assert.equal(p.gold,reward);
+  assert.deepEqual(w.snapshot(idle.id).groundLoot,[]);
+  const reward=w.snapshot(p.id).groundLoot.length;w.kill(m);assert.equal(w.snapshot(p.id).groundLoot.length,reward);
   assert.deepEqual(w.snapshot(p.id).mobs,w.snapshot(other.id).mobs);
   const peers=w.snapshot(p.id).players;assert(peers.every(p=>!('items'in p)&&!('token'in p)&&!('gold'in p)));
 });
-test('full bag keeps earned equipment pending across reconnect until a slot is freed',()=>{
+test('full bag leaves newly earned equipment on the ground until manually collected',()=>{
   const {w,p}=setup(),m=isolated(w,p);while(p.items.length<18)p.items.push(makeLoot(p.classId,1,0,'ring'));
-  w.hurtMob(p,m,100);assert.equal(p.items.length,18);assert.equal(p.pendingItems.length,1);
-  const restored=safeHero(persistentHero(p));assert.equal(restored.pendingItems.length,1);
-  w.camp(p,true);p.combatUntil=0;w.command(p,{type:'sell',id:p.items.at(-1).id});w.command(p,{type:'claim'});assert.equal(p.pendingItems.length,0);assert.equal(p.items.length,18);
+  w.hurtMob(p,m,100);assert.equal(p.items.length,18);assert.equal(p.pendingItems.length,0);
+  const item=w.snapshot(p.id).groundLoot.find(drop=>drop.kind==='item');assert(item);
+  w.command(p,{type:'pickup',id:item.id});assert.equal(w.snapshot(p.id).groundLoot.length,2);
+  // A reconnect preserves owned equipment but discards unpicked loose rewards.
+  const restored=safeHero(persistentHero(p));assert.equal(restored.pendingItems.length,0);
+  const restart=new World();restart.add(restored);assert.deepEqual(restart.snapshot(restored.id).groundLoot,[]);
 });
 test('quest payout and level advancement are persistent and not repeatable on re-entry',()=>{
   const {w,p}=setup();Object.assign(p,{questKills:5,boss:true,xp:64});step(w);assert.equal(p.gold,50);assert(p.questClaimed);

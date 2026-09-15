@@ -96,10 +96,11 @@ test('modular GLB shares one rig and stays finite across equipment and all expor
 });
 
 
-test('the first six warrior drops cover every equipment slot with persisted random rolls',()=>{
-  const p=newHero(),world=new World({random:()=>.4});world.add(p);const m=world.mobs[0];p.x=m.x;p.z=m.z;
-  for(let i=0;i<15;i++){m.state='idle';m.contributors.set(p.id,{at:world.t,damage:999});world.kill(m);}
-  const drops=p.items.filter(item=>item.definitionId);assert.equal(drops.length,6);
-  assert.deepEqual(drops.map(item=>item.slot),['weapon','armor','helmet','boots','ring','amulet']);
-  drops.forEach(validateEquipment);
+test('rare warrior drops roll once on the ground and preserve the exact instance after pickup',()=>{
+  const p=newHero(),world=new World({random:()=>0});world.add(p);const m=world.mobs[0];p.x=m.x;p.z=m.z;
+  m.contributors.set(p.id,{at:world.t,damage:999});world.kill(m);
+  const drop=world.snapshot(p.id).groundLoot.find(drop=>drop.kind==='item');assert(drop);
+  validateEquipment(drop.item);const before=structuredClone(drop.item);
+  world.command(p,{type:'pickup',id:drop.id});assert.deepEqual(p.items.at(-1),before);
+  assert.deepEqual(safeHero(persistentHero(p)).items.at(-1),before);
 });

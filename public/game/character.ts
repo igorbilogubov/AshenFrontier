@@ -3,6 +3,7 @@ import {GLTFLoader,type GLTF} from './vendor/GLTFLoader.js';
 import type {ClassId,WeaponId,ItemAppearance} from '../../shared/types.js';
 import type {WarriorPose} from './render-types.js';
 import {clone} from './vendor/SkeletonUtils.js';
+import {CLASS_ITEMS} from './equipment-items.js';
 import {contactShadow} from './forms.js';
 
 export const CHARACTER_URL=new URL('./characters/ashen-warrior-equipment-v1.glb',import.meta.url).href;
@@ -11,7 +12,7 @@ export type WarriorClip=typeof CLIP_NAMES[number];
 type AttackClip='Attack_Sword_1'|'Attack_Sword_2';
 const IMPACT_PHASE={Attack_Sword_1:.5,Attack_Sword_2:.445};
 
-export const CHARACTER_URLS:Record<ClassId,string>={warrior:CHARACTER_URL,archer:new URL('./characters/ashen-archer-v1.glb',import.meta.url).href,mage:new URL('./characters/ashen-mage-v1.glb',import.meta.url).href};
+export const CHARACTER_URLS:Record<ClassId,string>={warrior:CHARACTER_URL,archer:new URL('./characters/ashen-archer-equipment-v1.glb',import.meta.url).href,mage:new URL('./characters/ashen-mage-equipment-v1.glb',import.meta.url).href};
 const assetPromises=new Map<ClassId,Promise<GLTF>>();
 export async function loadWarrior(classId:ClassId='warrior'){
   let promise=assetPromises.get(classId);if(!promise){promise=new GLTFLoader().loadAsync(CHARACTER_URLS[classId]);assetPromises.set(classId,promise);}
@@ -92,11 +93,29 @@ export function createAnimatedWarrior(gltf:{scene:T.Object3D;animations:T.Animat
   let lastAttack:WarriorPose['attack']=null,attackIndex=0,attackName:AttackClip='Attack_Sword_1',wasDead=false,deathAge=0,lastHurt=0,hitAge=1,preview:WarriorClip|null=null;
   let state:WarriorClip='Idle';
   const weights=Object.fromEntries(CLIP_NAMES.map(n=>[n,n==='Idle'?1:0]));
-  const parts=Object.fromEntries(['Base_Body','Base_Head','Base_Feet','Traveller_Armor','Traveller_Hood','Traveller_Boots','Traveller_Limbs','Traveller_Coif','Traveller_Cape','Weapon_WatchSword','Copper_Ring','Ember_Amulet','Armor_Body','Helmet','Boots','Cape'].map(name=>[name,model.getObjectByName(name)]));
+  const parts=Object.fromEntries(['Base_Body','Base_Head','Base_Feet','Traveller_Armor','Traveller_Hood','Traveller_Boots','Traveller_Limbs','Traveller_Coif','Traveller_Cape','Weapon_WatchSword','Copper_Ring','Ember_Amulet','Armor_Body','Helmet','Boots','Cape','Class_Base_Body','Class_Base_Head','Class_Base_Boots','Class_Base_Hair',...CLASS_ITEMS.archer.map(item=>item.appearance),...CLASS_ITEMS.mage.map(item=>item.appearance)].map(name=>[name,model.getObjectByName(name)]));
   let appearanceKey='';
   function equipment(weapon:WeaponId,classId:ClassId='warrior',appearance?:ItemAppearance){
     const key=JSON.stringify([weapon,classId,appearance]);if(key===appearanceKey)return;appearanceKey=key;
     const show=(name:string,visible:boolean)=>{if(parts[name])parts[name]!.visible=visible;};
+    if(classId!=='warrior'&&parts.Class_Base_Body){
+      const catalog=CLASS_ITEMS[classId];
+      // Saved legacy slots use collection one. Missing appearance is a preview
+      // default; explicit null slots always mean the real item was removed.
+      for(const definition of catalog){
+        const value=appearance?.[definition.slot];
+        const first=catalog.find(item=>item.slot===definition.slot);
+        show(definition.appearance,appearance?value===definition.appearance||(value==='legacy'&&definition===first):definition===first);
+      }
+      show('Class_Base_Head',true);
+      show('Class_Base_Hair',!!appearance&&appearance.helmet!=='acolyte-hood'&&appearance.helmet!=='legacy');
+      for(const [slot,name] of [['armor','Class_Base_Body'],['boots','Class_Base_Boots']] as const){
+        const value=appearance?.[slot];
+        show(name,!!appearance&&!catalog.some(item=>item.slot===slot&&(item.appearance===value||value==='legacy')));
+      }
+      sword!.visible=axe!.visible=false;if(buckler)buckler.visible=false;bow.visible=staff.visible=false;
+      return;
+    }
     const modular=classId==='warrior'&&!!appearance&&!!parts.Base_Body;
     const heavy=modular&&(appearance.armor==='watch-armor'||appearance.armor==='legacy');
     const light=modular&&appearance.armor==='wanderer-armor';

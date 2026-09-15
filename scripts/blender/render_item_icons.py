@@ -33,7 +33,7 @@ def render(key,objects,direction=(.36,-1,.26),roll=0):
         for v in o.data.vertices:v.co=(o.matrix_world@v.co-center)/size
         o.matrix_world=Matrix.Identity(4)
     points=[v.co for o in frozen for v in o.data.vertices]
-    if 'blade' in key or key in ['legacy-axe','copper-ring']:
+    if 'blade' in key or key=='legacy-axe' or key.endswith('-ring'):
         _,axes=np.linalg.eigh(np.cov(np.array([tuple(p) for p in points]).T))
         # Face the broad surface, not the thin edge of the sword or ring.
         basis=Matrix((Vector(axes[:,1]),Vector(axes[:,0]),Vector(axes[:,2])))
@@ -70,38 +70,39 @@ def setup(filename):
         light=bpy.data.objects.new(name,bpy.data.lights.new(name,'AREA'));scene.collection.objects.link(light);light.location=location;light.rotation_euler=(-light.location).to_track_quat('-Z','Y').to_euler();light.data.energy=power;light.data.shape='DISK';light.data.size=3;light.data.color=color
     bpy.context.view_layer.update()
 
-setup('ashen-warrior-equipment-v1.glb')
-for key,name in [('wanderer-blade','Weapon_Sword'),('watch-blade','Weapon_WatchSword'),('wanderer-armor','Traveller_Armor'),('watch-armor','Armor_Body'),('wanderer-hood','Traveller_Hood'),('watch-helm','Helmet'),('wanderer-boots','Traveller_Boots'),('watch-boots','Boots'),('copper-ring','Copper_Ring'),('ember-amulet','Ember_Amulet'),('legacy-axe','Weapon_Axe')]:
-    obj=bpy.data.objects[name]
-    # Armour thumbnails show the torso/shoulders, without the separately worn helmet or boots.
-    if key.endswith('armor'):
-        faces={f.index for f in obj.data.polygons if all(.90<(obj.matrix_world@obj.data.vertices[i].co).z<1.53 and abs((obj.matrix_world@obj.data.vertices[i].co).x)<.30 for i in f.vertices)}
-        obj=copy_faces(obj,'IconTorso_'+name,faces)
-    direction=(.36,-1,.26);roll=0
-    if 'blade' in key or key=='legacy-axe':direction=(.25,-1,.7);roll=-.5
-    if key=='copper-ring':direction=(0,-.2,1)
-    render(key,[obj],direction,roll)
-for kind in ['archer','mage']:
-    setup('ashen-'+kind+'-v1.glb');obj=bpy.data.objects['Class_Body'];keep=set()
-    for face in obj.data.polygons:
-        zs=[(obj.matrix_world@obj.data.vertices[i].co).z for i in face.vertices]
-        if .90<sum(zs)/len(zs)<1.49 and all(abs((obj.matrix_world@obj.data.vertices[i].co).x)<.30 for i in face.vertices):keep.add(face.index)
-    obj=copy_faces(obj,'IconTorso_'+kind,keep);render(kind+'-armor',[obj])
-# These two weapons are still procedural in character.ts. Reproduce their current
-# wood/metal/crystal silhouette at icon scale; no new in-game weapon is introduced.
-bpy.ops.wm.read_factory_settings(use_empty=True)
-setup('ashen-warrior-equipment-v1.glb')
-wood=material('BowWood',(.31,.17,.072));stringmat=material('BowString',(.74,.64,.43));staffmat=material('StaffWood',(.13,.083,.061));crystalmat=material('StaffCrystal',(.48,.35,.91),.25)
-def cylinder(name,radius,depth,position,mat):
-    bpy.ops.mesh.primitive_cylinder_add(vertices=12,radius=radius,depth=depth,location=position);o=bpy.context.object;o.name=name;o.data.materials.append(mat);return o
-shaft=cylinder('Shaft',.017,1.3,(0,0,0),staffmat)
-bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=1,radius=.07,location=(0,0,.67));crystal=bpy.context.object;crystal.data.materials.append(crystalmat)
-render('legacy-staff',[shaft,crystal],(.2,-1,.25),-.48)
-curve=bpy.data.curves.new('Bow','CURVE');curve.dimensions='3D';curve.bevel_depth=.018;curve.bevel_resolution=2;spline=curve.splines.new('BEZIER');spline.bezier_points.add(4)
-for p,co in zip(spline.bezier_points,[(0,0,-.55),(.15,0,-.25),(.18,0,0),(.15,0,.25),(0,0,.55)]):p.co=co;p.handle_left_type='AUTO';p.handle_right_type='AUTO'
-bow=bpy.data.objects.new('Bow',curve);bpy.context.scene.collection.objects.link(bow);bow.data.materials.append(wood)
+if __name__=='__main__':
+    setup('ashen-warrior-equipment-v1.glb')
+    for key,name in [('wanderer-blade','Weapon_Sword'),('watch-blade','Weapon_WatchSword'),('wanderer-armor','Traveller_Armor'),('watch-armor','Armor_Body'),('wanderer-hood','Traveller_Hood'),('watch-helm','Helmet'),('wanderer-boots','Traveller_Boots'),('watch-boots','Boots'),('copper-ring','Copper_Ring'),('ember-amulet','Ember_Amulet'),('legacy-axe','Weapon_Axe')]:
+        obj=bpy.data.objects[name]
+        # Armour thumbnails show the torso/shoulders, without the separately worn helmet or boots.
+        if key.endswith('armor'):
+            faces={f.index for f in obj.data.polygons if all(.90<(obj.matrix_world@obj.data.vertices[i].co).z<1.53 and abs((obj.matrix_world@obj.data.vertices[i].co).x)<.30 for i in f.vertices)}
+            obj=copy_faces(obj,'IconTorso_'+name,faces)
+        direction=(.36,-1,.26);roll=0
+        if 'blade' in key or key=='legacy-axe':direction=(.25,-1,.7);roll=-.5
+        if key=='copper-ring':direction=(0,-.2,1)
+        render(key,[obj],direction,roll)
+    for kind in ['archer','mage']:
+        setup('ashen-'+kind+'-v1.glb');obj=bpy.data.objects['Class_Body'];keep=set()
+        for face in obj.data.polygons:
+            zs=[(obj.matrix_world@obj.data.vertices[i].co).z for i in face.vertices]
+            if .90<sum(zs)/len(zs)<1.49 and all(abs((obj.matrix_world@obj.data.vertices[i].co).x)<.30 for i in face.vertices):keep.add(face.index)
+        obj=copy_faces(obj,'IconTorso_'+kind,keep);render(kind+'-armor',[obj])
+    # These two weapons are still procedural in character.ts. Reproduce their current
+    # wood/metal/crystal silhouette at icon scale; no new in-game weapon is introduced.
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    setup('ashen-warrior-equipment-v1.glb')
+    wood=material('BowWood',(.31,.17,.072));stringmat=material('BowString',(.74,.64,.43));staffmat=material('StaffWood',(.13,.083,.061));crystalmat=material('StaffCrystal',(.48,.35,.91),.25)
+    def cylinder(name,radius,depth,position,mat):
+        bpy.ops.mesh.primitive_cylinder_add(vertices=12,radius=radius,depth=depth,location=position);o=bpy.context.object;o.name=name;o.data.materials.append(mat);return o
+    shaft=cylinder('Shaft',.017,1.3,(0,0,0),staffmat)
+    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=1,radius=.07,location=(0,0,.67));crystal=bpy.context.object;crystal.data.materials.append(crystalmat)
+    render('legacy-staff',[shaft,crystal],(.2,-1,.25),-.48)
+    curve=bpy.data.curves.new('Bow','CURVE');curve.dimensions='3D';curve.bevel_depth=.018;curve.bevel_resolution=2;spline=curve.splines.new('BEZIER');spline.bezier_points.add(4)
+    for p,co in zip(spline.bezier_points,[(0,0,-.55),(.15,0,-.25),(.18,0,0),(.15,0,.25),(0,0,.55)]):p.co=co;p.handle_left_type='AUTO';p.handle_right_type='AUTO'
+    bow=bpy.data.objects.new('Bow',curve);bpy.context.scene.collection.objects.link(bow);bow.data.materials.append(wood)
 
-for o in bpy.context.scene.objects:o.select_set(False)
-bpy.context.view_layer.objects.active=bow;bow.select_set(True);bpy.ops.object.convert(target='MESH');bow=bpy.context.object
-string=cylinder('String',.0022,1.1,(0,0,0),stringmat);render('legacy-bow',[bow,string],(.1,-1,.14),-.42)
-(REPORT/'build-report.json').write_text(json.dumps({'generator':'Blender '+bpy.app.version_string,'size':256,'icons':report},indent=2)+'\n')
+    for o in bpy.context.scene.objects:o.select_set(False)
+    bpy.context.view_layer.objects.active=bow;bow.select_set(True);bpy.ops.object.convert(target='MESH');bow=bpy.context.object
+    string=cylinder('String',.0022,1.1,(0,0,0),stringmat);render('legacy-bow',[bow,string],(.1,-1,.14),-.42)
+    (REPORT/'build-report.json').write_text(json.dumps({'generator':'Blender '+bpy.app.version_string,'size':256,'icons':report},indent=2)+'\n')

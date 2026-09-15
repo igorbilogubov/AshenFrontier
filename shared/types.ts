@@ -1,6 +1,6 @@
 /** Shared simulation and wire contracts. Browser input is still validated at runtime. */
 export type ClassId = 'warrior' | 'archer' | 'mage';
-export type SkillId = 'warrior-cleave' | 'warrior-whirlwind' | 'archer-piercing' | 'archer-volley' | 'mage-fireball' | 'mage-frost';
+export type SkillId = 'warrior-cleave' | 'warrior-whirlwind' | 'archer-piercing' | 'archer-volley' | 'mage-fireball' | 'mage-frost' | 'warrior-thrust' | 'warrior-shockwave' | 'archer-frost-shot' | 'archer-rain' | 'mage-lightning' | 'mage-meteor';
 export type SkillCooldowns = Partial<Record<SkillId, number>>;
 export type WeaponId = 'sword' | 'axe';
 export type EquipmentSlot = 'weapon' | 'armor' | 'helmet' | 'boots' | 'ring' | 'amulet';
@@ -47,7 +47,7 @@ export interface Mob extends PublicMob {
   patrol?: { goal: Point | null; pause: number; leg: number; speed: number; age: number } | null;
 }
 export interface PublicProjectile extends Point { id: string; owner: string; yaw: number; remaining: number; speed: number; kind: 'archer' | 'mage'; skillId?: SkillId; attackId?: number }
-export interface Projectile extends PublicProjectile { damage: number; aoe: number; maxTargets?: number; hitIds?: number[]; pierce?: boolean; damageScaleOnPierce?: number; automatic?: boolean }
+export interface Projectile extends PublicProjectile { damage: number; aoe: number; maxTargets?: number; hitIds?: number[]; pierce?: boolean; damageScaleOnPierce?: number; slowMs?: number; automatic?: boolean }
 export type PublicPlayer = Pick<Hero, 'id' | 'name' | 'classId' | 'x' | 'z' | 'yaw' | 'weapon' | 'hp' | 'level' | 'dead' | 'hurt' | 'attack' | 'moveBlend' | 'runBlend' | 'gait' | 'vx' | 'vz' | 'connected'> & { maxHp: number; appearance?:ItemAppearance };
 export type SelfSnapshot = PersistentHero & {appearance?:ItemAppearance;afk?:AfkState|null;interactionTarget?:InteractionTarget|null;shopActive?:boolean} & Omit<CharacterStats, 'attack'> & Pick<Hero, 'targetYaw' | 'vx' | 'vz' | 'hurt' | 'gait' | 'moveBlend' | 'runBlend' | 'ack'>;
 export interface EventPayloads {
@@ -57,7 +57,7 @@ export interface EventPayloads {
   miss: Point & { id: number }; level: { level: number; points: number }; item: { name: string; pending: boolean };
   kill: { id: number; name: string; xp: number }; loot: Point & { id: number; amount: number };
   shopOpen:{npcId:string};
-  skillImpact: Point & { skillId: SkillId; caster: string; attackId: number; yaw: number };
+  skillImpact: Point & { skillId: SkillId; caster: string; attackId: number; yaw: number; phase?: 'warning' | 'impact'; delay?: number; radius?: number; from?: Point };
 }
 export type WorldEvent = { [K in keyof EventPayloads]: { type: K; owner?: string } & EventPayloads[K] }[keyof EventPayloads];
 export type GameEvent = WorldEvent;

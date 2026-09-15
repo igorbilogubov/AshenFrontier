@@ -81,12 +81,13 @@ export class World{
   players: Map<string,Hero>;
   events: WorldEvent[];
   projectiles: Projectile[];
+  pendingAreas: {skillId:'archer-rain'|'mage-meteor';caster:string;attackId:number;yaw:number;x:number;z:number;at:number;damage:number;automatic:boolean}[];
   mobs: Mob[];
   groundLoot: (GroundDrop & {owner:string})[];
   purchaseReceipts:Map<string,string[]>;
   constructor({random=Math.random}={}){
     this.random=random;
-    this.t=Date.now();this.age=0;this.players=new Map();this.events=[];this.projectiles=[];this.groundLoot=[];this.purchaseReceipts=new Map();
+    this.t=Date.now();this.age=0;this.players=new Map();this.events=[];this.projectiles=[];this.pendingAreas=[];this.groundLoot=[];this.purchaseReceipts=new Map();
     this.mobs=SPAWNS.map((s,id)=>({...s,id,homeX:s.x,homeZ:s.z,hp:MOB_TYPES[s.type].hp,state:'idle',timer:1,yaw:Math.PI,targetYaw:Math.PI,age:0,gait:0,speed:0,flash:0,target:null,contributors:new Map()}));
   }
   add(p: Hero){this.stopAfk(p);this.stopInteraction(p);this.players.set(p.id,p);p.connected=true;p.disconnectAt=0;p.afk=null;p.shopActive=false;}
@@ -382,13 +383,32 @@ export class World{
         if(this.strikeMob(p,m,attackPower*skill!.damageScale,a.automatic===true)&&m.state!=='dead')m.slowUntil=Math.max(m.slowUntil??0,this.t+2000);
       }
       this.emit('skillImpact',{x:p.x,z:p.z,skillId,caster:p.id,attackId:a.id,yaw});
+    }else if(skillId==='mage-lightning'){
+      const hitIds=new Set<number>();let source: {x:number;z:number}=p;
+      for(let index=0;index<skill!.maxTargets;index++){
+        const reach=index===0?skill!.range:skill!.radius!;
+        const next=this.mobs.filter(m=>m.state!=='dead'&&m.state!=='return'&&!hitIds.has(m.id)&&distance(source,m)<=reach&&clearPath(p,m)&&(index>0||inStrike(p,m,yaw,reach,.8)))
+          .sort((left,right)=>distance(source,left)-distance(source,right)||left.id-right.id)[0];
+        if(!next)break;
+        if(a.automatic&&!p.afk)break;
+        hitIds.add(next.id);this.strikeMob(p,next,attackPower*skill!.damageScale*.72**index,a.automatic===true);
+        this.emit('skillImpact',{x:next.x,z:next.z,skillId,caster:p.id,attackId:a.id,yaw,from:{x:source.x,z:source.z}});source=next;
+      }
+    }else if(skillId==='archer-rain'||skillId==='mage-meteor'){
+      const distanceAhead=skill!.range*.75,center={x:p.x+Math.sin(yaw)*distanceAhead,z:p.z+Math.cos(yaw)*distanceAhead};
+      if(!stand(center.x,center.z,0)||safe(center)||!clearPath(p,center)){
+        this.emit('skillImpact',{x:p.x,z:p.z,skillId,caster:p.id,attackId:a.id,yaw});return;
+      }
+      const delay=skillId==='archer-rain'?.45:.7;
+      this.pendingAreas.push({skillId,caster:p.id,attackId:a.id,yaw,...center,at:this.t+delay*1000,damage:attackPower*skill!.damageScale,automatic:a.automatic===true});
+      this.emit('skillImpact',{...center,skillId,caster:p.id,attackId:a.id,yaw,phase:'warning',delay,radius:skill!.radius});
     }else{
       const sharedHits: number[]=[],angles=skillId==='archer-volley'?[-.27,0,.27]:[0];
       for(const offset of angles)this.projectiles.push({
         id:randomUUID(),owner:p.id,x:p.x,z:p.z,yaw:yaw+offset,remaining:skill?.range??stats(p).range,
         speed:skill?.projectileSpeed??(p.classId==='archer'?13:9),kind:p.classId,
         damage:attackPower*(skill?.damageScale??1),aoe:skillId==='mage-fireball'?skill!.radius??0:0,
-        ...(skillId?{skillId,attackId:a.id,maxTargets:skill!.maxTargets,hitIds:skillId==='archer-volley'?sharedHits:[],pierce:skillId==='archer-piercing',damageScaleOnPierce:.82}:{}),
+        ...(skillId?{skillId,attackId:a.id,maxTargets:skill!.maxTargets,hitIds:skillId==='archer-volley'?sharedHits:[],pierce:skillId==='archer-piercing',damageScaleOnPierce:.82,...(skillId==='archer-frost-shot'?{slowMs:2500}:{})}:{}),
         ...(a.automatic?{automatic:true}:{})
       });
     }
@@ -524,15 +544,28 @@ export class World{
         }else{
           const ordinal=b.hitIds?.length??0;
           b.hitIds?.push(m.id);
-          this.strikeMob(owner,m,b.damage*(b.pierce?(b.damageScaleOnPierce??1)**ordinal:1),b.automatic===true);
+          const struck=this.strikeMob(owner,m,b.damage*(b.pierce?(b.damageScaleOnPierce??1)**ordinal:1),b.automatic===true);
+          if(struck&&b.slowMs&&m.state!=='dead')m.slowUntil=Math.max(m.slowUntil??0,this.t+b.slowMs);
           hit=!b.pierce||(b.hitIds?.length??0)>=(b.maxTargets??1);
         }
       }
       if(hit)this.projectiles.splice(i,1);
     }
+    for(let i=this.pendingAreas.length-1;i>=0;i--){
+      const area=this.pendingAreas[i];if(this.t<area.at)continue;this.pendingAreas.splice(i,1);
+      const owner=this.players.get(area.caster),skill=SKILLS[area.skillId];
+      if(!owner||owner.dead||area.automatic&&!owner.afk)continue;
+      const targets=this.mobs.filter(m=>m.state!=='dead'&&m.state!=='return'&&distance(area,m)<=skill.radius!&&clearPath(owner,m))
+        .sort((left,right)=>distance(area,left)-distance(area,right)||left.id-right.id).slice(0,skill.maxTargets);
+      for(const m of targets){
+        const falloff=area.skillId==='mage-meteor'?Math.max(.68,1-.32*distance(area,m)/skill.radius!):1;
+        this.strikeMob(owner,m,area.damage*falloff,area.automatic);
+      }
+      this.emit('skillImpact',{x:area.x,z:area.z,skillId:area.skillId,caster:area.caster,attackId:area.attackId,yaw:area.yaw,phase:'impact',radius:skill.radius});
+    }
   }
   snapshot(forId: string): WorldSnapshot{
     const p=this.players.get(forId);
-    return {t:this.t,players:[...this.players.values()].map(p=>({id:p.id,name:p.name,classId:p.classId,x:p.x,z:p.z,yaw:p.yaw,weapon:p.weapon,hp:p.hp,maxHp:stats(p).maxHp,level:p.level,dead:p.dead,hurt:p.hurt,attack:p.attack,moveBlend:p.moveBlend,runBlend:p.runBlend,gait:p.gait,vx:p.vx,vz:p.vz,connected:p.connected,appearance:equipmentAppearance(p)})),mobs:this.mobs.map(({contributors,patrol,slowUntil,slow,...m})=>({...m,slow:Math.max(0,((slowUntil??0)-this.t)/1000)})),projectiles:this.projectiles.map(({damage,aoe,maxTargets,hitIds,pierce,damageScaleOnPierce,automatic,...b})=>b),groundLoot:this.groundLoot.filter(drop=>drop.owner===forId).map(({owner,...drop})=>drop),self:p?{...stats(p),...persistentHero(p),appearance:equipmentAppearance(p),attackPower:stats(p).attack,targetYaw:p.targetYaw,vx:p.vx,vz:p.vz,hurt:p.hurt,gait:p.gait,moveBlend:p.moveBlend,runBlend:p.runBlend,ack:p.ack,afk:p.afk,interactionTarget:p.interactionTarget,shopActive:p.shopActive}:null,events:this.events.filter(e=>!e.owner||e.owner===forId)};
+    return {t:this.t,players:[...this.players.values()].map(p=>({id:p.id,name:p.name,classId:p.classId,x:p.x,z:p.z,yaw:p.yaw,weapon:p.weapon,hp:p.hp,maxHp:stats(p).maxHp,level:p.level,dead:p.dead,hurt:p.hurt,attack:p.attack,moveBlend:p.moveBlend,runBlend:p.runBlend,gait:p.gait,vx:p.vx,vz:p.vz,connected:p.connected,appearance:equipmentAppearance(p)})),mobs:this.mobs.map(({contributors,patrol,slowUntil,slow,...m})=>({...m,slow:Math.max(0,((slowUntil??0)-this.t)/1000)})),projectiles:this.projectiles.map(({damage,aoe,maxTargets,hitIds,pierce,damageScaleOnPierce,slowMs,automatic,...b})=>b),groundLoot:this.groundLoot.filter(drop=>drop.owner===forId).map(({owner,...drop})=>drop),self:p?{...stats(p),...persistentHero(p),appearance:equipmentAppearance(p),attackPower:stats(p).attack,targetYaw:p.targetYaw,vx:p.vx,vz:p.vz,hurt:p.hurt,gait:p.gait,moveBlend:p.moveBlend,runBlend:p.runBlend,ack:p.ack,afk:p.afk,interactionTarget:p.interactionTarget,shopActive:p.shopActive}:null,events:this.events.filter(e=>!e.owner||e.owner===forId)};
   }
 }

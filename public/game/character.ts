@@ -1,13 +1,17 @@
 import * as T from './vendor/three.module.js';
-import {GLTFLoader} from './vendor/GLTFLoader.js';
+import {GLTFLoader,type GLTF} from './vendor/GLTFLoader.js';
+import type {ClassId,WeaponId} from '../../shared/types.js';
+import type {WarriorPose} from './render-types.js';
 import {clone} from './vendor/SkeletonUtils.js';
 import {contactShadow} from './forms.js';
 
 export const CHARACTER_URL=new URL('./characters/ashen-warrior-v1.glb',import.meta.url).href;
-export const CLIP_NAMES=['Idle','Walk','Run','Attack_Sword_1','Attack_Sword_2','Hit','Death'];
+export const CLIP_NAMES=['Idle','Walk','Run','Attack_Sword_1','Attack_Sword_2','Hit','Death'] as const;
+export type WarriorClip=typeof CLIP_NAMES[number];
+type AttackClip='Attack_Sword_1'|'Attack_Sword_2';
 const IMPACT_PHASE={Attack_Sword_1:.5,Attack_Sword_2:.445};
 
-let assetPromise;
+let assetPromise:Promise<GLTF>|undefined;
 export async function loadWarrior(){
   assetPromise??=new GLTFLoader().loadAsync(CHARACTER_URL);
   const asset=await assetPromise;
@@ -16,17 +20,17 @@ export async function loadWarrior(){
 
 
 // Exported separately so animation/respawn transitions can be tested on the real asset.
-export function createAnimatedWarrior(gltf){
+export function createAnimatedWarrior(gltf:{scene:T.Object3D;animations:T.AnimationClip[]}){
   const root=new T.Group();root.name='Warrior';
   const model=gltf.scene;model.scale.setScalar(1.12);root.add(model);
   contactShadow(root,1.05,.84);
-  const tuned=new Set();
-  model.traverse(o=>{if(o.isMesh){o.material=Array.isArray(o.material)?o.material.map(m=>m.clone()):o.material.clone();o.castShadow=true;o.receiveShadow=true;
+  const tuned=new Set<T.Material>();
+  model.traverse(o=>{if(o instanceof T.Mesh){o.material=Array.isArray(o.material)?o.material.map(m=>m.clone()):o.material.clone();o.castShadow=true;o.receiveShadow=true;
     // Skinned vertices move beyond the bind-pose bounding box during a strike/death.
     o.frustumCulled=false;
     for(const m of Array.isArray(o.material)?o.material:[o.material]){
-      if(m.map)m.map.anisotropy=4;
-      if(m.name==='Weathered_Paladin_Steel'&&!tuned.has(m)){
+      if(m instanceof T.MeshStandardMaterial&&m.map)m.map.anisotropy=4;
+      if(m instanceof T.MeshStandardMaterial&&m.name==='Weathered_Paladin_Steel'&&!tuned.has(m)){
         // The source diffuse includes strong baked shading; compensate for the overhead camera.
         m.color.multiplyScalar(1.6);m.metalness=.25;m.roughness=.6;m.normalScale.setScalar(.7);tuned.add(m);
       }
@@ -34,7 +38,7 @@ export function createAnimatedWarrior(gltf){
   }});
   const clips=Object.fromEntries(gltf.animations.map(c=>[c.name,c]));
   for(const name of CLIP_NAMES)if(!clips[name])throw new Error(`В модели отсутствует анимация ${name}`);
-  const mixer=new T.AnimationMixer(model),actions={};
+  const mixer=new T.AnimationMixer(model),actions={} as Record<WarriorClip,T.AnimationAction>;
   for(const name of CLIP_NAMES){
     const action=mixer.clipAction(clips[name]);actions[name]=action;
     action.play();action.setEffectiveWeight(name==='Idle'?1:0);
@@ -63,15 +67,15 @@ export function createAnimatedWarrior(gltf){
   }
   staff.visible=bow.visible=false;
 
-  let lastAttack=null,attackIndex=0,attackName='Attack_Sword_1',wasDead=false,deathAge=0,lastHurt=0,hitAge=1,preview=null;
-  let state='Idle';
+  let lastAttack:WarriorPose['attack']=null,attackIndex=0,attackName:AttackClip='Attack_Sword_1',wasDead=false,deathAge=0,lastHurt=0,hitAge=1,preview:WarriorClip|null=null;
+  let state:WarriorClip='Idle';
   const weights=Object.fromEntries(CLIP_NAMES.map(n=>[n,n==='Idle'?1:0]));
-  function equipment(weapon,classId='warrior'){sword.visible=classId==='warrior'&&weapon!=='axe';axe.visible=classId==='warrior'&&weapon==='axe';if(buckler)buckler.visible=classId==='warrior';bow.visible=classId==='archer';staff.visible=classId==='mage';}
+  function equipment(weapon:WeaponId,classId:ClassId='warrior'){sword!.visible=classId==='warrior'&&weapon!=='axe';axe!.visible=classId==='warrior'&&weapon==='axe';if(buckler)buckler.visible=classId==='warrior';bow.visible=classId==='archer';staff.visible=classId==='mage';}
   function reset(){
     lastAttack=null;wasDead=false;deathAge=0;hitAge=1;lastHurt=0;hitAction.weight=0;
     for(const name of CLIP_NAMES){weights[name]=name==='Idle'?1:0;actions[name].time=0;actions[name].setEffectiveWeight(weights[name]);}
   }
-  function animate(dt,hero){
+  function animate(dt:number,hero:WarriorPose){
     if(preview)return;
     equipment(hero.weapon,hero.classId);
     if(wasDead&&!hero.dead)reset();
@@ -82,7 +86,7 @@ export function createAnimatedWarrior(gltf){
       target.Death=1;state='Death';
     }else if(hero.attack){
       if((hero.attack.id??hero.attack)!==(lastAttack?.id??lastAttack)){
-        attackName=hero.weapon==='axe'?'Attack_Sword_2':`Attack_Sword_${1+(attackIndex++%2)}`;
+        attackName=hero.weapon==='axe'?'Attack_Sword_2':`Attack_Sword_${1+(attackIndex++%2)}` as AttackClip;
         actions[attackName].time=0;
       }
       // Align the blade's forward crossing with gameplay's 49% damage event.
@@ -105,13 +109,13 @@ export function createAnimatedWarrior(gltf){
     for(const name of CLIP_NAMES){weights[name]+=(target[name]-weights[name])*blend;actions[name].setEffectiveWeight(weights[name]);}
     mixer.update(dt);lastAttack=hero.attack;lastHurt=hero.hurt;wasDead=!!hero.dead;
   }
-  function previewClip(name){
+  function previewClip(name:WarriorClip){
     if(!clips[name])return;
     reset();preview=name;state=name;
     for(const n of CLIP_NAMES){actions[n].paused=true;actions[n].setEffectiveWeight(n===name?1:0);}
     actions[name].time=0;mixer.update(0);
   }
-  function samplePreview(seconds){
+  function samplePreview(seconds:number){
     if(!preview)return;
     const duration=clips[preview].duration;
     actions[preview].time=preview==='Death'?Math.min(seconds,duration):seconds%duration;

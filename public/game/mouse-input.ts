@@ -1,6 +1,11 @@
+import type {Point} from '../../shared/types.js';
+export interface MouseHero extends Point {dead:number; yaw:number}
+export interface HeldInput {x:number; z:number; aim:number|null; attack:boolean}
+export interface HeldOptions {held?:boolean;target?:Point|null;reach?:number;inCamp?:boolean}
+
 // A live direction, never a destination retained after the button is released.
-export function heldMouseInput(hero,point,{held=false,target=null,reach=1.45,inCamp=false}={}){
-  const idle={x:0,z:0,aim:null,attack:false};
+export function heldMouseInput(hero:MouseHero,point:Point|null,{held=false,target=null,reach=1.45,inCamp=false}:HeldOptions={}):HeldInput{
+  const idle:HeldInput={x:0,z:0,aim:null,attack:false};
   if(!held||hero.dead||!point||![point.x,point.z].every(Number.isFinite))return idle;
   const goal=target||point,dx=goal.x-hero.x,dz=goal.z-hero.z,distance=Math.hypot(dx,dz);
   const aim=distance>.001?Math.atan2(dx,dz):hero.yaw;

@@ -1,3 +1,4 @@
+import type {ClassId,EquipmentSlot,StatKey} from '../../shared/types.js';
 // Original vector silhouettes, shared by equipment slots and backpack cells.
 const shapes={
   sword:'<path d="m30 5 5 5-15 24-5-4Z"/><path d="m11 27 13 8M16 32l-7 11M5 41l7 5"/>',
@@ -13,7 +14,7 @@ const shapes={
   vitality:'<path d="M24 42C-4 24 9 3 24 17 39 3 52 24 24 42Z"/><path d="M9 25h9l4-8 5 17 4-9h8"/>',
   energy:'<path d="m24 4 14 22-14 18-14-18Z"/><path d="m24 4 3 19 11 3-14 6-14-6 11-3ZM24 32v12"/>'
 };
-export function itemIcon(slot,classId='warrior'){
+export function itemIcon(slot:EquipmentSlot|StatKey,classId:ClassId='warrior'){
   const kind=slot==='weapon'?(classId==='mage'?'staff':classId==='archer'?'bow':'sword'):slot;
   return `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true" focusable="false">${shapes[kind]||shapes.amulet}</svg>`;
 }

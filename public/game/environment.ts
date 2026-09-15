@@ -6,14 +6,14 @@ import {OBSTACLES,TREE_POSITIONS} from './terrain.js';
 import {surfaceMaterial} from './forms.js';
 import {pineGeometry,grassGeometry,fernGeometry,leafGeometry,windMaterial} from './vegetation.js';
 
-export function createEnvironment(scene){
+export function createEnvironment(scene:T.Scene){
   let seed=71493;const random=()=>{seed=(1664525*seed+1013904223)>>>0;return seed/4294967296;};
-  const material=(color,roughness=.95)=>new T.MeshStandardMaterial({color,roughness});
+  const material=(color:T.ColorRepresentation,roughness=.95)=>new T.MeshStandardMaterial({color,roughness});
   const wood=surfaceMaterial('#574534',{grain:.16,frequency:24}),timber=surfaceMaterial('#3c332a',{grain:.18,frequency:18}),plaster=surfaceMaterial('#aaa18b',{grain:.075,frequency:35}),roofMats=['#3c5058','#496069','#526a70','#3b535b'].map(c=>surfaceMaterial(c,{grain:.07,frequency:26}));
   const rocks=['#60645c','#76776a','#515f59'].map(c=>surfaceMaterial(c,{grain:.15,frequency:22}));
   const breeze={value:0};
   const groundG=new T.PlaneGeometry(100,70,160,112);groundG.rotateX(-Math.PI/2);groundG.translate(10,0,0);
-  const positions=groundG.attributes.position,colors=[],wear=[];
+  const positions=groundG.attributes.position,colors:number[]=[],wear:number[]=[];
   for(let i=0;i<positions.count;i++){
     const x=positions.getX(i),z=positions.getZ(i),distance=Math.hypot(x+1,z),path=Math.abs(z-1-Math.sin(x*.25)*.9);
     const clearing=Math.max(...SPAWNS.map(s=>Math.exp(-((x-s.x)**2+(z-s.z)**2)/9)));
@@ -81,7 +81,7 @@ export function createEnvironment(scene){
     const a=i/11*Math.PI*2;const stone=mesh(fire,new T.DodecahedronGeometry(.27,1),rocks[i%3],Math.cos(a)*.83,.16,Math.sin(a)*.83);stone.scale.set(1,.65,.85);stone.rotation.set(random(),random(),random());
   }
   for(let i=0;i<4;i++){const log=cylinder(fire,.12,.13,1.1,wood,0,.18+i*.04,0);log.rotation.z=Math.PI/2;log.rotation.y=i*.88;}
-  const flames=[];
+  const flames:T.Mesh<T.ConeGeometry,T.MeshBasicMaterial>[]=[];
   for(let i=0;i<9;i++){
     const flame=mesh(fire,new T.ConeGeometry(.16+random()*.16,.7+random()*.55,7),new T.MeshBasicMaterial({color:i%2?'#ffbb4d':'#ff7434',transparent:true,opacity:.7,depthWrite:false}), (random()-.5)*.55,.56,(random()-.5)*.55);flame.castShadow=false;flame.userData.dynamic=true;flames.push(flame);
   }
@@ -102,7 +102,7 @@ export function createEnvironment(scene){
 
   // The first route leaves camp to the east and ends at a ruined watchpost.
   const sign=joint(scene,4.7,0,-.7);cylinder(sign,.07,.09,1.6,wood,0,.8,0);box(sign,1.85,.48,.12,timber,0,1.48,0);
-  const signCanvas=document.createElement('canvas');signCanvas.width=512;signCanvas.height=128;const ink=signCanvas.getContext('2d');ink.fillStyle='#b59a6a';ink.font='bold 38px serif';ink.textAlign='center';ink.fillText('ОПУШКА  →',256,78);
+  const signCanvas=document.createElement('canvas');signCanvas.width=512;signCanvas.height=128;const ink=signCanvas.getContext('2d');if(!ink)throw new Error('Canvas 2D is unavailable');ink.fillStyle='#b59a6a';ink.font='bold 38px serif';ink.textAlign='center';ink.fillText('ОПУШКА  →',256,78);
   const signTexture=new T.CanvasTexture(signCanvas);signTexture.colorSpace=T.SRGBColorSpace;
   mesh(sign,new T.PlaneGeometry(1.75,.43),new T.MeshBasicMaterial({map:signTexture,transparent:true}),0,1.48,.067);sign.rotation.y=.55;
   for(const [x,z] of [[22.6,-3.4],[28,-3.4],[28,2.5]]){
@@ -152,9 +152,9 @@ export function createEnvironment(scene){
   const marker=mesh(scene,new T.RingGeometry(.18,.21,40),new T.MeshBasicMaterial({color:'#d5bb80',transparent:true,opacity:.8,side:T.DoubleSide}));marker.rotation.x=-Math.PI/2;marker.position.y=.025;marker.visible=false;marker.userData.dynamic=true;
   // Bake static scenery per material. Hundreds of slate tiles and beams become
   // a few draw calls; the fire, instanced forest and animated actors stay separate.
-  scene.updateMatrixWorld(true);const batches=new Map();
+  scene.updateMatrixWorld(true);const batches=new Map<string,{material:T.Material;geometries:T.BufferGeometry[];objects:T.Mesh[]}>();
   scene.traverse(object=>{
-    if(!object.isMesh||object.isInstancedMesh||object.userData.dynamic||object===ground)return;
+    if(!(object instanceof T.Mesh)||object instanceof T.InstancedMesh||Array.isArray(object.material)||object.userData.dynamic||object===ground)return;
     const key=object.material.uuid;let batch=batches.get(key);if(!batch){batch={material:object.material,geometries:[],objects:[]};batches.set(key,batch);}
     const g=object.geometry.index?object.geometry.toNonIndexed():object.geometry.clone();g.applyMatrix4(object.matrixWorld);batch.geometries.push(g);batch.objects.push(object);
   });
@@ -162,6 +162,6 @@ export function createEnvironment(scene){
     const combined=mergeGeometries(batch.geometries,false);if(!combined)continue;
     mesh(scene,combined,batch.material);for(const object of batch.objects){object.removeFromParent();object.geometry.dispose();}for(const g of batch.geometries)g.dispose();
   }
-  function animate(time){breeze.value=time;flames.forEach((flame,i)=>{flame.scale.set(.8+Math.sin(time*9+i)*.2,.85+Math.sin(time*11+i*4)*.25,.9+Math.sin(time*8+i)*.15);flame.rotation.z=Math.sin(time*5+i)*.15;});fireLight.intensity=32+Math.sin(time*12)*3+Math.sin(time*19)*2;}
+  function animate(time:number){breeze.value=time;flames.forEach((flame,i)=>{flame.scale.set(.8+Math.sin(time*9+i)*.2,.85+Math.sin(time*11+i*4)*.25,.9+Math.sin(time*8+i)*.15);flame.rotation.z=Math.sin(time*5+i)*.15;});fireLight.intensity=32+Math.sin(time*12)*3+Math.sin(time*19)*2;}
   return {ground,obstacles,animate,marker,ready};
 }

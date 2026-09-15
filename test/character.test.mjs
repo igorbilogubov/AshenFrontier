@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import * as T from '../public/game/vendor/three.module.js';
-import {GLTFLoader} from '../public/game/vendor/GLTFLoader.js';
-import {CLIP_NAMES,createAnimatedWarrior} from '../public/game/character.js';
+import * as T from '../dist/public/game/vendor/three.module.js';
+import {GLTFLoader} from '../dist/public/game/vendor/GLTFLoader.js';
+import {CLIP_NAMES,createAnimatedWarrior} from '../dist/public/game/character.js';
 
 const bytes=await fs.readFile(new URL('../public/game/characters/ashen-warrior-v1.glb',import.meta.url));
 const json=JSON.parse(bytes.subarray(20,20+bytes.readUInt32LE(12)).toString());

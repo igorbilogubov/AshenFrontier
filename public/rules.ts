@@ -1,5 +1,6 @@
+import type {Attributes, ClassId, EquipmentSlot, Item, StatSource, CharacterStats} from '../shared/types.js';
 // Shared item/class definitions. No renderer-specific units or sprites.
-export const EQUIPMENT_SLOTS={
+export const EQUIPMENT_SLOTS: Record<EquipmentSlot, {name: string; stat: 'attack' | 'armor' | 'speed' | 'maxHp'; statName: string; symbol: string}>={
   weapon:{name:'Оружие',stat:'attack',statName:'урона',symbol:'⚔'},
   armor:{name:'Доспех',stat:'armor',statName:'брони',symbol:'▣'},
   helmet:{name:'Шлем',stat:'armor',statName:'брони',symbol:'♜'},
@@ -7,19 +8,20 @@ export const EQUIPMENT_SLOTS={
   ring:{name:'Кольцо',stat:'attack',statName:'урона',symbol:'○'},
   amulet:{name:'Амулет',stat:'maxHp',statName:'здоровья',symbol:'◇'}
 };
-export const CLASSES={
+export const CLASSES: Record<ClassId, {name: string; color: string; hp: number; hpPerLevel: number; damage: number; range: number; duration: number; special: string; weaponNames: string[]}>={
   warrior:{name:'Воин',color:'#e0b77d',hp:100,hpPerLevel:8,damage:25,range:1.95,duration:.64,special:'Вихрь',weaponNames:['Меч странника','Клинок сумерек','Осколок рассвета']},
   archer:{name:'Лучник',color:'#a9ce91',hp:90,hpPerLevel:7,damage:22,range:6,duration:.72,special:'Меткий выстрел',weaponNames:['Лук следопыта','Лук сумерек','Зов рассвета']},
   mage:{name:'Маг',color:'#c6ace7',hp:85,hpPerLevel:6,damage:28,range:5.5,duration:.88,special:'Огненный шар',weaponNames:['Посох ученика','Посох сумерек','Свет разлома']}
 };
 export const BAG_CAPACITY=16;
-export const classFor=id=>CLASSES[Object.hasOwn(CLASSES,id)?id:'warrior'];
-export const weaponClass=item=>item?.classId||'warrior';
-export const canEquip=(hero,item)=>!!item&&Object.hasOwn(EQUIPMENT_SLOTS,item.slot)&&(item.slot!=='weapon'||weaponClass(item)===(hero.classId||'warrior'));
-export const itemBonus=item=>`+${item.power} ${EQUIPMENT_SLOTS[item.slot]?.statName||''}`;
+const validClass=(id: unknown): ClassId=>id==='warrior'||id==='archer'||id==='mage'?id:'warrior';
+export const classFor=(id: unknown)=>CLASSES[validClass(id)];
+export const weaponClass=(item: Item | null | undefined)=>item?.classId||'warrior';
+export const canEquip=(hero: Pick<StatSource, 'classId'>,item: Item | null | undefined)=>!!item&&Object.hasOwn(EQUIPMENT_SLOTS,item.slot)&&(item.slot!=='weapon'||weaponClass(item)===(hero.classId||'warrior'));
+export const itemBonus=(item: Item)=>`+${item.power} ${EQUIPMENT_SLOTS[item.slot]?.statName||''}`;
 
 // One ruleset drives the authoritative simulation and the allocation preview.
-export const STAT_KEYS=Object.freeze(['strength','dexterity','vitality','energy']);
+export const STAT_KEYS=Object.freeze(['strength','dexterity','vitality','energy'] as const);
 export const STAT_DEFINITIONS=Object.freeze({
   strength:{name:'Сила',description:'Урон оружием. Главная характеристика воина.'},
   dexterity:{name:'Ловкость',description:'Шанс попадания и защита. Главная характеристика лучника.'},
@@ -37,27 +39,26 @@ export const CLASS_PROGRESSION=Object.freeze({
     description:'Магия и урон по площади: энергия усиливает заклинания; точность и выживаемость развиваются отдельно.',
     statDescriptions:{strength:'Не усиливает заклинания; для текущей сборки не требуется',dexterity:'Точность заклинаний и защита',vitality:'+3 HP и +0,025 HP/с вне боя',energy:'+0,95 урона, +5 MP и +0,075 MP/с'}}
 });
-const validClass=id=>Object.hasOwn(CLASSES,id)?id:'warrior';
-const positive=value=>Number.isFinite(value)?Math.max(0,value):0;
-export const baseAttributes=classId=>({...CLASS_PROGRESSION[validClass(classId)].base});
+const positive=(value: unknown)=>typeof value==='number'&&Number.isFinite(value)?Math.max(0,value):0;
+export const baseAttributes=(classId: unknown): Attributes=>({...CLASS_PROGRESSION[validClass(classId)].base});
 // Five immediately spendable points, then five per level. No gameplay level cap.
-export const statBudget=level=>Math.min(Number.MAX_SAFE_INTEGER,Math.max(1,Math.floor(positive(level)))*5);
-export function normalizedAllocations(points,level){
-  const empty=Object.fromEntries(STAT_KEYS.map(key=>[key,0]));
+export const statBudget=(level: unknown)=>Math.min(Number.MAX_SAFE_INTEGER,Math.max(1,Math.floor(positive(level)))*5);
+export function normalizedAllocations(points: unknown,level: unknown): Attributes{
+  const empty: Attributes={strength:0,dexterity:0,vitality:0,energy:0};
   if(!points||Array.isArray(points)||typeof points!=='object')return empty;
   let sum=0;
   for(const key of STAT_KEYS){
-    const amount=points[key]??0;
-    if(!Number.isSafeInteger(amount)||amount<0)return empty;
+    const amount=(points as Record<string, unknown>)[key]??0;
+    if(typeof amount!=='number'||!Number.isSafeInteger(amount)||amount<0)return empty;
     empty[key]=amount;sum+=amount;
   }
-  return Number.isSafeInteger(sum)&&sum<=statBudget(level)?empty:Object.fromEntries(STAT_KEYS.map(key=>[key,0]));
+  return Number.isSafeInteger(sum)&&sum<=statBudget(level)?empty:{strength:0,dexterity:0,vitality:0,energy:0};
 }
-export function characterStats(p){
+export function characterStats(p: StatSource): CharacterStats{
   const classId=validClass(p.classId),c=CLASSES[classId],progression=CLASS_PROGRESSION[classId];
   const level=Math.max(1,Math.floor(positive(p.level))),allocatedStats=normalizedAllocations(p.allocatedStats,level);
   const attributes=baseAttributes(classId);for(const key of STAT_KEYS)attributes[key]+=allocatedStats[key];
-  const s={attributes,allocatedStats,unspentPoints:statBudget(level)-STAT_KEYS.reduce((sum,key)=>sum+allocatedStats[key],0),statRevision:Number.isSafeInteger(p.statRevision)&&p.statRevision>=0?p.statRevision:0,
+  const s: CharacterStats={attributes,allocatedStats,unspentPoints:statBudget(level)-STAT_KEYS.reduce((sum,key)=>sum+allocatedStats[key],0),statRevision:typeof p.statRevision==='number'&&Number.isSafeInteger(p.statRevision)&&p.statRevision>=0?p.statRevision:0,
     maxHp:c.hp+(level-1)*c.hpPerLevel+allocatedStats.vitality*progression.hpPerVitality,
     maxMana:progression.mana+(level-1)*progression.manaPerLevel+allocatedStats.energy*progression.manaPerEnergy,
     hpRegen:.15+attributes.vitality*.025,manaRegen:.5+attributes.energy*.075,
@@ -65,11 +66,11 @@ export function characterStats(p){
     // Dexterity already grants the archer damage and accuracy. Its armor bonus
     // approaches 21, so investing in damage cannot replace defensive equipment.
     armor:attributes.dexterity*.35/(1+attributes.dexterity/60),hitChance:Math.min(.95,.72+.23*attributes.dexterity/(attributes.dexterity+18)),
-    speedScale:1,range:c.range,xpNeeded:level*65,specialManaCost:progression.specialManaCost};
-  for(const [slot,definition] of Object.entries(EQUIPMENT_SLOTS)){
+    speedScale:1,range:c.range,xpNeeded:level*65,specialManaCost:progression.specialManaCost,damageReduction:0,attackPower:0};
+  for(const [slot,definition] of Object.entries(EQUIPMENT_SLOTS) as [EquipmentSlot, (typeof EQUIPMENT_SLOTS)[EquipmentSlot]][]){
     const item=p.items?.find(i=>i.id===p.equipment?.[slot]&&i.slot===slot&&canEquip(p,i));
     if(!item)continue;const power=positive(item.power);
-    if(slot==='boots')s.speedScale=1+Math.min(.18,power*.005);else s[definition.stat]+=power;
+    if(slot==='boots')s.speedScale=1+Math.min(.18,power*.005);else if(definition.stat!=='speed')s[definition.stat]+=power;
   }
   s.damageReduction=Math.min(.65,s.armor/(s.armor+70));s.attackPower=s.attack;
   return s;

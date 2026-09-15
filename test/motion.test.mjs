@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {turnTowards,angleDelta,inStrike,screenDirection,canOccupy} from '../public/game/motion.js';
+import {turnTowards,angleDelta,inStrike,screenDirection,canOccupy} from '../dist/public/game/motion.js';
 
 test('360-degree aim crosses north by two degrees, without a full spin',()=>{
   const from=359*Math.PI/180,to=Math.PI/180,result=turnTowards(from,to,1/60);

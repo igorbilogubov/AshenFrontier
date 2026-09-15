@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {heldMouseInput} from '../public/game/mouse-input.js';
-import {moveHero} from '../public/game/location.js';
+import {heldMouseInput} from '../dist/public/game/mouse-input.js';
+import {moveHero} from '../dist/public/game/location.js';
 
 const hero=()=>({x:.5,z:2,yaw:.75,targetYaw:.75,vx:0,vz:0,gait:0,runBlend:0,moveBlend:0,running:false,attack:null,dead:0});
 test('hover and a released press cannot move or turn an idle hero, even with an old enemy target',()=>{

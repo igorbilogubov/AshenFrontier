@@ -1,39 +1,41 @@
 import * as T from './vendor/three.module.js';
-import {GLTFLoader} from './vendor/GLTFLoader.js';
+import {GLTFLoader,type GLTF} from './vendor/GLTFLoader.js';
+import type {MobType,PublicMob,MobState,Point} from '../../shared/types.js';
+export type MobAssets=Partial<Record<MobType,GLTF>>;
 import {clone} from './vendor/SkeletonUtils.js';
 import {mesh,box,joint} from './models.js';
 import {contactShadow} from './forms.js';
 import {MOB_TYPES} from './location.js';
 import {angleDelta} from './motion.js';
 
-export const CREATURE_CLIPS=['Idle','Walk','Run','Attack','Hit','Death'];
-export const WOLF_CLIPS=[...CREATURE_CLIPS,'Turn_Left','Turn_Right'];
+export const CREATURE_CLIPS=['Idle','Walk','Run','Attack','Hit','Death'] as const;
+export const WOLF_CLIPS=[...CREATURE_CLIPS,'Turn_Left','Turn_Right'] as const;
 export const ATTACK_CONTACT=.68;
 export const STRIDES={wolf:{walk:.72,run:1.12},boar:{walk:.52,run:.82},alpha:{walk:.70,run:1.12}};
-let assetPromise;
+let assetPromise:Promise<MobAssets>|undefined;
 export function loadMobAssets(){
-  return assetPromise??=Promise.all(Object.keys(MOB_TYPES).map(async type=>{
+  return assetPromise??=Promise.all((Object.keys(MOB_TYPES) as MobType[]).map(async type=>{
     const gltf=await new GLTFLoader().loadAsync(new URL(`./creatures/${type}.glb`,import.meta.url).href);
     for(const name of CREATURE_CLIPS)if(!gltf.animations.some(c=>c.name===name))throw new Error(`В модели ${type} отсутствует ${name}`);
-    return [type,gltf];
+    return [type,gltf] as const;
   })).then(entries=>Object.fromEntries(entries));
 }
 
-export function createMob(type,assets){
+export function createMob(type:MobType,assets:MobAssets){
   const cfg=MOB_TYPES[type],asset=assets?.[type];
   if(!cfg||!asset)throw new Error(`Модель ${type} не загружена`);
   const root=new T.Group(),body=clone(asset.scene);root.name=`Creature_${type}`;body.scale.setScalar(cfg.scale);root.add(body);
   const contact=contactShadow(root,1.25*cfg.scale,2.45*cfg.scale);
-  body.traverse(o=>{if(o.isMesh){
+  body.traverse(o=>{if(o instanceof T.Mesh){
     o.castShadow=true;o.receiveShadow=true;o.frustumCulled=false;
     // Bounds cover living poses and the short lunge, avoiding a per-frame vertex scan.
-    o.boundingBox=new T.Box3(new T.Vector3(-.48,-.05,-1.38),new T.Vector3(.48,1.7,1.48));
-    o.boundingSphere=new T.Sphere(new T.Vector3(0,.65,0),2.1);
-    for(const mat of Array.isArray(o.material)?o.material:[o.material])if(mat.map)mat.map.anisotropy=4;
+    if(o instanceof T.SkinnedMesh)o.boundingBox=new T.Box3(new T.Vector3(-.48,-.05,-1.38),new T.Vector3(.48,1.7,1.48));
+    if(o instanceof T.SkinnedMesh)o.boundingSphere=new T.Sphere(new T.Vector3(0,.65,0),2.1);
+    for(const mat of Array.isArray(o.material)?o.material:[o.material])if(mat instanceof T.MeshStandardMaterial&&mat.map)mat.map.anisotropy=4;
   }});
   const clips=Object.fromEntries(asset.animations.map(c=>[c.name,c]));
   const clipNames=Object.keys(clips),refined=type==='wolf'&&!!clips.Turn_Left&&!!clips.Turn_Right;
-  const mixer=new T.AnimationMixer(body),actions={},weights={};
+  const mixer=new T.AnimationMixer(body),actions:Record<string,T.AnimationAction>={},weights:Record<string,number>={};
   for(const name of clipNames){const a=mixer.clipAction(clips[name]).play();a.paused=true;a.setEffectiveWeight(name==='Idle'?1:0);actions[name]=a;weights[name]=name==='Idle'?1:0;}
   const additive=clips.Hit.clone();additive.name='Hit_UpperBody';
   additive.tracks=additive.tracks.filter(t=>/^(Chest|Neck|Head|Jaw)\./.test(t.name));
@@ -48,12 +50,12 @@ export function createMob(type,assets){
   warning.rotation.x=Math.PI/2;warning.position.y=.025;warning.castShadow=false;warning.receiveShadow=false;warning.visible=false;
   const selection=mesh(root,new T.RingGeometry(.55*cfg.scale,.59*cfg.scale,40),new T.MeshBasicMaterial({color:'#e9c087',transparent:true,opacity:.8,side:T.DoubleSide,depthWrite:false}));
   selection.rotation.x=-Math.PI/2;selection.position.y=.03;selection.castShadow=false;selection.receiveShadow=false;selection.visible=false;
-  let lastState='idle',lastTime=null,gait=0,runBlend=0,moveBlend=0,lastFlash=0,hitAge=1,state='Idle',preview=null,lastPosition=null,lastYaw=null,turnGait=0,turnBlend=0,turnDirection=1;
+  let lastState:MobState='idle',lastTime:number|null=null,gait=0,runBlend=0,moveBlend=0,lastFlash=0,hitAge=1,state='Idle',preview:string|null=null,lastPosition:Point|null=null,lastYaw:number|null=null,turnGait=0,turnBlend=0,turnDirection=1;
   function reset(){
     gait=runBlend=moveBlend=turnGait=turnBlend=0;lastPosition=null;lastYaw=null;lastFlash=0;hitAge=1;reaction.weight=0;
     for(const name of clipNames){weights[name]=name==='Idle'?1:0;actions[name].time=0;actions[name].setEffectiveWeight(weights[name]);}
   }
-  function animate(mob,time,selected,camera){
+  function animate(mob:PublicMob,time:number,selected:boolean,camera:T.Camera){
     if(preview)return;
     const dt=lastTime===null?1/60:T.MathUtils.clamp(time-lastTime,0,.15);lastTime=time;
     if(lastState==='dead'&&mob.state!=='dead')reset();
@@ -100,13 +102,13 @@ export function createMob(type,assets){
     for(const name of clipNames){weights[name]+=(target[name]-weights[name])*blend;actions[name].setEffectiveWeight(weights[name]);}
     mixer.update(0);lastState=mob.state;lastFlash=mob.flash;lastPosition={x:mob.x,z:mob.z};lastYaw=mob.yaw;
   }
-  function previewClip(name){
+  function previewClip(name:string){
     if(!clips[name])return;
     reset();preview=name;state=name;body.visible=true;contact.visible=true;health.visible=warning.visible=selection.visible=false;
     for(const n of clipNames)actions[n].setEffectiveWeight(n===name?1:0);
     actions[name].time=0;mixer.update(0);root.updateMatrixWorld(true);
   }
-  function samplePreview(seconds){
+  function samplePreview(seconds:number){
     if(!preview)return;
     actions[preview].time=preview==='Death'?Math.min(seconds,clips[preview].duration):seconds%clips[preview].duration;
     mixer.update(0);root.updateMatrixWorld(true);

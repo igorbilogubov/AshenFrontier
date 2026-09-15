@@ -2,8 +2,8 @@ import {copyFile, mkdir, readFile, writeFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
-import {CAMERA, BOUNDS, CAMP, MOB_TYPES, SPAWNS, WEAPONS} from '../../public/game/location.js';
-import {OBSTACLES, TREE_POSITIONS} from '../../public/game/terrain.js';
+import {CAMERA, BOUNDS, CAMP, MOB_TYPES, SPAWNS, WEAPONS} from '../../dist/public/game/location.js';
+import {OBSTACLES, TREE_POSITIONS} from '../../dist/public/game/terrain.js';
 
 const root=fileURLToPath(new URL('../../',import.meta.url));
 const project=path.join(root,'godot-prototype');

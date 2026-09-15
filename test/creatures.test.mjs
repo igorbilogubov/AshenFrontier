@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import * as T from '../public/game/vendor/three.module.js';
-import {GLTFLoader} from '../public/game/vendor/GLTFLoader.js';
-import {createMob,CREATURE_CLIPS,WOLF_CLIPS,ATTACK_CONTACT,STRIDES} from '../public/game/mobs.js';
-import {MOB_TYPES} from '../public/game/location.js';
+import * as T from '../dist/public/game/vendor/three.module.js';
+import {GLTFLoader} from '../dist/public/game/vendor/GLTFLoader.js';
+import {createMob,CREATURE_CLIPS,WOLF_CLIPS,ATTACK_CONTACT,STRIDES} from '../dist/public/game/mobs.js';
+import {MOB_TYPES} from '../dist/public/game/location.js';
 
 const assets={},files={};
 for(const type of Object.keys(MOB_TYPES)){

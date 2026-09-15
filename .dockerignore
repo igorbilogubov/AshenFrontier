@@ -2,7 +2,13 @@
 !Dockerfile
 !package.json
 !package-lock.json
+!tsconfig.json
 !server.mjs
-!world.mjs
+!server.ts
+!world.ts
+!shared/
+!shared/**
 !public/
 !public/**
+!scripts/
+!scripts/build.mjs

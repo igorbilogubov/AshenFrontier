@@ -1,8 +1,10 @@
 import * as T from './vendor/three.module.js';
+export interface LoftSection {y:number;rx:number;rz:number;x?:number;z?:number}
+export interface SurfaceOptions {metalness?:number;roughness?:number;grain?:number;frequency?:number}
 
 // Shaped cross-sections give armour and anatomy deliberate silhouettes.
-export function loftGeometry(rows,segments=12){
-  const sections=[...rows].sort((a,b)=>a.y-b.y),vertices=[],uvs=[],indices=[];
+export function loftGeometry(rows:readonly LoftSection[],segments=12){
+  const sections=[...rows].sort((a,b)=>a.y-b.y),vertices:number[]=[],uvs:number[]=[],indices:number[]=[];
   for(let j=0;j<sections.length;j++)for(let i=0;i<segments;i++){
     const p=sections[j],a=i/segments*Math.PI*2;
     vertices.push((p.x||0)+Math.sin(a)*p.rx,p.y,(p.z||0)+Math.cos(a)*p.rz);uvs.push(i/segments,j/(sections.length-1));
@@ -17,11 +19,11 @@ export function loftGeometry(rows,segments=12){
   }
   const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(vertices,3));g.setAttribute('uv',new T.Float32BufferAttribute(uvs,2));g.setIndex(indices);g.computeVertexNormals();return g;
 }
-export function plateGeometry(points,depth=.035,bevel=.018){
+export function plateGeometry(points:readonly (readonly [number,number])[],depth=.035,bevel=.018){
   const shape=new T.Shape();points.forEach(([x,y],i)=>i?shape.lineTo(x,y):shape.moveTo(x,y));shape.closePath();
   const g=new T.ExtrudeGeometry(shape,{depth,bevelEnabled:bevel>0,bevelSegments:1,steps:1,bevelSize:bevel,bevelThickness:bevel});g.translate(0,0,-depth/2);return g;
 }
-export function surfaceMaterial(color,{metalness=0,roughness=.9,grain=.07,frequency=80}={}){
+export function surfaceMaterial(color:T.ColorRepresentation,{metalness=0,roughness=.9,grain=.07,frequency=80}:SurfaceOptions={}){
   const m=new T.MeshStandardMaterial({color,metalness,roughness});
   m.onBeforeCompile=shader=>{
     shader.vertexShader='varying vec3 vArtSurface;\n'+shader.vertexShader;
@@ -35,4 +37,4 @@ export function surfaceMaterial(color,{metalness=0,roughness=.9,grain=.07,freque
   m.customProgramCacheKey=()=>`art-surface-${grain}-${frequency}`;return m;
 }
 const contactMaterial=new T.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{opacity:{value:.30}},vertexShader:'varying vec2 vUv; void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',fragmentShader:'varying vec2 vUv; uniform float opacity; void main(){float d=length(vUv*2.0-1.0);gl_FragColor=vec4(0.055,0.07,0.065,(1.0-smoothstep(0.12,1.0,d))*opacity);}',polygonOffset:true,polygonOffsetFactor:-1});
-export function contactShadow(parent,w,d){const s=new T.Mesh(new T.PlaneGeometry(w,d),contactMaterial);s.rotation.x=-Math.PI/2;s.position.y=.016;s.renderOrder=1;parent.add(s);return s;}
+export function contactShadow(parent:T.Object3D,w:number,d:number){const s=new T.Mesh(new T.PlaneGeometry(w,d),contactMaterial);s.rotation.x=-Math.PI/2;s.position.y=.016;s.renderOrder=1;parent.add(s);return s;}

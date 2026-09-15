@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {World,newHero} from '../world.mjs';
-import {MOB_TYPES,stand,safe} from '../public/game/location.js';
+import {World,newHero} from '../dist/world.js';
+import {MOB_TYPES,stand,safe} from '../dist/public/game/location.js';
 
 test('undisturbed animals walk in sustained bouts and rest, without tick-by-tick Walk/Idle flicker',()=>{
   const world=new World(),samples=world.mobs.map(()=>({moving:false,ticks:0,walks:[],rests:[],changes:0}));

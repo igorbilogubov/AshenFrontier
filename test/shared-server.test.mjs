@@ -7,7 +7,7 @@ import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import {WebSocket} from 'ws';
-import {newHero,persistentHero,makeLoot} from '../world.mjs';
+import {newHero,persistentHero,makeLoot} from '../dist/world.js';
 const until=async(predicate,timeout=6000)=>{const end=Date.now()+timeout;while(!predicate()){assert(Date.now()<end,'Timed out waiting for server state');await delay(20);}};
 async function start(dir){
   const child=spawn(process.execPath,['server.mjs'],{cwd:new URL('..',import.meta.url),env:{...process.env,PORT:'0',GAME_HOST:'127.0.0.1',GAME_DATA_DIR:dir},stdio:['ignore','pipe','pipe']});let output='';child.stdout.on('data',b=>output+=b);child.stderr.on('data',b=>output+=b);
@@ -25,7 +25,8 @@ test('HTTP serves only the 3D client, models and public rules; save files and le
   const dir=await mkdtemp(path.join(tmpdir(),'ashen-http-'));let server;
   try{server=await start(dir);
     const page=await fetch(server.url);assert.equal(page.status,200);const html=await page.text();assert(html.includes('game/scene.js'));assert(!html.includes('src="game.js"'));
-    for(const file of ['/data/heroes.json','/../data/heroes.json','/world.mjs','/game.js','/world.json','/assets/tiny-dungeon/tilemap.png','/game/../../data/heroes.json'])assert.equal((await fetch(server.url+file)).status,404,file);
+    for(const file of ['/data/heroes.json','/../data/heroes.json','/world.mjs','/world.ts','/server.ts','/game/scene.ts','/game/scene.js.map','/dist/server.js','/game.js','/world.json','/assets/tiny-dungeon/tilemap.png','/game/../../data/heroes.json'])assert.equal((await fetch(server.url+file)).status,404,file);
+    const module=await fetch(server.url+'/game/scene.js');assert.equal(module.status,200);assert.match(module.headers.get('content-type'),/javascript/);assert((await module.text()).includes('WebGLRenderer'));
     const model=await fetch(server.url+'/game/characters/ashen-warrior-v1.glb',{method:'HEAD'});assert.equal(model.status,200);assert.equal(model.headers.get('content-type'),'model/gltf-binary');
     assert.equal((await fetch(server.url+'/game/creature-preview.html')).status,200);
     assert.equal((await fetch(server.url+'/health')).status,200);

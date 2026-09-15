@@ -10,29 +10,38 @@ import {NetworkGame} from './network.js';
 import {bindInterface} from './interface.js';
 import {classFor} from '../rules.js';
 import {heldMouseInput} from './mouse-input.js';
+import {element as $,errorMessage} from './ui-types.js';
+import type {Point,PublicPlayer,PublicMob,WeaponId} from '../../shared/types.js';
+type Warrior=Awaited<ReturnType<typeof loadWarrior>>;
+type MobModel=ReturnType<typeof createMob> & {pickMeshes:T.Mesh[]};
+type RemoteWarrior=Warrior & {label:HTMLDivElement};
+type VisualHero=Pick<PublicPlayer,'id'|'x'|'z'|'yaw'|'gait'|'runBlend'|'moveBlend'|'dead'|'weapon'|'classId'|'hurt'|'attack'>;
+interface FloatingNumber {element:HTMLSpanElement;x:number;z:number;y:number;life:number}
+interface Particle {mesh:T.Mesh<T.IcosahedronGeometry,T.MeshBasicMaterial>;v:T.Vector3;life:number}
+interface HeldMouse {x:number;y:number;active:boolean;point:T.Vector3|null;held:boolean;pointerId:number|null;pickPending:boolean}
 
-const $=id=>document.getElementById(id),canvas=$('scene');
-let renderer,scene,camera,sun,world,warrior,game,ready=false,last=0,time=0,accumulator=0;
-let width=innerWidth,height=innerHeight,selected=null,autoTarget=null,pendingWeapon=null;
-let noticeTimer=0,lastSafeToast=0,uiTimer=0,frames=[],frameCounter=0,paused=false;
-let targetZoom=1,interfaceUI;
-const remoteModels=new Map(),loadingPlayers=new Set(),visualHeroes=new Map(),visualMobs=new Map(),shots=new Map();
+const canvas=$('scene');
+let renderer:T.WebGLRenderer,scene:T.Scene,camera:T.OrthographicCamera,sun:T.DirectionalLight,world:ReturnType<typeof createEnvironment>,warrior:Warrior,game:NetworkGame,ready=false,last=0,time=0,accumulator=0;
+let width=innerWidth,height=innerHeight,selected:number|null=null,autoTarget:number|null=null,pendingWeapon:WeaponId|null=null;
+let noticeTimer:ReturnType<typeof setTimeout>|undefined=undefined,lastSafeToast=0,uiTimer=0,frames:number[]=[],frameCounter=0,paused=false;
+let targetZoom=1,interfaceUI:ReturnType<typeof bindInterface>;
+const remoteModels=new Map<string,RemoteWarrior>(),loadingPlayers=new Set<string>(),visualHeroes=new Map<string,VisualHero>(),visualMobs=new Map<number,PublicMob>(),shots=new Map<string,T.Mesh<T.BufferGeometry,T.MeshBasicMaterial>>();
 const ZOOM={min:.7,max:1.9,sensitivity:.0015};
-const keys=new Set(),models=new Map(),drops=new Map(),particles=[],floats=[];
+const keys=new Set<string>(),models=new Map<number,MobModel>(),drops=new Map<number,T.Group>(),particles:Particle[]=[],floats:FloatingNumber[]=[];
 const raycaster=new T.Raycaster(),ndc=new T.Vector2(),groundPlane=new T.Plane(new T.Vector3(0,1,0),0),cameraTarget=new T.Vector3(.5,.3,2);
-const mouse={x:0,y:0,active:false,point:null,held:false,pointerId:null,pickPending:false};
+const mouse:HeldMouse={x:0,y:0,active:false,point:null,held:false,pointerId:null,pickPending:false};
 const marker=new T.Group();
-const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
-const mini=$('minimap'),map=mini.getContext('2d');
+const distance=(a:Point,b:Point)=>Math.hypot(a.x-b.x,a.z-b.z);
+const mini=$('minimap'),map=mini.getContext('2d')!;
 const lootGeometry=new T.IcosahedronGeometry(.11,0),lootMaterial=new T.MeshStandardMaterial({color:'#e5b258',emissive:'#8a5a1e',emissiveIntensity:.3,metalness:.65,roughness:.35});
 
-function toast(message){$('notice').textContent=message;$('notice').classList.add('visible');clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>$('notice').classList.remove('visible'),2400);}
+function toast(message:string){$('notice').textContent=message;$('notice').classList.add('visible');clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>$('notice').classList.remove('visible'),2400);}
 function fitCamera(){
   width=innerWidth;height=innerHeight;if(!renderer)return;
   renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.25));renderer.setSize(width,height,false);
   const half=7.1;camera.left=-half*width/height;camera.right=half*width/height;camera.top=half;camera.bottom=-half;camera.updateProjectionMatrix();
 }
-function updateCamera(dt){
+function updateCamera(dt:number){
   if(camera.zoom!==targetZoom){
     const next=camera.zoom+(targetZoom-camera.zoom)*(1-Math.exp(-12*dt));
     camera.zoom=Math.abs(next-targetZoom)<.0001?targetZoom:next;
@@ -49,13 +58,13 @@ function pickGround(){
   return raycaster.ray.intersectPlane(groundPlane,new T.Vector3());
 }
 function pickMob(){
-  const objects=[];for(const mob of game.mobs){if(mob.state==='dead'||mob.state==='return')continue;objects.push(...models.get(mob.id).pickMeshes);}
-  const direct=raycaster.intersectObjects(objects,false)[0]?.object.userData.mob;if(direct!==undefined)return direct;
+  const objects:T.Mesh[]=[];for(const mob of game.mobs){if(mob.state==='dead'||mob.state==='return')continue;objects.push(...models.get(mob.id)!.pickMeshes);}
+  const direct:unknown=raycaster.intersectObjects(objects,false)[0]?.object.userData.mob;if(typeof direct==='number')return direct;
   // Slimmer legs and a tapered muzzle should not demand pixel-perfect clicks.
-  const box=new T.Box3(),point=new T.Vector3();let nearest=Infinity,id=null;
+  const box=new T.Box3(),point=new T.Vector3();let nearest=Infinity,id:number|null=null;
   for(const mob of game.mobs){
     if(mob.state==='dead'||mob.state==='return')continue;
-    box.setFromObject(models.get(mob.id).pickRoot).expandByScalar(.12);
+    box.setFromObject(models.get(mob.id)!.pickRoot).expandByScalar(.12);
     if(raycaster.ray.intersectBox(box,point)){const d=point.distanceToSquared(raycaster.ray.origin);if(d<nearest){nearest=d;id=mob.id;}}
   }
   return id;
@@ -65,12 +74,12 @@ function toggleRun(){
   if(!ready||game.player.dead)return;
   game.toggleRun(); // The movement button updates when the server confirms the mode.
 }
-function chooseWeapon(id){
-  if(!ready||!WEAPONS[id]||game.player.dead)return;autoTarget=null;pendingWeapon=null;
+function chooseWeapon(id:unknown){
+  if(!ready||(id!=='sword'&&id!=='axe')||game.player.dead)return;autoTarget=null;pendingWeapon=null;
   if(id===game.player.weapon)return;if(game.player.attack){pendingWeapon=id;return;}
   game.weapon(id);toast(WEAPONS[id].name);updateUI();
 }
-function attackAt(point=null){
+function attackAt(point:Point|null=null){
   if(!ready)return;const hero=game.player,p=point||mouse.point;
   game.attack(p?Math.atan2(p.x-hero.x,p.z-hero.z):hero.yaw);
 }
@@ -86,7 +95,7 @@ function returnToCamp(){
   if(!safe(game.player)&&game.mobs.some(m=>['chase','windup','recover'].includes(m.state)&&distance(m,game.player)<8)){toast('Сначала оторвитесь от врагов');return;}
   clearInput();game.returnToCamp();selected=null;
 }
-function number(event,kind=''){const element=document.createElement('span');element.className='damage-number '+kind;element.textContent=kind==='miss'?'Промах':(kind==='heal'?'+':kind==='loot'?'+':'')+String(event.amount);$('world-ui').append(element);floats.push({element,x:event.x,z:event.z,y:kind==='hurt'?2.2:1.5,life:.95});}
+function number(event:Point & {amount?:number},kind=''){const element=document.createElement('span');element.className='damage-number '+kind;element.textContent=kind==='miss'?'Промах':(kind==='heal'?'+':kind==='loot'?'+':'')+String(event.amount);$('world-ui').append(element);floats.push({element,x:event.x,z:event.z,y:kind==='hurt'?2.2:1.5,life:.95});}
 function processEvents(){
   let gainedLevel=null;
   for(const event of game.events.splice(0)){
@@ -101,7 +110,6 @@ function processEvents(){
     if(event.type==='hurt')number(event,'hurt');
     if(event.type==='heal')number(event,'heal');
     if(event.type==='loot'){number(event,'loot');const model=drops.get(event.id);if(model){model.removeFromParent();drops.delete(event.id);}}
-    if(event.type==='lootExpired'){drops.get(event.id)?.removeFromParent();drops.delete(event.id);}
     if(event.type==='kill'){toast(`${event.name} повержен · +${event.xp} опыта`);if(autoTarget===event.id)autoTarget=null;}
     if(event.type==='safe'&&time-lastSafeToast>1.5){lastSafeToast=time;toast('Лагерь безопасен. Выйдите на лесную тропу');}
     if(event.type==='death'){clearInput();pendingWeapon=null;selected=null;}
@@ -111,20 +119,20 @@ function processEvents(){
   // Kill/loot events arrive in the same snapshot: keep level progression visible.
   if(gainedLevel!==null)toast(`Новый уровень: ${gainedLevel} · доступны очки характеристик · C`);
 }
-function tick(dt){
+function tick(dt:number){
   if(!game.connected){processEvents();return;}
   if(interfaceUI?.isPanelOpen?.()){game.update(dt,{x:0,z:0,aim:null});processEvents();return;}
   const hero=game.player;
-  let mob=autoTarget===null?null:game.mobs[autoTarget];
+  let mob:PublicMob|null=autoTarget===null?null:game.mobs[autoTarget];
   if(mob&&(mob.state==='dead'||mob.state==='return')){autoTarget=null;mob=null;}
   const input=heldMouseInput(hero,mouse.point,{held:mouse.held,target:mob,reach:hero.classId==='warrior'?1.45:classFor(hero.classId).range-.5,inCamp:safe(hero)});
-  if(input.attack&&Math.abs(angleDelta(hero.yaw,input.aim))<.22)attackAt(mob);
+  if(input.attack&&typeof input.aim==='number'&&Math.abs(angleDelta(hero.yaw,input.aim))<.22)attackAt(mob);
   if(keys.has('Space')&&!safe(hero)){input.x=input.z=0;attackAt();}
   game.update(dt,input);
   if(pendingWeapon&&!hero.attack)chooseWeapon(pendingWeapon);
   processEvents();
 }
-function mapPosition(p){return {x:10+(p.x-BOUNDS.minX)/(BOUNDS.maxX-BOUNDS.minX)*(mini.width-20),y:8+(p.z-BOUNDS.minZ)/(BOUNDS.maxZ-BOUNDS.minZ)*(mini.height-16)};}
+function mapPosition(p:Point){return {x:10+(p.x-BOUNDS.minX)/(BOUNDS.maxX-BOUNDS.minX)*(mini.width-20),y:8+(p.z-BOUNDS.minZ)/(BOUNDS.maxZ-BOUNDS.minZ)*(mini.height-16)};}
 function drawMap(){
   map.clearRect(0,0,mini.width,mini.height);map.fillStyle='#1c3027';map.fillRect(0,0,mini.width,mini.height);
   const camp=mapPosition(CAMP);map.fillStyle='#304b37';map.beginPath();map.ellipse(camp.x,camp.y,27,21,0,0,Math.PI*2);map.fill();
@@ -138,7 +146,7 @@ function updateUI(){
   const hero=game.player,camp=safe(hero),mob=selectedMob();
   $('zone-state').textContent=camp?'Безопасный лагерь':hero.x>21?'Старые руины · вожак':'Пепельная опушка · опасная зона';$('zone-state').classList.toggle('safe',camp);
   $('hp-text').textContent=`${Math.ceil(hero.hp)} / ${hero.maxHp}`;$('hp-fill').style.height=`${Math.max(0,Math.min(1,hero.hp/hero.maxHp||0))*100}%`;
-  $('hp-orb').setAttribute('aria-valuemax',hero.maxHp);$('hp-orb').setAttribute('aria-valuenow',Math.ceil(hero.hp));
+  $('hp-orb').setAttribute('aria-valuemax',String(hero.maxHp));$('hp-orb').setAttribute('aria-valuenow',String(Math.ceil(hero.hp)));
   $('gold').textContent=`${hero.coins} золота`;$('xp').textContent=`${hero.xp} опыта`;$('potions').textContent=String(hero.potions);
   $('movement-label').textContent=hero.running?'Бег':'Ходьба';$('movement').setAttribute('aria-pressed',String(hero.running));$('movement').disabled=!!hero.dead;
   $('movement').title=hero.running?'Перейти на ходьбу · Shift':'Перейти на бег · Shift';
@@ -148,11 +156,11 @@ function updateUI(){
   $('kills-goal').innerHTML=`Победите существ: <b>${Math.min(5,hero.questKills)} / 5</b>`;$('kills-goal').classList.toggle('done',hero.questKills>=5);$('boss-goal').classList.toggle('done',hero.boss);$('camp-goal').classList.toggle('done',hero.questClaimed);
   $('quest-hint').textContent=hero.questClaimed?'Задание выполнено. Можно продолжить охоту.':hero.questKills>=5&&hero.boss?'Возвращайтесь в безопасный лагерь.':hero.questKills>=5?'Вожак ждёт у руин, дальше по тропе.':'Идите по тропе направо, за указатель.';
   $('target-panel').hidden=!mob||mob.state==='dead';if(mob&&mob.state!=='dead'){$('target-name').textContent=MOB_TYPES[mob.type].name;$('target-health').textContent=mob.state==='return'?'Возвращается к логову':`${mob.hp} / ${MOB_TYPES[mob.type].hp}`;$('target-fill').style.transform=`scaleX(${mob.hp/MOB_TYPES[mob.type].hp})`;}
-  for(const button of document.querySelectorAll('[data-weapon]')){const active=button.dataset.weapon===hero.weapon;button.classList.toggle('selected',active);button.setAttribute('aria-pressed',String(active));button.disabled=!!hero.dead;}
+  for(const button of document.querySelectorAll<HTMLButtonElement>('[data-weapon]')){const active=button.dataset.weapon===hero.weapon;button.classList.toggle('selected',active);button.setAttribute('aria-pressed',String(active));button.disabled=!!hero.dead;}
   $('cooldown').style.transform=`scaleX(${hero.attack?1-hero.attack.age/hero.attack.duration:0})`;
   interfaceUI.update();drawMap();
 }
-function visualActor(source,dt){
+function visualActor(source:VisualHero,dt:number){
   let v=visualHeroes.get(source.id);
   if(!v){v={...source};visualHeroes.set(source.id,v);}
   const before={x:v.x,z:v.z},x=v.x,z=v.z,yaw=v.yaw,gait=v.gait||0;
@@ -163,15 +171,15 @@ function visualActor(source,dt){
   if(source.attack)v.attack={...source.attack,age:Math.min(source.attack.duration,source.attack.age+Math.min(.1,(performance.now()-game.receivedAt)/1000))};
   return v;
 }
-function renderPlayers(dt){
-  const present=new Set();
+function renderPlayers(dt:number){
+  const present=new Set<string>();
   for(const p of game.players){
     if(p.id===game.id)continue;present.add(p.id);
     if(!remoteModels.has(p.id)&&!loadingPlayers.has(p.id)){
       loadingPlayers.add(p.id);loadWarrior().then(model=>{
         loadingPlayers.delete(p.id);if(!game.players.some(other=>other.id===p.id))return;
         scene.add(model.root);model.root.position.set(p.x,0,p.z);
-        const label=document.createElement('div');label.className='player-label';$('world-ui').append(label);model.label=label;remoteModels.set(p.id,model);
+        const label=document.createElement('div');label.className='player-label';$('world-ui').append(label);remoteModels.set(p.id,Object.assign(model,{label}));
       }).catch(error=>console.error(error));
     }
     const model=remoteModels.get(p.id);if(!model)continue;
@@ -181,7 +189,7 @@ function renderPlayers(dt){
     model.label.style.transform=`translate(${(projected.x*.5+.5)*width}px,${(-projected.y*.5+.5)*height}px) translate(-50%,-100%)`;
     model.label.hidden=Math.abs(projected.x)>1.2||Math.abs(projected.y)>1.2;
   }
-  for(const [id,model] of remoteModels)if(!present.has(id)){model.root.removeFromParent();model.label.remove();model.mixer.stopAllAction();model.model.traverse(o=>{if(o.isMesh)for(const m of Array.isArray(o.material)?o.material:[o.material])m.dispose();});remoteModels.delete(id);visualHeroes.delete(id);}
+  for(const [id,model] of remoteModels)if(!present.has(id)){model.root.removeFromParent();model.label.remove();model.mixer.stopAllAction();model.model.traverse(o=>{if(o instanceof T.Mesh)for(const m of Array.isArray(o.material)?o.material:[o.material])m.dispose();});remoteModels.delete(id);visualHeroes.delete(id);}
 }
 function renderShots(){
   const ids=new Set(game.projectiles.map(p=>p.id));
@@ -192,7 +200,7 @@ function renderShots(){
     model.position.set(p.x,1.05,p.z);model.rotation.y=p.yaw;
   }
 }
-function render(dt){
+function render(dt:number){
   const hero=visualActor(game.player,dt);time+=dt;updateCamera(dt);mouse.point=pickGround();
   if(mouse.held&&mouse.pickPending&&mouse.point){autoTarget=pickMob();selected=autoTarget;mouse.pickPending=false;}
   warrior.root.position.set(hero.x,0,hero.z);warrior.root.rotation.set(0,hero.yaw,0);
@@ -214,7 +222,7 @@ function render(dt){
   uiTimer+=dt;if(uiTimer>.1){uiTimer=0;updateUI();}
   renderer.render(scene,camera);
 }
-function loop(timestamp){
+function loop(timestamp:number){
   if(!ready)return;const elapsed=last?(timestamp-last)/1000:1/60;last=timestamp;if(paused)return;
   const dt=Math.min(elapsed,.15);accumulator+=dt;
   while(accumulator>=1/60){tick(1/60);accumulator-=1/60;}
@@ -230,7 +238,7 @@ async function start(){
     // Broad sky reflections keep the metal readable without hard mirror highlights.
     const lightRoom=new T.Scene();lightRoom.background=new T.Color('#839493');
     const lightPanels=[];
-    for(const [x,y,z,w,h,d,color] of [[0,5,0,8,.1,8,'#e0e9e9'],[-5,1,2,.1,5,6,'#c5b798'],[4,2,-3,.1,6,5,'#a8bdc7']]){
+    for(const [x,y,z,w,h,d,color] of [[0,5,0,8,.1,8,'#e0e9e9'],[-5,1,2,.1,5,6,'#c5b798'],[4,2,-3,.1,6,5,'#a8bdc7']] as const){
       const panel=new T.Mesh(new T.BoxGeometry(w,h,d),new T.MeshBasicMaterial({color,side:T.DoubleSide}));panel.position.set(x,y,z);lightRoom.add(panel);lightPanels.push(panel);
     }
     const pmrem=new T.PMREMGenerator(renderer);scene.environment=pmrem.fromScene(lightRoom,.08).texture;scene.environmentIntensity=.38;pmrem.dispose();for(const p of lightPanels){p.geometry.dispose();p.material.dispose();}
@@ -239,10 +247,10 @@ async function start(){
     $('load-progress').textContent='Загружаем персонажа и обитателей леса…';
     const loaded=await Promise.all([loadWarrior(),loadMobAssets()]);warrior=loaded[0];scene.add(warrior.root);
     $('load-progress').textContent='Подключаем героя к общему миру…';await interfaceUI.join();
-    for(const mob of game.mobs){const model=createMob(mob.type,loaded[1]);model.pickMeshes=[];model.pickRoot.traverse(o=>{if(o.isMesh){o.userData.mob=mob.id;model.pickMeshes.push(o);}});models.set(mob.id,model);scene.add(model.root);}
+    for(const mob of game.mobs){const model=Object.assign(createMob(mob.type,loaded[1]),{pickMeshes:[] as T.Mesh[]});model.pickRoot.traverse(o=>{if(o instanceof T.Mesh){o.userData.mob=mob.id;model.pickMeshes.push(o);}});models.set(mob.id,model);scene.add(model.root);}
     const ring=mesh(marker,new T.RingGeometry(.43,.451,40),new T.MeshBasicMaterial({color:'#dac593',transparent:true,opacity:.62,side:T.DoubleSide,depthWrite:false}));ring.rotation.x=-Math.PI/2;ring.castShadow=false;ring.receiveShadow=false;scene.add(marker);
     $('load-progress').textContent='Загружаем материалы леса…';await world.ready;ready=true;render(1/60);$('load-progress').textContent='Готовим свет и тени…';await renderer.compileAsync(scene,camera);$('loading').hidden=true;canvas.focus({preventScroll:true});updateUI();renderer.setAnimationLoop(loop);
-  }catch(error){console.error(error);ready=false;$('loading').hidden=false;$('loading').querySelector('h2').textContent='Локацию не удалось открыть';$('load-progress').textContent=error.message;$('retry').hidden=false;}
+  }catch(error){console.error(error);ready=false;$('loading').hidden=false;$('loading').querySelector('h2')!.textContent='Локацию не удалось открыть';$('load-progress').textContent=errorMessage(error);$('retry').hidden=false;}
 }
 canvas.addEventListener('pointermove',event=>{
   if(mouse.pointerId!==null&&event.pointerId!==mouse.pointerId)return;
@@ -274,16 +282,16 @@ canvas.addEventListener('wheel',event=>{
   targetZoom=T.MathUtils.clamp(targetZoom*Math.exp(-delta*ZOOM.sensitivity),ZOOM.min,ZOOM.max);
 },{passive:false});
 addEventListener('keydown',event=>{
-  if(!ready||event.metaKey||event.ctrlKey||event.altKey||['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName))return;
+  if(!ready||event.metaKey||event.ctrlKey||event.altKey||['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName||''))return;
   if(interfaceUI?.isPanelOpen?.())return;
-  if(document.activeElement.tagName==='BUTTON'&&['Space','Enter'].includes(event.code))return;
+  if(document.activeElement?.tagName==='BUTTON'&&['Space','Enter'].includes(event.code))return;
   if(event.code==='Space'){event.preventDefault();keys.add(event.code);}if(event.repeat)return;
-  if(['ShiftLeft','ShiftRight'].includes(event.code)&&[canvas,document.body].includes(document.activeElement))toggleRun();
+  if(['ShiftLeft','ShiftRight'].includes(event.code)&&(document.activeElement===canvas||document.activeElement===document.body))toggleRun();
   if(event.code==='Space'){autoTarget=null;attackAt();}if(event.code==='Digit1')chooseWeapon('sword');if(event.code==='Digit2')chooseWeapon('axe');if(event.code==='KeyR')game.potion();if(event.code==='KeyQ')game.attack(mouse.point?Math.atan2(mouse.point.x-game.player.x,mouse.point.z-game.player.z):game.player.yaw,true);if(event.code==='Escape')clearInput();
 });
 addEventListener('keyup',e=>keys.delete(e.code));addEventListener('blur',clearInput);document.addEventListener('visibilitychange',()=>{paused=document.hidden;if(paused)clearInput();last=0;accumulator=0;});addEventListener('resize',fitCamera);
-canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();ready=false;clearInput();$('loading').hidden=false;$('loading').querySelector('h2').textContent='3D-изображение приостановлено';$('load-progress').textContent='Нажмите «Повторить», чтобы открыть локацию снова.';$('retry').hidden=false;});
-for(const b of document.querySelectorAll('[data-weapon]'))b.addEventListener('click',()=>{chooseWeapon(b.dataset.weapon);canvas.focus({preventScroll:true});});
+canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();ready=false;clearInput();$('loading').hidden=false;$('loading').querySelector('h2')!.textContent='3D-изображение приостановлено';$('load-progress').textContent='Нажмите «Повторить», чтобы открыть локацию снова.';$('retry').hidden=false;});
+for(const b of document.querySelectorAll<HTMLButtonElement>('[data-weapon]'))b.addEventListener('click',()=>{chooseWeapon(b.dataset.weapon);canvas.focus({preventScroll:true});});
 $('special').addEventListener('click',()=>{const p=mouse.point;game.attack(p?Math.atan2(p.x-game.player.x,p.z-game.player.z):game.player.yaw,true);canvas.focus();});
 $('movement').addEventListener('click',()=>{toggleRun();canvas.focus({preventScroll:true});});
 $('attack').addEventListener('click',()=>{autoTarget=null;attackAt();canvas.focus({preventScroll:true});});$('potion').addEventListener('click',()=>{game.potion();canvas.focus({preventScroll:true});});$('reset').addEventListener('click',()=>{returnToCamp();canvas.focus({preventScroll:true});});$('retry').addEventListener('click',()=>location.reload());

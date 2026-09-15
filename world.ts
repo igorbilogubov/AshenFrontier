@@ -1,59 +1,90 @@
+import type {ClassId, EquipmentSlot, Item, Hero, PersistentHero, HeroAttack, Mob, Projectile, WorldEvent, EventPayloads, WorldSnapshot} from './shared/types.js';
+import {isRecord, isClassId, isEquipmentSlot, isWeaponId} from './shared/types.js';
 import {randomUUID} from 'node:crypto';
 import {CLASSES,EQUIPMENT_SLOTS,BAG_CAPACITY,classFor,canEquip,STAT_KEYS,CLASS_PROGRESSION,characterStats,normalizedAllocations} from './public/rules.js';
 import {BOUNDS,CAMP,SPAWNS,MOB_TYPES,WEAPONS,safe,stand,clearPath,distance,translate,moveHero} from './public/game/location.js';
 import {angleDelta,turnTowards,inStrike} from './public/game/motion.js';
 export {CLASSES,EQUIPMENT_SLOTS,CAMP,BOUNDS};
 export const SAVE_VERSION=3;
-const finite=(value,fallback=0)=>Number.isFinite(value)?value:fallback;
-const nonnegative=(value,fallback=0)=>Math.max(0,finite(value,fallback));
+const finite=(value: unknown,fallback=0)=>typeof value==='number'&&Number.isFinite(value)?value:fallback;
+const nonnegative=(value: unknown,fallback=0)=>Math.max(0,finite(value,fallback));
 const slotNames={armor:['Кожаный доспех','Доспех дозорного','Пепельный панцирь'],helmet:['Кожаный шлем','Шлем дозорного','Шлем рубежа'],boots:['Походные сапоги','Сапоги следопыта','Сапоги рубежа'],ring:['Медное кольцо','Кольцо охотника','Кольцо рассвета'],amulet:['Оберег путника','Оберег леса','Оберег огня']};
-export function makeLoot(classId,level=1,rarity=0,slot='weapon'){
+export function makeLoot(classId: ClassId,level=1,rarity=0,slot: EquipmentSlot='weapon'): Item{
   return {id:randomUUID(),name:(slot==='weapon'?classFor(classId).weaponNames:slotNames[slot])[rarity],slot,rarity,power:Math.max(1,Math.round(level+rarity*3+(slot==='amulet'?5:0))),...(slot==='weapon'?{classId}:{} )};
 }
 export const stats=characterStats;
-export function newHero(name='Странник',classId='warrior'){
+export function newHero(name='Странник',classId: ClassId='warrior'): Hero{
   if(!Object.hasOwn(CLASSES,classId))classId='warrior';
   const weapon={...makeLoot(classId,1,0,'weapon'),bound:true},armor={...makeLoot(classId,1,0,'armor'),bound:true};
   return safeHero({schemaVersion:SAVE_VERSION,id:randomUUID(),name,classId,level:1,xp:0,gold:0,kills:0,items:[weapon,armor],equipment:{weapon:weapon.id,armor:armor.id},x:.5,z:2,hp:classFor(classId).hp,mana:CLASS_PROGRESSION[classId].mana,potions:3});
 }
-export function safeHero(saved){
-  const p=structuredClone(saved),legacy=!Number.isInteger(p.schemaVersion)||p.schemaVersion<2,migrateStats=p.schemaVersion!==SAVE_VERSION;
-  p.schemaVersion=SAVE_VERSION;p.id=typeof p.id==='string'?p.id:randomUUID();p.name=String(p.name||'Странник').replace(/[\p{C}<>]/gu,'').slice(0,18);
-  p.classId=Object.hasOwn(CLASSES,p.classId)?p.classId:'warrior';p.level=Math.max(1,Math.floor(nonnegative(p.level,1)));p.xp=nonnegative(p.xp);p.gold=nonnegative(p.gold??p.coins);p.kills=Math.floor(nonnegative(p.kills));
-  p.items=Array.isArray(p.items)?p.items:[];p.pendingItems=Array.isArray(p.pendingItems)?p.pendingItems:[];
-  for(const i of [...p.items,...p.pendingItems])if(i.slot==='weapon'&&!i.classId)i.classId='warrior';
-  p.equipment=Object.fromEntries(Object.keys(EQUIPMENT_SLOTS).map(slot=>[slot,p.items.some(i=>i.id===p.equipment?.[slot]&&i.slot===slot&&canEquip(p,i))?p.equipment[slot]:null]));
-  p.allocatedStats=normalizedAllocations(migrateStats?null:p.allocatedStats,p.level);
-  p.statRevision=!migrateStats&&Number.isSafeInteger(p.statRevision)&&p.statRevision>=0?p.statRevision:0;
-  if(legacy||!stand(p.x,p.z)){p.x=.5;p.z=2;}
-  p.yaw=finite(p.yaw,Math.PI*.25);p.targetYaw=p.yaw;p.weapon=p.weapon==='axe'?'axe':'sword';
-  p.questKills=legacy?0:nonnegative(p.questKills);p.boss=legacy?false:!!p.boss;p.questClaimed=legacy?false:!!p.questClaimed;
-  p.potions=Math.min(3,Math.floor(nonnegative(p.potions,3)));p.potionCooldown=legacy?0:nonnegative(p.potionCooldown);
-  p.specialCooldown=legacy?0:nonnegative(p.specialCooldown);p.dead=legacy?0:nonnegative(p.dead);p.combatUntil=legacy?0:nonnegative(p.combatUntil);
-  p.hp=Math.min(stats(p).maxHp,nonnegative(p.hp,stats(p).maxHp));if(!p.hp&&!p.dead)p.dead=2.5;
+// Disk saves may be legacy or damaged. Normalize primitive fields and check the
+// structured payloads before handing them to the strongly typed simulation.
+function savedItems(value: unknown): Item[]{
+  if(!Array.isArray(value))return [];
+  return value.map((item: unknown)=>{
+    if(!isRecord(item)||typeof item.id!=='string'||typeof item.name!=='string'||!isEquipmentSlot(item.slot)||typeof item.power!=='number'||typeof item.rarity!=='number')throw new Error('Invalid saved item');
+    if(item.classId!==undefined&&!isClassId(item.classId))throw new Error('Invalid saved item class');
+    const copy={...item, ...(item.slot==='weapon'&&!item.classId?{classId:'warrior' as const}:{})};
+    return copy as unknown as Item;
+  });
+}
+function savedAttack(value: unknown): HeroAttack | null{
+  if(!value)return null;
+  if(!isRecord(value)||!['id','age','duration'].every(key=>typeof value[key]==='number'&&Number.isFinite(value[key]))||(value.yaw!==null&&(typeof value.yaw!=='number'||!Number.isFinite(value.yaw)))||typeof value.hit!=='boolean'||typeof value.special!=='boolean'||(value.weapon!==undefined&&!isWeaponId(value.weapon)))throw new Error('Invalid saved attack');
+  // The legacy V2 format may omit the weapon; preserve it exactly on migration.
+  return structuredClone(value) as unknown as HeroAttack;
+}
+export function safeHero(saved: unknown): Hero{
+  if(!isRecord(saved))throw new Error('Invalid saved hero');
+  const raw=structuredClone(saved),legacy=typeof raw.schemaVersion!=='number'||!Number.isInteger(raw.schemaVersion)||raw.schemaVersion<2,migrateStats=raw.schemaVersion!==SAVE_VERSION;
+  const classId=isClassId(raw.classId)?raw.classId:'warrior',level=Math.max(1,Math.floor(nonnegative(raw.level,1)));
+  const items=savedItems(raw.items),pendingItems=savedItems(raw.pendingItems),rawEquipment=isRecord(raw.equipment)?raw.equipment:{};
+  const equipment: Hero['equipment']={};
+  for(const slot of Object.keys(EQUIPMENT_SLOTS) as EquipmentSlot[]){
+    const id=rawEquipment[slot];equipment[slot]=typeof id==='string'&&items.some(i=>i.id===id&&i.slot===slot&&canEquip({classId},i))?id:null;
+  }
+  const x=finite(raw.x,.5),z=finite(raw.z,2),position=legacy||typeof raw.x!=='number'||typeof raw.z!=='number'||!Number.isFinite(raw.x)||!Number.isFinite(raw.z)||!stand(x,z)?{x:.5,z:2}:{x,z};
+  const yaw=finite(raw.yaw,Math.PI*.25);
+  const p: Hero={
+    schemaVersion:SAVE_VERSION,id:typeof raw.id==='string'?raw.id:randomUUID(),name:String(raw.name||'Странник').replace(/[\p{C}<>]/gu,'').slice(0,18),
+    classId,level,xp:nonnegative(raw.xp),gold:nonnegative(raw.gold??raw.coins),kills:Math.floor(nonnegative(raw.kills)),items,pendingItems,equipment,
+    allocatedStats:normalizedAllocations(migrateStats?null:raw.allocatedStats,level),statRevision:!migrateStats&&typeof raw.statRevision==='number'&&Number.isSafeInteger(raw.statRevision)&&raw.statRevision>=0?raw.statRevision:0,
+    ...position,yaw,targetYaw:yaw,weapon:raw.weapon==='axe'?'axe':'sword',
+    questKills:legacy?0:nonnegative(raw.questKills),boss:legacy?false:!!raw.boss,questClaimed:legacy?false:!!raw.questClaimed,
+    potions:Math.min(3,Math.floor(nonnegative(raw.potions,3))),potionCooldown:legacy?0:nonnegative(raw.potionCooldown),specialCooldown:legacy?0:nonnegative(raw.specialCooldown),dead:legacy?0:nonnegative(raw.dead),combatUntil:legacy?0:nonnegative(raw.combatUntil),
+    hp:0,mana:0,attack:legacy?null:savedAttack(raw.attack),attackSerial:nonnegative(raw.attackSerial),
+    vx:0,vz:0,hurt:0,gait:0,moveBlend:0,runBlend:0,running:!!raw.running,input:{x:0,z:0,aim:null,seq:0},inputAt:0,ack:0,connected:true,disconnectAt:0
+  };
+  p.hp=Math.min(stats(p).maxHp,nonnegative(raw.hp,stats(p).maxHp));if(!p.hp&&!p.dead)p.dead=2.5;
   // V2 had no mana. Grant its initial pool once; reconnecting V3 never refills it.
-  p.mana=migrateStats?stats(p).maxMana:Math.min(stats(p).maxMana,nonnegative(p.mana));
-  p.attack=legacy?null:p.attack||null;p.attackSerial=nonnegative(p.attackSerial);
-  Object.assign(p,{vx:0,vz:0,hurt:0,gait:0,moveBlend:0,runBlend:0,running:!!p.running,input:{x:0,z:0,aim:null,seq:0},inputAt:0,ack:0,connected:true,disconnectAt:0});
+  p.mana=migrateStats?stats(p).maxMana:Math.min(stats(p).maxMana,nonnegative(raw.mana));
   return p;
 }
-export function persistentHero(p){
-  const fields=['schemaVersion','id','name','classId','level','xp','gold','kills','items','pendingItems','equipment','allocatedStats','statRevision','x','z','yaw','weapon','hp','mana','potions','potionCooldown','specialCooldown','dead','combatUntil','attack','attackSerial','running','questKills','boss','questClaimed'];
-  return structuredClone(Object.fromEntries(fields.map(k=>[k,p[k]])));
+export function persistentHero(p: Hero): PersistentHero{
+  const fields=['schemaVersion','id','name','classId','level','xp','gold','kills','items','pendingItems','equipment','allocatedStats','statRevision','x','z','yaw','weapon','hp','mana','potions','potionCooldown','specialCooldown','dead','combatUntil','attack','attackSerial','running','questKills','boss','questClaimed'] as const;
+  return structuredClone(Object.fromEntries(fields.map(k=>[k,p[k]]))) as unknown as PersistentHero;
 }
 export class World{
+  random: ()=>number;
+  t: number;
+  age: number;
+  players: Map<string,Hero>;
+  events: WorldEvent[];
+  projectiles: Projectile[];
+  mobs: Mob[];
   constructor({random=Math.random}={}){
     this.random=random;
     this.t=Date.now();this.age=0;this.players=new Map();this.events=[];this.projectiles=[];
     this.mobs=SPAWNS.map((s,id)=>({...s,id,homeX:s.x,homeZ:s.z,hp:MOB_TYPES[s.type].hp,state:'idle',timer:1,yaw:Math.PI,targetYaw:Math.PI,age:0,gait:0,speed:0,flash:0,target:null,contributors:new Map()}));
   }
-  add(p){this.players.set(p.id,p);p.connected=true;p.disconnectAt=0;}
-  emit(type,data={},owner){this.events.push({type,...data,...(owner?{owner}:{})});}
-  remove(id){this.players.delete(id);}
-  notice(p,text){this.emit('notice',{text},p.id);}
-  clampResources(p){const s=stats(p);p.hp=Math.min(p.hp,s.maxHp);p.mana=Math.min(p.mana,s.maxMana);}
-  updateStats(p,msg){
-    const reply=(ok,message)=>this.emit('statResult',{ok,revision:p.statRevision,...(message?{message}:{})},p.id);
+  add(p: Hero){this.players.set(p.id,p);p.connected=true;p.disconnectAt=0;}
+  emit<K extends keyof EventPayloads>(type: K,data: EventPayloads[K],owner?: string){this.events.push({type,...data,...(owner?{owner}:{})} as WorldEvent);}
+  remove(id: string){this.players.delete(id);}
+  notice(p: Hero,text: string){this.emit('notice',{text},p.id);}
+  clampResources(p: Hero){const s=stats(p);p.hp=Math.min(p.hp,s.maxHp);p.mana=Math.min(p.mana,s.maxMana);}
+  updateStats(p: Hero,msg: Record<string,unknown>){
+    const reply=(ok: boolean,message?: string)=>this.emit('statResult',{ok,revision:p.statRevision,...(message?{message}:{})},p.id);
     if(!safe(p)||p.dead||p.attack||p.combatUntil>this.t){reply(false,'Характеристики меняются у костра, вне боя');return;}
     if(!Number.isSafeInteger(msg.revision)||msg.revision!==p.statRevision||p.statRevision>=Number.MAX_SAFE_INTEGER){reply(false,'Характеристики изменились. Проверьте распределение ещё раз');return;}
     if(msg.type==='resetStats'){
@@ -61,18 +92,18 @@ export class World{
       p.allocatedStats=normalizedAllocations(null,p.level);
     }else{
       const points=msg.points;
-      if(!points||Array.isArray(points)||typeof points!=='object'||Object.keys(points).some(key=>!STAT_KEYS.includes(key))){reply(false,'Некорректное распределение характеристик');return;}
+      if(!isRecord(points)||Object.keys(points).some(key=>!STAT_KEYS.some(stat=>stat===key))){reply(false,'Некорректное распределение характеристик');return;}
       let total=0;
       for(const amount of Object.values(points)){
-        if(!Number.isSafeInteger(amount)||amount<0){reply(false,'Укажите целое положительное число очков');return;}
+        if(typeof amount!=='number'||!Number.isSafeInteger(amount)||amount<0){reply(false,'Укажите целое положительное число очков');return;}
         total+=amount;
       }
       if(!Number.isSafeInteger(total)||total<=0||total>stats(p).unspentPoints){reply(false,'Недостаточно свободных очков');return;}
-      for(const key of STAT_KEYS)p.allocatedStats[key]+=points[key]??0;
+      for(const key of STAT_KEYS)p.allocatedStats[key]+=typeof points[key]==='number'?points[key]:0;
     }
     p.statRevision++;this.clampResources(p);reply(true);
   }
-  patrol(m,dt){
+  patrol(m: Mob,dt: number){
     const cfg=MOB_TYPES[m.type],route=m.patrol??={goal:null,pause:.8+m.id*.17,leg:0,speed:0,age:0};
     if(route.pause>0){route.pause=Math.max(0,route.pause-dt);return;}
     const rest=()=>{route.goal=null;route.speed=0;route.pause=1.1+(m.id+route.leg)%4*.3;};
@@ -105,31 +136,31 @@ export class World{
     m.speed=dt>0?moved/dt:0;
     if(step>.001&&moved<step*.25)rest();
   }
-  command(p,msg){
-    if(!msg||typeof msg!=='object')return;
+  command(p: Hero,msg: unknown){
+    if(!isRecord(msg))return;
     if(msg.type==='class'){this.notice(p,'Класс выбирается при создании героя и не меняется');return;}
     if(msg.type==='allocateStats'||msg.type==='resetStats'){this.updateStats(p,msg);return;}
     if(msg.type==='input'){
-      if(![msg.x,msg.z].every(Number.isFinite)||Math.abs(msg.x)>1||Math.abs(msg.z)>1||(!Number.isFinite(msg.aim)&&msg.aim!==null)||!Number.isSafeInteger(msg.seq)||msg.seq<=p.input.seq)return;
+      if(typeof msg.x!=='number'||typeof msg.z!=='number'||!Number.isFinite(msg.x)||!Number.isFinite(msg.z)||Math.abs(msg.x)>1||Math.abs(msg.z)>1||(msg.aim!==null&&(typeof msg.aim!=='number'||!Number.isFinite(msg.aim)))||typeof msg.seq!=='number'||!Number.isSafeInteger(msg.seq)||msg.seq<=p.input.seq)return;
       p.input={x:msg.x,z:msg.z,aim:msg.aim,seq:msg.seq};p.inputAt=this.t;return;
     }
-    if(msg.type==='attack'){if(Number.isFinite(msg.yaw))this.attack(p,msg.yaw,!!msg.special);return;}
+    if(msg.type==='attack'){if(typeof msg.yaw==='number'&&Number.isFinite(msg.yaw))this.attack(p,msg.yaw,!!msg.special);return;}
     if(msg.type==='potion'){this.potion(p);return;}
     if(msg.type==='run'&&typeof msg.running==='boolean'&&!p.dead){p.running=msg.running;return;}
-    if(msg.type==='weapon'&&Object.hasOwn(WEAPONS,msg.weapon)&&!p.attack&&!p.dead){p.weapon=msg.weapon;return;}
+    if(msg.type==='weapon'&&isWeaponId(msg.weapon)&&!p.attack&&!p.dead){p.weapon=msg.weapon;return;}
     if(msg.type==='camp'){
       if(p.dead||p.combatUntil>this.t||this.mobs.some(m=>m.target===p.id&&['chase','windup','recover'].includes(m.state))){this.notice(p,'Сначала оторвитесь от врагов');return;}
       this.camp(p,false);return;
     }
-    if(['equip','sell','claim'].includes(msg.type)){
+    if(typeof msg.type==='string'&&['equip','sell','claim'].includes(msg.type)){
       if(!safe(p)||p.dead||p.attack||p.combatUntil>this.t){this.notice(p,'Снаряжение меняется у костра, вне боя');return;}
-      if(msg.type==='claim'){while(p.pendingItems.length&&p.items.length<BAG_CAPACITY)p.items.push(p.pendingItems.shift());return;}
+      if(msg.type==='claim'){while(p.pendingItems.length&&p.items.length<BAG_CAPACITY)p.items.push(p.pendingItems.shift()!);return;}
       const item=p.items.find(i=>i.id===msg.id);if(!item)return;
       if(msg.type==='equip'&&canEquip(p,item)){p.equipment[item.slot]=item.id;this.clampResources(p);}
       if(msg.type==='sell'&&!item.bound&&!Object.values(p.equipment).includes(item.id)){p.gold+=Math.max(1,Math.round(nonnegative(item.power)*3+5));p.items=p.items.filter(i=>i.id!==item.id);}
     }
   }
-  attack(p,yaw,special=false){
+  attack(p: Hero,yaw: number,special=false){
     if(p.dead||p.attack)return false;
     if(safe(p)){this.emit('safe',{},p.id);return false;}
     if(special&&p.specialCooldown>0)return false;
@@ -141,22 +172,22 @@ export class World{
     if(special){p.specialCooldown=5;p.mana-=stats(p).specialManaCost;}
     return true;
   }
-  potion(p){
+  potion(p: Hero){
     if(p.dead||p.potionCooldown>0||p.potions<=0||p.hp>=stats(p).maxHp)return false;
     const amount=Math.min(45,stats(p).maxHp-p.hp);p.potions--;p.hp+=amount;p.potionCooldown=4;this.emit('heal',{amount,x:p.x,z:p.z},p.id);return true;
   }
-  camp(p,respawn){
+  camp(p: Hero,respawn: boolean){
     Object.assign(p,{x:.5,z:2,yaw:Math.PI*.25,targetYaw:Math.PI*.25,vx:0,vz:0,dead:0,attack:null,moveBlend:0,runBlend:0,gait:0,input:{...p.input,x:0,z:0,aim:null}});
     if(respawn){p.hp=stats(p).maxHp;p.mana=stats(p).maxMana;p.potions=3;}
     this.emit('camp',{},p.id);
   }
-  damagePlayer(p,amount){
+  damagePlayer(p: Hero,amount: number){
     if(p.dead||safe(p))return;
     const damage=Math.max(1,Math.round(amount*(1-stats(p).damageReduction)));
     p.hp=Math.max(0,p.hp-damage);p.hurt=.35;p.combatUntil=this.t+15000;this.emit('hurt',{x:p.x,z:p.z,amount:damage},p.id);
     if(!p.hp){p.dead=2.5;p.attack=null;p.vx=p.vz=p.moveBlend=p.runBlend=0;this.emit('death',{},p.id);}
   }
-  hurtMob(p,m,amount){
+  hurtMob(p: Hero,m: Mob,amount: number){
     if(p.dead||safe(p)||m.state==='dead'||m.state==='return'||!clearPath(p,m))return false;
     const dealt=Math.min(m.hp,Math.max(0,Math.round(amount)));if(!dealt)return false;
     m.hp-=dealt;m.flash=.2;p.combatUntil=this.t+15000;m.contributors.set(p.id,{at:this.t,damage:(m.contributors.get(p.id)?.damage||0)+dealt});
@@ -164,7 +195,7 @@ export class World{
     if(!m.hp)this.kill(m);else if(m.state==='idle'){m.state='chase';m.target=p.id;}
     return true;
   }
-  strikeMob(p,m,amount){
+  strikeMob(p: Hero,m: Mob,amount: number){
     if(p.dead||safe(p)||m.state==='dead'||m.state==='return'||!clearPath(p,m))return false;
     if(this.random()>=stats(p).hitChance){
       p.combatUntil=this.t+15000;
@@ -173,7 +204,7 @@ export class World{
     }
     return this.hurtMob(p,m,amount);
   }
-  kill(m){
+  kill(m: Mob){
     if(m.state==='dead')return;
     m.state='dead';m.timer=m.type==='alpha'?40:24;m.age=0;m.speed=0;
     const cfg=MOB_TYPES[m.type];
@@ -184,7 +215,7 @@ export class World{
       while(p.xp>=stats(p).xpNeeded){p.xp-=stats(p).xpNeeded;p.level++;p.statRevision++;this.emit('level',{level:p.level,points:5},p.id);}
       // Every third personal kill and each boss gives a real persisted item.
       if(p.questKills===1||p.questKills%3===0||m.type==='alpha'){
-        const slots=Object.keys(EQUIPMENT_SLOTS),slot=slots[(p.questKills-1)%slots.length];
+        const slots=Object.keys(EQUIPMENT_SLOTS) as EquipmentSlot[],slot=slots[(p.questKills-1)%slots.length];
         const item=makeLoot(p.classId,Math.min(12,p.level+1),m.type==='alpha'?2:1,slot);
         if(p.items.length<BAG_CAPACITY)p.items.push(item);else p.pendingItems.push(item);
         this.emit('item',{name:item.name,pending:p.items.length>=BAG_CAPACITY},p.id);
@@ -193,7 +224,7 @@ export class World{
     }
     m.contributors.clear();m.target=null;
   }
-  tick(dt,now=this.t+dt*1000){
+  tick(dt: number,now=this.t+dt*1000){
     dt=Math.max(0,Math.min(.1,dt));this.t=now;this.age+=dt;
     for(const p of this.players.values()){
       p.hurt=Math.max(0,p.hurt-dt);p.potionCooldown=Math.max(0,p.potionCooldown-dt);p.specialCooldown=Math.max(0,p.specialCooldown-dt);
@@ -205,7 +236,7 @@ export class World{
         if(!a.hit&&a.age>=a.duration*.49){
           a.hit=true;let damage=s.attack*(p.classId==='warrior'&&a.weapon==='axe'?1.45:1)*(a.special?1.7:1);
           if(p.classId==='warrior'){
-            for(const m of this.mobs)if(inStrike(p,m,a.yaw??p.yaw,a.special?2.7:WEAPONS[a.weapon].range,a.special?Math.PI:.9))this.strikeMob(p,m,damage);
+            for(const m of this.mobs)if(inStrike(p,m,a.yaw??p.yaw,a.special?2.7:WEAPONS[a.weapon??p.weapon].range,a.special?Math.PI:.9))this.strikeMob(p,m,damage);
           }else{
             this.projectiles.push({id:randomUUID(),owner:p.id,x:p.x,z:p.z,yaw:a.yaw??p.yaw,remaining:s.range,speed:p.classId==='archer'?13:9,kind:p.classId,damage,aoe:p.classId==='mage'&&a.special?1.7:0});
           }
@@ -223,7 +254,7 @@ export class World{
     for(const m of this.mobs){
       const cfg=MOB_TYPES[m.type],home={x:m.homeX,z:m.homeZ};m.age+=dt;m.flash=Math.max(0,m.flash-dt);m.speed=0;
       if(m.state==='dead'){m.patrol=null;m.timer-=dt;if(m.timer<=0){Object.assign(m,{x:home.x,z:home.z,hp:cfg.hp,state:'idle',timer:1,age:0,target:null});m.contributors.clear();}continue;}
-      let p=this.players.get(m.target);
+      let p=m.target===null?undefined:this.players.get(m.target);
       if(m.state==='idle'){
         p=[...this.players.values()].filter(p=>!p.dead&&!safe(p)&&distance(p,m)<cfg.aggro&&clearPath(p,m)).sort((a,b)=>distance(a,m)-distance(b,m))[0];
         if(p){m.target=p.id;m.state='chase';m.age=0;}
@@ -263,7 +294,7 @@ export class World{
       if(hit)this.projectiles.splice(i,1);
     }
   }
-  snapshot(forId){
+  snapshot(forId: string): WorldSnapshot{
     const p=this.players.get(forId);
     return {t:this.t,players:[...this.players.values()].map(p=>({id:p.id,name:p.name,classId:p.classId,x:p.x,z:p.z,yaw:p.yaw,weapon:p.weapon,hp:p.hp,maxHp:stats(p).maxHp,level:p.level,dead:p.dead,hurt:p.hurt,attack:p.attack,moveBlend:p.moveBlend,runBlend:p.runBlend,gait:p.gait,vx:p.vx,vz:p.vz,connected:p.connected})),mobs:this.mobs.map(({contributors,patrol,...m})=>m),projectiles:this.projectiles.map(({damage,aoe,...b})=>b),self:p?{...stats(p),...persistentHero(p),attackPower:stats(p).attack,targetYaw:p.targetYaw,vx:p.vx,vz:p.vz,hurt:p.hurt,gait:p.gait,moveBlend:p.moveBlend,runBlend:p.runBlend,ack:p.ack}:null,events:this.events.filter(e=>!e.owner||e.owner===forId)};
   }

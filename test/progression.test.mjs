@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {World,newHero,safeHero,persistentHero,stats,makeLoot,SAVE_VERSION} from '../world.mjs';
-import {STAT_KEYS,CLASS_PROGRESSION,baseAttributes,statBudget,characterStats} from '../public/rules.js';
-import {safe,MOB_TYPES} from '../public/game/location.js';
+import {World,newHero,safeHero,persistentHero,stats,makeLoot,SAVE_VERSION} from '../dist/world.js';
+import {STAT_KEYS,CLASS_PROGRESSION,baseAttributes,statBudget,characterStats} from '../dist/public/rules.js';
+import {safe,MOB_TYPES} from '../dist/public/game/location.js';
 
 const fixture=(classId='warrior',random=()=>0)=>{
   const w=new World({random}),p=newHero('Развитие',classId);w.add(p);return {w,p};

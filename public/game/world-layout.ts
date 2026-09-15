@@ -13,6 +13,7 @@ export const WORLD_CLEARINGS:readonly Readonly<WorldClearing>[]=Object.freeze([
   {id:'camp',name:'Лагерь',x:-1,z:0,radius:7,tint:'#b9a485'},
   {id:'west',name:'Западный луг',x:-25,z:5,radius:9,tint:'#96a578'},
   {id:'north',name:'Каменный круг',x:-14,z:-27,radius:10,tint:'#9da8a3'},
+  {id:'bear',name:'Медвежья чаща',x:-27,z:-32,radius:6.5,tint:'#927e68'},
   {id:'south',name:'Старый дуб',x:-12,z:25,radius:11,tint:'#aaa078'},
   {id:'crossroads',name:'Большая поляна',x:23,z:24,radius:11,tint:'#acaa81'},
   {id:'east',name:'Лесоповал',x:49,z:23,radius:10,tint:'#baa17b'},
@@ -31,6 +32,7 @@ export const WORLD_ROADS:readonly Readonly<WorldRoad>[]=Object.freeze([
   road('ridge-approach',5,[[35,1],[38,-11],[48,-25]]),
   road('wolf-approach',3.8,[[11.4,1.26],[12.7,-4.8],[12.7,-8.2]]),
   road('boar-approach',3.8,[[21,.23],[22.2,5.7],[23,9.3],[26,14],[23,24]]),
+  road('bear-approach',4.8,[[-27,-12],[-30,-22],[-27,-32]]),
 ]);
 export interface WorldLandmark extends Position {readonly id:string;readonly name:string;readonly kind:'standing-stones'|'fallen-oak'|'arches'|'logging'}
 export const WORLD_LANDMARKS:readonly Readonly<WorldLandmark>[]=Object.freeze([
@@ -45,6 +47,22 @@ export const ROAMING_SPAWNS:readonly Readonly<Position & {type:MobType}>[]=Objec
   {type:'boar',x:20,z:25},{type:'boar',x:27,z:23},
   {type:'wolf',x:45,z:-25},{type:'wolf',x:51,z:-22},
   {type:'wolf',x:61,z:-12},{type:'boar',x:58,z:5},
+].map(p=>Object.freeze(p)) as (Position & {type:MobType})[]);
+/** New forest population follows the original 59 stable mob ids. These 24
+ * separate homes fill reachable quiet quadrants, never the camp or AFK rings. */
+export const EXTRA_ROAMING_SPAWNS:readonly Readonly<Position & {type:MobType}>[]=Object.freeze([
+  {type:'wolf',x:-32,z:14},{type:'boar',x:-30,z:27},
+  {type:'wolf',x:-18,z:37},{type:'boar',x:-7,z:36},
+  {type:'wolf',x:-34,z:-19},{type:'bear',x:-34,z:-39},
+  {type:'boar',x:-16,z:-39},{type:'wolf',x:-3,z:-36},
+  {type:'boar',x:2,z:-20},{type:'wolf',x:8,z:-19},
+  {type:'wolf',x:12,z:38},{type:'boar',x:21,z:35},
+  {type:'wolf',x:36,z:34},{type:'boar',x:53,z:37},
+  {type:'wolf',x:67,z:30},{type:'bear',x:66,z:13},
+  {type:'boar',x:67,z:-1},{type:'wolf',x:67,z:-24},
+  {type:'bear',x:55,z:-36},{type:'boar',x:40,z:-36},
+  {type:'wolf',x:31,z:-27},{type:'boar',x:35,z:-16},
+  {type:'bear',x:42,z:12},{type:'wolf',x:42,z:-7},
 ].map(p=>Object.freeze(p)) as (Position & {type:MobType})[]);
 export function segmentDistance(x:number,z:number,a:Position,b:Position){
   const dx=b.x-a.x,dz=b.z-a.z,length=dx*dx+dz*dz;

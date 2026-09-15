@@ -4,7 +4,7 @@ import {STADIUM_PENS} from './stadium.js';
 import type {StadiumPenId} from './stadium.js';
 import type {MobType} from '../../shared/types.js';
 
-export type AfkSpotId=StadiumPenId|'wolf-den'|'boar-clearing'|'northern-stones'|'eastern-logging';
+export type AfkSpotId=StadiumPenId|'wolf-den'|'boar-clearing'|'northern-stones'|'eastern-logging'|'bear-grove';
 export interface AfkSpot extends Position {
   readonly id:AfkSpotId;
   readonly name:string;
@@ -19,7 +19,11 @@ export const AFK_SPOTS:readonly Readonly<AfkSpot>[]=Object.freeze([
   Object.freeze({id:'boar-clearing',name:'Кабанья поляна',x:23,z:9.3,radius:3.5,spawnIds:Object.freeze([13,14,15,16,17,18])}),
   Object.freeze({id:'northern-stones',name:'Северная стая',x:-14,z:-27,radius:4.6,spawnIds:Object.freeze([19,20,21,22,23,24])}),
   Object.freeze({id:'eastern-logging',name:'Дальний лесоповал',x:49,z:23,radius:4.6,spawnIds:Object.freeze([25,26,27,28,29,30])}),
+  Object.freeze({id:'bear-grove',name:'Медвежья чаща',x:-27,z:-32,radius:4.6,spawnIds:Object.freeze([83,84,85,86,87,88])}),
   ...STADIUM_PENS,
+]);
+export const BEAR_AFK_SPAWNS:readonly Readonly<Position & {type:'bear';spotId:'bear-grove'}>[]=Object.freeze([
+  ...[[-29.9,-33.4],[-27,-35.1],[-24.1,-33.4],[-29.9,-30.6],[-27,-28.9],[-24.1,-30.6]].map(([x,z])=>Object.freeze({type:'bear' as const,spotId:'bear-grove' as const,x,z})),
 ]);
 export const AFK_SPAWNS:readonly Readonly<Position & {type:MobType;spotId:AfkSpotId}>[]=Object.freeze([
   ...[[11,-7],[14.4,-6.8],[15,-8.6],[13.5,-10.4],[11.6,-10.2],[10.3,-8.7]].map(([x,z])=>Object.freeze({type:'wolf' as const,spotId:'wolf-den' as const,x,z})),

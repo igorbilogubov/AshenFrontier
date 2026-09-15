@@ -1,9 +1,9 @@
 import {canOccupy,turnTowards,gaitProfile} from './motion.js';
 import type {Position} from './motion.js';
 import {nearbyObstacles} from './terrain.js';
-import {AFK_SPAWNS} from './afk.js';
+import {AFK_SPAWNS,BEAR_AFK_SPAWNS} from './afk.js';
 import {STADIUM_SPAWNS,stadiumSafe} from './stadium.js';
-import {WORLD_BOUNDS,ROAMING_SPAWNS,boundsForPosition} from './world-layout.js';
+import {WORLD_BOUNDS,ROAMING_SPAWNS,EXTRA_ROAMING_SPAWNS,boundsForPosition} from './world-layout.js';
 import type {AfkSpotId} from './afk.js';
 export {AFK_SPOTS,afkSpotAt,withinSpot} from './afk.js';
 export type {AfkSpot,AfkSpotId} from './afk.js';
@@ -21,6 +21,7 @@ export const WEAPONS=Object.freeze({sword:{name:'Стальной меч',durati
 export const MOB_TYPES=Object.freeze({
   wolf:{name:'Пепельный волк',hp:60,damage:8,speed:1.82,range:1.35,windup:.70,cooldown:1.10,aggro:4.7,coins:8,xp:12,radius:.38,scale:1},
   boar:{name:'Лесной кабан',hp:90,damage:12,speed:1.55,range:1.55,windup:.95,cooldown:1.35,aggro:4.4,coins:12,xp:18,radius:.46,scale:1.1},
+  bear:{name:'Пепельный медведь',hp:145,damage:15,speed:1.38,range:1.6,windup:1.08,cooldown:1.5,aggro:4.8,coins:21,xp:32,radius:.62,scale:1.15},
   alpha:{name:'Седой вожак',hp:190,damage:17,speed:2.02,range:1.75,windup:1.05,cooldown:1.3,aggro:5.1,coins:35,xp:55,radius:.52,scale:1.4},
 });
 export const SPAWNS:readonly Readonly<Position & {type:MobType;spotId?:AfkSpotId}>[]=Object.freeze([
@@ -29,7 +30,10 @@ export const SPAWNS:readonly Readonly<Position & {type:MobType;spotId?:AfkSpotId
   {type:'alpha',x:25,z:-1.2},
   ...AFK_SPAWNS,
   ...ROAMING_SPAWNS,
-  ...STADIUM_SPAWNS,
+  ...STADIUM_SPAWNS.slice(0,18),
+  ...EXTRA_ROAMING_SPAWNS,
+  ...BEAR_AFK_SPAWNS,
+  ...STADIUM_SPAWNS.slice(18),
 ]);
 export const safe=(p:Position)=>Math.hypot(p.x-CAMP.x,p.z-CAMP.z)<CAMP.r||stadiumSafe(p);
 

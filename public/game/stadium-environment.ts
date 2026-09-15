@@ -16,8 +16,9 @@ export function createStadiumEnvironment(scene:T.Scene){
   const floor=surfaceMaterial('#5d6964',{grain:.08,frequency:38});
   const arena=new T.Group();arena.name='stadium-environment';scene.add(arena);
   const {minX,maxX,minZ,maxZ}=STADIUM_BOUNDS;
-  const foundation=box(arena,maxX-minX+1,.7,maxZ-minZ+1,stone[2],160,-.37,2);foundation.castShadow=false;
-  const ground=box(arena,maxX-minX,.055,maxZ-minZ,floor,160,-.033,2);ground.castShadow=false;
+  const arenaCenter=(minX+maxX)/2,arenaWidth=maxX-minX;
+  const foundation=box(arena,arenaWidth+1,.7,maxZ-minZ+1,stone[2],arenaCenter,-.37,2);foundation.castShadow=false;
+  const ground=box(arena,arenaWidth,.055,maxZ-minZ,floor,arenaCenter,-.033,2);ground.castShadow=false;
   const pens=new T.Group();pens.name='stadium-pens';arena.add(pens);
   for(const pen of STADIUM_PENS){
     const dirt=surfaceMaterial(pen.tint,{grain:.12,frequency:42});
@@ -67,24 +68,24 @@ export function createStadiumEnvironment(scene:T.Scene){
     box(arena,.82,.13,maxZ-minZ,pale,x,1.865,2);
   }
   for(const z of [minZ+.35,maxZ-.35]){
-    box(arena,maxX-minX,1.8,.7,stone[0],160,.9,z);
-    box(arena,maxX-minX,.13,.82,pale,160,1.865,z);
+    box(arena,arenaWidth,1.8,.7,stone[0],arenaCenter,.9,z);
+    box(arena,arenaWidth,.13,.82,pale,arenaCenter,1.865,z);
   }
   for(let step=0;step<4;step++){
-    box(arena,55+step*2,.55+step*.55,1.2,stone[step%3],160,(.55+step*.55)/2,-20.1-step*1.05);
-    for(const side of [-1,1])box(arena,1.2,.55+step*.55,46+step*2,stone[step%3],160+side*(28.1+step*1.05),(.55+step*.55)/2,2);
+    box(arena,arenaWidth+1+step*2,.55+step*.55,1.2,stone[step%3],arenaCenter,(.55+step*.55)/2,-20.1-step*1.05);
+    for(const side of [-1,1])box(arena,1.2,.55+step*.55,46+step*2,stone[step%3],arenaCenter+side*(arenaWidth/2+.9+step*1.05),(.55+step*.55)/2,2);
   }
-  for(let x=135;x<=185;x+=5){
+  for(let x=135;x<=203;x+=5){
     box(arena,.85,2.9,.9,stone[2],x,1.45,-18.5);box(arena,1.13,.18,1.16,pale,x,2.99,-18.5);
   }
-  // Continuous broad promenade feeds all three gates; paving never blocks actors.
-  for(let x=136;x<=184;x+=2)for(const z of [4.1,6.1]){
+  // Continuous broad promenade feeds all four gates; paving never blocks actors.
+  for(let x=136;x<=202;x+=2)for(const z of [4.1,6.1]){
     const slab=box(arena,1.92,.032,1.86,(Math.round(x)+Math.round(z))%3?stone[1]:stone[0],x,.002,z);slab.castShadow=false;
   }
   for(const pen of STADIUM_PENS)for(let z=0;z<=4;z+=1.5){const slab=box(arena,4.35,.034,1.43,stone[1],pen.x,.005,z);slab.castShadow=false;}
   for(let z=7.9;z<=20;z+=1.8)for(const side of [-1,1]){const slab=box(arena,1.75,.034,1.73,stone[1],160+side*.91,.005,z);slab.castShadow=false;}
   const hub=mesh(arena,new T.RingGeometry(STADIUM_HUB.r-.12,STADIUM_HUB.r,96),bronze,160,.025,15);hub.rotation.x=-Math.PI/2;hub.castShadow=false;
-  const title=makeLabel('СТАДИУМ','Три загона · безопасная площадь',9.2,1.35);title.position.set(160,3.9,-18);arena.add(title);
+  const title=makeLabel('СТАДИУМ','Четыре загона · безопасная площадь',11.2,1.35);title.position.set(arenaCenter,3.9,-18);arena.add(title);
   const portalGroups:{portal:Readonly<Portal>;object:T.Group}[]=[],glows:T.Mesh<T.CircleGeometry,T.MeshBasicMaterial>[]=[];
   for(const portal of PORTALS){
     const group=joint(scene,portal.x,0,portal.z);group.name=`portal-${portal.id}`;group.rotation.y=.55;

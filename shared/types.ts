@@ -27,15 +27,16 @@ export interface PersistentHero extends Point {
   specialCooldown: number; skillCooldowns?: SkillCooldowns; dead: number; combatUntil: number; attack: HeroAttack | null; attackSerial: number;
   running: boolean; questKills: number; boss: boolean; questClaimed: boolean;
 }
+export interface AfkState { spotId: string; targetId: number | null }
 export interface Hero extends PersistentHero {
   targetYaw: number; vx: number; vz: number; hurt: number; gait: number; moveBlend: number; runBlend: number;
-  input: HeroInput; inputAt: number; ack: number; connected: boolean; disconnectAt: number; speedScale?: number;
+  input: HeroInput; inputAt: number; ack: number; connected: boolean; disconnectAt: number; speedScale?: number; afk: AfkState | null;
 }
 export type MobType = 'wolf' | 'boar' | 'alpha';
 export type MobState = 'idle' | 'chase' | 'windup' | 'recover' | 'return' | 'dead';
 export interface PublicMob extends Point {
   type: MobType; id: number; homeX: number; homeZ: number; hp: number; state: MobState; timer: number;
-  yaw: number; targetYaw: number; age: number; gait: number; speed: number; flash: number; target: string | null; slow?: number;
+  yaw: number; targetYaw: number; age: number; gait: number; speed: number; flash: number; target: string | null; slow?: number; spotId?: string;
 }
 export interface Mob extends PublicMob {
   contributors: Map<string, { at: number; damage: number }>;
@@ -45,7 +46,7 @@ export interface Mob extends PublicMob {
 export interface PublicProjectile extends Point { id: string; owner: string; yaw: number; remaining: number; speed: number; kind: 'archer' | 'mage'; skillId?: SkillId; attackId?: number }
 export interface Projectile extends PublicProjectile { damage: number; aoe: number; maxTargets?: number; hitIds?: number[]; pierce?: boolean; damageScaleOnPierce?: number }
 export type PublicPlayer = Pick<Hero, 'id' | 'name' | 'classId' | 'x' | 'z' | 'yaw' | 'weapon' | 'hp' | 'level' | 'dead' | 'hurt' | 'attack' | 'moveBlend' | 'runBlend' | 'gait' | 'vx' | 'vz' | 'connected'> & { maxHp: number; appearance?:ItemAppearance };
-export type SelfSnapshot = PersistentHero & {appearance?:ItemAppearance} & Omit<CharacterStats, 'attack'> & Pick<Hero, 'targetYaw' | 'vx' | 'vz' | 'hurt' | 'gait' | 'moveBlend' | 'runBlend' | 'ack'>;
+export type SelfSnapshot = PersistentHero & {appearance?:ItemAppearance;afk?:AfkState|null} & Omit<CharacterStats, 'attack'> & Pick<Hero, 'targetYaw' | 'vx' | 'vz' | 'hurt' | 'gait' | 'moveBlend' | 'runBlend' | 'ack'>;
 export interface EventPayloads {
   notice: { text: string }; statResult: { ok: boolean; revision: number; message?: string };
   safe: Record<never, never>; camp: Record<never, never>; death: Record<never, never>; quest: Record<never, never>;
@@ -59,7 +60,7 @@ export type GameEvent = WorldEvent;
 export interface WorldSnapshot { t: number; players: PublicPlayer[]; mobs: PublicMob[]; projectiles: PublicProjectile[]; self: SelfSnapshot | null; events: WorldEvent[] }
 export interface ChatEntry { name: string; text: string; t: number }
 export type ClientCommand =
-  | ({ type: 'input' } & HeroInput) | { type: 'attack'; yaw: number; special?: boolean } | { type: 'skill'; skillId: SkillId; yaw: number }
+  | ({ type: 'input' } & HeroInput) | { type: 'attack'; yaw: number; special?: boolean } | { type: 'skill'; skillId: SkillId; yaw: number } | { type: 'afk'; enabled: boolean }
   | { type: 'potion' | 'camp' | 'claim' } | { type: 'run'; running: boolean } | { type: 'weapon'; weapon: WeaponId }
   | { type: 'equip' | 'unequip' | 'sell'; id: string } | { type: 'allocateStats'; revision: number; points: Partial<Attributes> }
   | { type: 'resetStats'; revision: number };

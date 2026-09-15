@@ -1,4 +1,4 @@
-import {WARRIOR_ITEMS,rollEquipment,validateEquipment,equipmentAppearance} from './public/game/equipment-items.js';
+import {CLASS_ITEMS,rollEquipment,validateEquipment,equipmentAppearance} from './public/game/equipment-items.js';
 import type {ClassId, EquipmentSlot, Item, Hero, PersistentHero, HeroAttack, Mob, Projectile, WorldEvent, EventPayloads, WorldSnapshot, SkillId, SkillCooldowns} from './shared/types.js';
 import {isRecord, isClassId, isEquipmentSlot, isWeaponId} from './shared/types.js';
 import {randomUUID} from 'node:crypto';
@@ -267,9 +267,9 @@ export class World{
       // Every third personal kill and each boss gives a real persisted item.
       const dropCount=automatic?p.kills:p.questKills;
       if((automatic?dropCount%3===0:dropCount===1||dropCount%3===0)||m.type==='alpha'){
-        const slots=Object.keys(EQUIPMENT_SLOTS) as EquipmentSlot[],slot=slots[p.classId==='warrior'?Math.floor(dropCount/3)%slots.length:(dropCount-1)%slots.length];
-        const choices=WARRIOR_ITEMS.filter(definition=>definition.slot===slot);
-        const item=p.classId==='warrior'?rollEquipment(choices[Math.floor(this.random()*choices.length)].id,randomUUID(),this.random):makeLoot(p.classId,Math.min(12,p.level+1),m.type==='alpha'?2:1,slot);
+        const slots=Object.keys(EQUIPMENT_SLOTS) as EquipmentSlot[],slot=slots[Math.floor(dropCount/3)%slots.length];
+        const choices=CLASS_ITEMS[p.classId].filter(definition=>definition.slot===slot);
+        const item=rollEquipment(choices[Math.floor(this.random()*choices.length)].id,randomUUID(),this.random);
         const pending=backpackItems(p).length>=BAG_CAPACITY;
         if(pending)p.pendingItems.push(item);else p.items.push(item);
         this.emit('item',{name:item.name,pending},p.id);
@@ -447,6 +447,6 @@ export class World{
   }
   snapshot(forId: string): WorldSnapshot{
     const p=this.players.get(forId);
-    return {t:this.t,players:[...this.players.values()].map(p=>({id:p.id,name:p.name,classId:p.classId,x:p.x,z:p.z,yaw:p.yaw,weapon:p.weapon,hp:p.hp,maxHp:stats(p).maxHp,level:p.level,dead:p.dead,hurt:p.hurt,attack:p.attack,moveBlend:p.moveBlend,runBlend:p.runBlend,gait:p.gait,vx:p.vx,vz:p.vz,connected:p.connected,...(p.classId==='warrior'?{appearance:equipmentAppearance(p)}:{})})),mobs:this.mobs.map(({contributors,patrol,slowUntil,slow,...m})=>({...m,slow:Math.max(0,((slowUntil??0)-this.t)/1000)})),projectiles:this.projectiles.map(({damage,aoe,maxTargets,hitIds,pierce,damageScaleOnPierce,automatic,...b})=>b),self:p?{...stats(p),...persistentHero(p),appearance:equipmentAppearance(p),attackPower:stats(p).attack,targetYaw:p.targetYaw,vx:p.vx,vz:p.vz,hurt:p.hurt,gait:p.gait,moveBlend:p.moveBlend,runBlend:p.runBlend,ack:p.ack,afk:p.afk}:null,events:this.events.filter(e=>!e.owner||e.owner===forId)};
+    return {t:this.t,players:[...this.players.values()].map(p=>({id:p.id,name:p.name,classId:p.classId,x:p.x,z:p.z,yaw:p.yaw,weapon:p.weapon,hp:p.hp,maxHp:stats(p).maxHp,level:p.level,dead:p.dead,hurt:p.hurt,attack:p.attack,moveBlend:p.moveBlend,runBlend:p.runBlend,gait:p.gait,vx:p.vx,vz:p.vz,connected:p.connected,appearance:equipmentAppearance(p)})),mobs:this.mobs.map(({contributors,patrol,slowUntil,slow,...m})=>({...m,slow:Math.max(0,((slowUntil??0)-this.t)/1000)})),projectiles:this.projectiles.map(({damage,aoe,maxTargets,hitIds,pierce,damageScaleOnPierce,automatic,...b})=>b),self:p?{...stats(p),...persistentHero(p),appearance:equipmentAppearance(p),attackPower:stats(p).attack,targetYaw:p.targetYaw,vx:p.vx,vz:p.vz,hurt:p.hurt,gait:p.gait,moveBlend:p.moveBlend,runBlend:p.runBlend,ack:p.ack,afk:p.afk}:null,events:this.events.filter(e=>!e.owner||e.owner===forId)};
   }
 }

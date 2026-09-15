@@ -8,7 +8,7 @@ import pg from 'pg';
 import {World,newHero,makeLoot,persistentHero,stats} from '../dist/world.js';
 import {rollEquipment} from '../dist/public/game/equipment-items.js';
 import {AFK_SPOTS} from '../dist/public/game/location.js';
-import {defaultAfkPreferences,parseAfkPreferences,afkTravelRadius} from '../dist/public/game/afk-preferences.js';
+import {defaultAfkPreferences,parseAfkPreferences,afkCombatRadius} from '../dist/public/game/afk-preferences.js';
 import {createTestDatabase,hasTestDatabase} from './helpers/postgres.mjs';
 import {openHeroStore} from '../dist/storage/postgres.js';
 import {startTestServer,stopTestServer,until} from './helpers/network.mjs';
@@ -74,19 +74,30 @@ test('selected skills rotate after success; missing mana and disabled fallback y
   assert(w.autoAttack(p));assert.equal(p.attack.skillId,undefined);
 });
 
-test('configured radius clips travel while combat remains inside the spot',()=>{
-  const {w,p,spot}=fixture(),radius=spot.radius*.25;
+test('configured radius changes engagement reach immediately while the activation anchor stays fixed',()=>{
+  const {w,p,spot}=fixture(),target=w.mobs.find(m=>m.id===spot.spawnIds[0]),anchor={x:p.x,z:p.z};
+  w.mobs=[target];Object.assign(target,{x:p.x+1.8,z:p.z,hp:10000,state:'recover',timer:100,target:p.id});
   w.command(p,{type:'afkPreferences',preferences:{...p.afkPreferences,radiusPercent:25}});
-  assert.equal(afkTravelRadius(spot,p.afkPreferences),radius);
-  const target=w.mobs.find(m=>m.id===spot.spawnIds[0]);
-  w.mobs=[target];Object.assign(target,{hp:10000,state:'recover',timer:100,target:p.id});
-  Object.assign(p,{x:spot.x+radius+.5,z:spot.z});
-  const outside=Math.hypot(p.x-spot.x,p.z-spot.z);
-  for(let i=0;i<40&&Math.hypot(p.x-spot.x,p.z-spot.z)>radius;i++){step(w);assert(p.afk);}
-  assert(Math.hypot(p.x-spot.x,p.z-spot.z)<outside);
-  for(let i=0;i<150;i++){
-    step(w);assert(p.afk);assert(Math.hypot(p.x-spot.x,p.z-spot.z)<=radius+.001);
-  }
+  assert.equal(afkCombatRadius(p.afkPreferences,stats(p).range),2.5*.25);
+  assert.equal(w.snapshot(p.id).self.afkRadius,2.5*.25);
+  step(w,40);assert.equal(p.attack,null);assert.equal(target.hp,10000);assert.equal(p.afk.targetId,null);
+  assert.deepEqual({x:p.x,z:p.z},anchor);
+  w.command(p,{type:'afkPreferences',preferences:{...p.afkPreferences,radiusPercent:100}});
+  step(w,40);assert(target.hp<10000);assert.deepEqual({x:p.x,z:p.z},anchor);
+  p.attack=null;p.mana=0;assert.equal(w.snapshot(p.id).self.afkRadius,2.5);
+  w.command(p,{type:'afkPreferences',preferences:{...p.afkPreferences,skillOrder:[],basicAttackFallback:false}});
+  assert.equal(w.snapshot(p.id).self.afkRadius,0);step(w,20);assert(p.afk);assert.equal(p.attack,null);
+});
+
+test('AFK uses each action range and target body allowance without casting an unavailable skill',()=>{
+  const {w,p,spot}=fixture('mage'),target=w.mobs.find(m=>m.id===spot.spawnIds[0]);w.mobs=[target];
+  p.afkPreferences={...p.afkPreferences,skillOrder:['mage-frost','mage-fireball'],basicAttackFallback:false};
+  Object.assign(target,{x:p.x+5.95,z:p.z,hp:10000,state:'recover',timer:100,target:p.id});
+  assert(w.autoAttack(p));assert.equal(p.attack.skillId,'mage-fireball');
+  p.attack=null;p.mana=0;assert.equal(w.autoAttack(p),false);
+  p.mana=100;Object.assign(target,{x:p.x+6.3});assert.equal(w.autoAttack(p),false);
+  Object.assign(target,{x:p.x+1.8});p.afkPreferences.skillOrder=['mage-meteor','mage-fireball'];p.skillCooldowns['mage-meteor']=8;
+  assert(w.autoAttack(p));assert.equal(p.attack.skillId,'mage-fireball');
 });
 
 test('schema 3 migration keeps a schema 2 hero, stash, potions and class-specific default preferences',

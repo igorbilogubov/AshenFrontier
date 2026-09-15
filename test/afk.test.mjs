@@ -1,8 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {World,newHero,safeHero,persistentHero,makeLoot,stats} from '../dist/world.js';
-import {AFK_SPOTS,MOB_TYPES,withinSpot,clearPath,stand} from '../dist/public/game/location.js';
+import {AFK_SPOTS,MOB_TYPES,withinSpot,afkSpotAt,clearPath,stand,safe,distance} from '../dist/public/game/location.js';
 import {CLASS_ITEMS,rollEquipment} from '../dist/public/game/equipment-items.js';
+import {skillsForClass} from '../dist/public/game/skills.js';
+import {PICKUP_RANGE} from '../dist/public/game/loot-rules.js';
+import {STADIUM_PENS,STADIUM_HUB} from '../dist/public/game/stadium.js';
 
 const step=(w,n=1)=>{for(let i=0;i<n;i++)w.tick(.05,w.t+50);};
 function fixture(classId='warrior',spot=AFK_SPOTS[0]){
@@ -12,15 +15,21 @@ function fixture(classId='warrior',spot=AFK_SPOTS[0]){
 }
 const toggle=(w,p,enabled)=>w.command(p,{type:'afk',enabled});
 
-test('AFK starts only inside a named spot for a connected living hero; off is idempotent anywhere',()=>{
-  const {w,p,spot}=fixture();
-  Object.assign(p,{x:.5,z:2});toggle(w,p,true);assert.equal(p.afk,null);
-  Object.assign(p,{x:spot.x+spot.radius-.2,z:spot.z});toggle(w,p,true);assert.equal(p.afk,null);
+test('AFK starts at any valid position including town and spot edges; only connected living heroes enable it',()=>{
+  const {w,p,spot}=fixture();w.mobs=[];
+  for(const point of [{x:.5,z:4},{x:7.6,z:1.8},{x:spot.x+spot.radius-.2,z:spot.z},STADIUM_HUB]){
+    Object.assign(p,point);assert(stand(p.x,p.z));toggle(w,p,true);
+    assert.deepEqual(p.afk.anchor,{x:point.x,z:point.z});assert.equal(p.afk.targetId,null);
+    step(w,40);assert.deepEqual({x:p.x,z:p.z},p.afk.anchor);assert(p.afk);
+    toggle(w,p,false);toggle(w,p,false);assert.equal(p.afk,null);
+  }
+  for(const point of [{x:NaN,z:0},{x:100,z:100},{x:.5,z:2}]){
+    Object.assign(p,point);toggle(w,p,true);assert.equal(p.afk,null);
+  }
   Object.assign(p,{x:spot.x,z:spot.z,dead:2});toggle(w,p,true);assert.equal(p.afk,null);
   p.dead=0;p.connected=false;toggle(w,p,true);assert.equal(p.afk,null);
-  p.connected=true;toggle(w,p,true);assert.deepEqual(p.afk,{spotId:spot.id,targetId:null,skillCursor:0});
-  Object.assign(p,{x:100,z:100});toggle(w,p,false);assert.equal(p.afk,null);toggle(w,p,false);assert.equal(p.afk,null);
-  assert(w.events.some(e=>e.type==='notice'&&e.text.includes('спот')));
+  p.connected=true;toggle(w,p,true);assert.deepEqual(p.afk,{anchor:{x:p.x,z:p.z},spotId:spot.id,targetId:null,skillCursor:0});
+  Object.assign(p,{x:100,z:100});toggle(w,p,false);assert.equal(p.afk,null);
 });
 
 test('neutral 20 Hz input cannot cancel server control; manual move, attack, skill and camp can',()=>{
@@ -33,16 +42,17 @@ test('neutral 20 Hz input cannot cancel server control; manual move, attack, ski
   p.attack=null;toggle(w,p,true);w.command(p,{type:'camp'});assert.equal(p.afk,null);
 });
 
-test('AFK motion follows only legal spot members and cannot cross the body-safe boundary',()=>{
+test('stationary AFK waits for distant mobs and attacks nearby roaming or returning mobs without spot ownership',()=>{
   const {w,p,spot}=fixture();
   const member=w.mobs.find(m=>m.id===spot.spawnIds[0]);
   w.mobs=[member];Object.assign(member,{x:spot.x+spot.radius-.5,z:spot.z,homeX:spot.x+spot.radius-.5,homeZ:spot.z,state:'recover',timer:100,target:p.id,hp:10000});
   assert(stand(member.x,member.z));assert(clearPath(p,member));
   const start={x:p.x,z:p.z};toggle(w,p,true);
-  for(let i=0;i<220;i++){step(w);assert(withinSpot(p,spot,-.46),`crossed boundary at tick ${i}`);}
-  assert(Math.hypot(p.x-start.x,p.z-start.z)>.2);
-  const foreign={...member,id:0,spotId:undefined,x:p.x+1,z:p.z,homeX:p.x+1,homeZ:p.z,hp:60};
-  w.mobs=[foreign];p.attack=null;step(w,4);assert.equal(p.afk.targetId,null);
+  for(let i=0;i<220;i++){step(w);assert.deepEqual({x:p.x,z:p.z},start);assert.equal(p.afk.targetId,null);assert.equal(p.attack,null);}
+  const roaming={...member,id:0,spotId:undefined,x:p.x+1,z:p.z,homeX:p.x+1,homeZ:p.z,hp:10000};
+  w.mobs=[roaming];step(w,30);assert.equal(p.afk.targetId,roaming.id);assert(roaming.hp<10000);
+  p.attack=null;roaming.state='return';assert.deepEqual(w.afkTargets(p),[roaming]);assert(w.autoAttack(p));
+  assert.deepEqual({x:p.x,z:p.z},start);
 });
 
 test('real potion threshold and finite supply govern automatic survival; death and disconnect end it',()=>{
@@ -134,13 +144,14 @@ test('online AFK uses an authored skill, then falls back to free basic attacks a
   assert(withinSpot(p,spot,-.46));
 });
 
-test('AFK stays active through empty target waves and several respawns',()=>{
+test('AFK stays anchored through three empty waves and respawns',()=>{
   const {w,p,spot}=fixture();w.mobs=w.mobs.filter(m=>spot.spawnIds.includes(m.id));
-  toggle(w,p,true);assert(p.afk);
-  for(const m of w.mobs)w.kill(m);
-  let sawRespawn=false;
-  for(let i=0;i<500;i++){step(w);assert(p.afk);assert(withinSpot(p,spot,-.46));if(i>320&&w.mobs.some(m=>m.state!=='dead'))sawRespawn=true;}
-  assert(sawRespawn,'a later wave should have appeared');
+  toggle(w,p,true);const anchor={x:p.x,z:p.z};
+  for(let wave=0;wave<3;wave++){
+    for(const m of w.mobs)w.kill(m);
+    for(let i=0;i<322;i++){step(w);assert(p.afk);assert.deepEqual({x:p.x,z:p.z},anchor);}
+    assert(w.mobs.some(m=>m.state!=='dead'),`wave ${wave+1} should respawn`);
+  }
 });
 
 test('AFK collects owned gold and rolled item, ignores foreign/outside loot and keeps rolls exact',()=>{
@@ -159,9 +170,57 @@ test('AFK collects owned gold and rolled item, ignores foreign/outside loot and 
   assert.deepEqual(safeHero(persistentHero(p)).items.find(found=>found.id===item.id),item);
 });
 
-test('AFK collects a drop near the spot edge without moving its body outside',()=>{
-  const {w,p,spot}=fixture();w.mobs=[];toggle(w,p,true);
-  w.addGroundDrop(p.id,{id:'edge-gold',kind:'gold',x:spot.x+spot.radius-.1,z:spot.z,amount:7,expiresAt:w.t+10000});
-  for(let i=0;i<180&&p.gold<7;i++){step(w);assert(p.afk);assert(withinSpot(p,spot,-.46));}
-  assert.equal(p.gold,7);assert.deepEqual(w.snapshot(p.id).groundLoot,[]);
+test('AFK collects only drops within normal pickup reach and never approaches distant loot',()=>{
+  const {w,p,spot}=fixture();w.mobs=[];toggle(w,p,true);const anchor={x:p.x,z:p.z};
+  w.addGroundDrop(p.id,{id:'near-gold',kind:'gold',x:p.x+PICKUP_RANGE-.01,z:p.z,amount:7,expiresAt:w.t+10000});
+  w.addGroundDrop(p.id,{id:'far-gold',kind:'gold',x:p.x+PICKUP_RANGE+.01,z:p.z,amount:13,expiresAt:w.t+10000});
+  for(let i=0;i<100;i++){step(w);assert(p.afk);assert.deepEqual({x:p.x,z:p.z},anchor);}
+  assert.equal(p.gold,7);assert.deepEqual(w.snapshot(p.id).groundLoot.map(drop=>drop.id),['far-gold']);
+});
+
+test('AFK leaves town safe and quiet, refuses targets behind walls and never mixes locations',()=>{
+  const {w,p}=fixture('mage');Object.assign(p,{x:.5,z:4});
+  const target=w.mobs[0];w.mobs=[target];Object.assign(target,{x:7,z:4,hp:10000,state:'recover',timer:100,target:p.id});
+  assert(safe(p));toggle(w,p,true);step(w,60);assert(p.afk);assert.equal(target.hp,10000);assert.equal(p.attackSerial,0);
+  assert(!w.events.some(event=>event.type==='safe'||event.type==='notice'));
+  toggle(w,p,false);const pen=STADIUM_PENS[0];Object.assign(p,{x:pen.x+8,z:-6});
+  Object.assign(target,{x:pen.x+6,z:-6,state:'recover',timer:100,target:p.id});assert(stand(p.x,p.z));assert(!clearPath(p,target));
+  toggle(w,p,true);assert.equal(w.afkTargets(p).length,0);assert.equal(w.autoAttack(p),false);
+  Object.assign(target,{x:7.6,z:1.8});assert.equal(w.afkTargets(p).length,0);
+  toggle(w,p,false);Object.assign(p,{x:7.6,z:1.8});Object.assign(target,{x:.5,z:4});toggle(w,p,true);
+  assert(safe(target));assert.equal(w.afkTargets(p).length,0);
+});
+
+test('every class and enabled skill rotates and deals real damage without leaving the activation anchor',()=>{
+  for(const classId of ['warrior','archer','mage'])for(const skill of skillsForClass(classId)){
+    const {w,p}=fixture(classId);Object.assign(p,{x:7.6,z:1.8,yaw:0,targetYaw:0,vx:3,vz:2,moveBlend:1,runBlend:1});
+    assert.equal(afkSpotAt(p),null);const target=w.mobs[0];w.mobs=[target];
+    Object.assign(target,{x:p.x+1.3,z:p.z,homeX:p.x+1.3,homeZ:p.z,hp:10000,state:'recover',timer:100,target:p.id});
+    p.afkPreferences={...p.afkPreferences,skillOrder:[skill.id],basicAttackFallback:false};
+    toggle(w,p,true);const anchor={x:p.x,z:p.z};
+    for(let tick=0;tick<75;tick++){
+      step(w);assert(p.afk,skill.id);assert.deepEqual({x:p.x,z:p.z},anchor,skill.id);
+      assert.equal(p.vx,0);assert.equal(p.vz,0);assert.equal(p.moveBlend,0);assert.equal(p.runBlend,0);
+    }
+    assert(p.attackSerial>0,skill.id);assert(target.hp<10000,`${skill.id} failed to hit from the anchor`);
+    assert(distance(p,target)<skill.range+MOB_TYPES[target.type].radius);
+  }
+});
+
+test('AFK activation cancels an approach and repeated enable does not reset its anchor or skill order',()=>{
+  const {w,p}=fixture();w.mobs=[];
+  w.addGroundDrop(p.id,{id:'approach',kind:'gold',x:p.x+3,z:p.z,amount:10,expiresAt:w.t+10000});
+  assert(w.startPickup(p,'approach'));assert(p.interactionTarget);
+  toggle(w,p,true);assert.equal(p.interactionTarget,null);const active=p.afk;active.skillCursor=1;
+  toggle(w,p,true);assert.equal(p.afk,active);assert.equal(p.afk.skillCursor,1);step(w,20);assert.equal(p.gold,0);
+  assert.deepEqual({x:p.x,z:p.z},active.anchor);
+});
+
+test('stopping AFK removes its delayed areas before a new activation can revive old damage',()=>{
+  const {w,p}=fixture('mage'),target=w.mobs[0];w.mobs=[target];
+  Object.assign(target,{x:p.x+1,z:p.z,hp:10000,state:'recover',timer:100,target:p.id});
+  p.afkPreferences={...p.afkPreferences,skillOrder:['mage-meteor'],basicAttackFallback:false};toggle(w,p,true);
+  for(let tick=0;tick<40&&!w.pendingAreas.length;tick++)step(w);
+  assert.equal(w.pendingAreas.length,1);toggle(w,p,false);assert.equal(w.pendingAreas.length,0);
+  p.afkPreferences.skillOrder=[];toggle(w,p,true);step(w,30);assert.equal(target.hp,10000);
 });

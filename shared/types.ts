@@ -32,7 +32,7 @@ export interface PersistentHero extends Point {
   specialCooldown: number; skillCooldowns?: SkillCooldowns; dead: number; combatUntil: number; attack: HeroAttack | null; attackSerial: number;
   running: boolean; questKills: number; boss: boolean; questClaimed: boolean; afkPreferences:AfkPreferences;
 }
-export interface AfkState { spotId: string; targetId: number | null; skillCursor:number }
+export interface AfkState { anchor:Point; spotId?:string; targetId:number|null; skillCursor:number }
 export interface GroundDrop extends Point { id:string; kind:'item'|'gold'; item?:Item; amount?:number; expiresAt:number }
 export interface InteractionTarget { kind:'loot'|'vendor'|'portal'|'chest'; id:string }
 export interface Hero extends PersistentHero {
@@ -54,7 +54,7 @@ export interface Mob extends PublicMob {
 export interface PublicProjectile extends Point { id: string; owner: string; yaw: number; remaining: number; speed: number; kind: 'archer' | 'mage'; skillId?: SkillId; attackId?: number }
 export interface Projectile extends PublicProjectile { damage: number; aoe: number; maxTargets?: number; hitIds?: number[]; pierce?: boolean; damageScaleOnPierce?: number; slowMs?: number; automatic?: boolean; targetId?:number }
 export type PublicPlayer = Pick<Hero, 'id' | 'name' | 'classId' | 'x' | 'z' | 'yaw' | 'weapon' | 'hp' | 'level' | 'dead' | 'hurt' | 'attack' | 'moveBlend' | 'runBlend' | 'gait' | 'vx' | 'vz' | 'connected'> & { maxHp: number; appearance?:ItemAppearance };
-export type SelfSnapshot = PersistentHero & {appearance?:ItemAppearance;afk?:AfkState|null;interactionTarget?:InteractionTarget|null;shopActive?:boolean;stashActive?:boolean} & Omit<CharacterStats, 'attack'> & Pick<Hero, 'targetYaw' | 'vx' | 'vz' | 'hurt' | 'gait' | 'moveBlend' | 'runBlend' | 'ack'>;
+export type SelfSnapshot = PersistentHero & {appearance?:ItemAppearance;afk?:AfkState|null;afkRadius?:number;interactionTarget?:InteractionTarget|null;shopActive?:boolean;stashActive?:boolean} & Omit<CharacterStats, 'attack'> & Pick<Hero, 'targetYaw' | 'vx' | 'vz' | 'hurt' | 'gait' | 'moveBlend' | 'runBlend' | 'ack'>;
 export interface EventPayloads {
   notice: { text: string }; statResult: { ok: boolean; revision: number; message?: string }; preferencesSaved:{ok:boolean;message?:string};
   safe: Record<never, never>; camp: Record<never, never>; death: Record<never, never>; quest: Record<never, never>;

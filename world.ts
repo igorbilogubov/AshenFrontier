@@ -11,7 +11,7 @@ import {LOOT_TTL_MS,MAX_GROUND_DROPS_PER_HERO,PICKUP_RANGE,gearDrops} from './pu
 import {portalById} from './public/game/stadium.js';
 import {locationAt,sameLocation} from './public/game/world-layout.js';
 import {SHOP,shopPrice,sellPrice} from './public/game/shop.js';
-import {defaultAfkPreferences,parseAfkPreferences,afkTravelRadius,withinAfkTravel} from './public/game/afk-preferences.js';
+import {defaultAfkPreferences,parseAfkPreferences,afkCombatRadius} from './public/game/afk-preferences.js';
 import {PERSONAL_CHEST,CHEST_APPROACH,CHEST_DOOR_OUTSIDE,CHEST_DOOR_INSIDE,inChestRoom} from './public/game/personal-stash.js';
 import {consumable,CONSUMABLE_LIMIT,type ConsumableKind} from './public/game/consumables.js';
 export {CLASSES,EQUIPMENT_SLOTS,CAMP,BOUNDS};
@@ -277,15 +277,18 @@ export class World{
     p.afk=null;p.input={...p.input,x:0,z:0,aim:null};p.vx=p.vz=0;
     if(p.attack?.automatic)p.attack=null;
     for(const b of this.projectiles)if(b.owner===p.id&&b.automatic)b.remaining=0;
+    this.pendingAreas=this.pendingAreas.filter(area=>area.caster!==p.id||!area.automatic);
     if(reason&&p.connected)this.notice(p,reason);
     return true;
   }
   startAfk(p: Hero){
     if(!p.connected||p.dead){this.notice(p,'Автоохота доступна только живому подключённому герою');return false;}
+    if(!stand(p.x,p.z)){this.notice(p,'Автоохота недоступна в этой точке');return false;}
+    if(p.afk)return true;
+    this.stopInteraction(p);
     const spot=afkSpotAt(p);
-    if(!spot||!withinSpot(p,spot,-.46)){this.notice(p,'Войдите в охотничий спот или загон Стадиума для автоохоты');return false;}
-    if(!withinAfkTravel(p,spot,p.afkPreferences)){this.notice(p,'Войдите в выбранный радиус автоохоты');return false;}
-    p.afk={spotId:spot.id,targetId:null,skillCursor:0};p.input={...p.input,x:0,z:0,aim:null};p.vx=p.vz=0;
+    p.afk={anchor:{x:p.x,z:p.z},...(spot?{spotId:spot.id}:{}),targetId:null,skillCursor:0};
+    p.input={...p.input,x:0,z:0,aim:null};p.vx=p.vz=p.moveBlend=p.runBlend=0;
     return true;
   }
   clampResources(p: Hero){const s=stats(p);p.hp=Math.min(p.hp,s.maxHp);p.mana=Math.min(p.mana,s.maxMana);}
@@ -561,71 +564,52 @@ export class World{
       });
     }
   }
+  afkRadius(p:Hero){return afkCombatRadius(p.afkPreferences,p.classId==='warrior'?WEAPONS[p.weapon].range:stats(p).range);}
   afkTargets(p: Hero){
-    const spot=AFK_SPOTS.find(candidate=>candidate.id===p.afk?.spotId);
-    if(!spot)return [];
-    const maxReach=Math.max(p.afkPreferences.basicAttackFallback?stats(p).range:0,...p.afkPreferences.skillOrder.map(id=>SKILLS[id].range));
-    if(maxReach<=0)return [];
-    const travel=afkTravelRadius(spot,p.afkPreferences);
-    return this.mobs.filter(m=>spot.spawnIds.includes(m.id)&&m.spotId===spot.id&&m.state!=='dead'&&m.state!=='return'&&withinSpot(m,spot,-MOB_TYPES[m.type].radius)&&
-      distance(spot,m)<=travel+maxReach&&clearPath(p,m))
+    if(!p.afk||!p.connected||p.dead||safe(p))return [];
+    const reach=this.afkRadius(p);
+    if(reach<=0)return [];
+    return this.mobs.filter(m=>liveMob(m)&&sameLocation(p,m)&&!safe(m)&&
+      distance(p.afk!.anchor,m)<=reach+MOB_TYPES[m.type].radius&&clearPath(p,m))
       .sort((left,right)=>distance(p,left)-distance(p,right)||left.id-right.id);
   }
-  /** Only owned, reachable drops inside this hunting circle are eligible. */
+  /** Only personal filtered drops within ordinary pickup reach; AFK never approaches. */
   afkDrop(p:Hero){
-    const spot=AFK_SPOTS.find(candidate=>candidate.id===p.afk?.spotId);
-    if(!spot||!p.connected||p.dead)return undefined;
+    if(!p.afk||!p.connected||p.dead)return undefined;
     const room=backpackItems(p).length<BAG_CAPACITY,prefs=p.afkPreferences;
     return this.groundLoot.filter(drop=>drop.owner===p.id&&drop.expiresAt>this.t&&
       (drop.kind==='gold'?prefs.pickupGold:room&&!!drop.item&&prefs.pickupRarities.includes(drop.item.rarity))&&sameLocation(p,drop)&&
-      withinSpot(drop,spot)&&distance(drop,spot)<=afkTravelRadius(spot,prefs)+PICKUP_RANGE&&stand(drop.x,drop.z,0)&&!safe(drop)&&clearPath(p,drop))
+      distance(p,drop)<=PICKUP_RANGE&&stand(drop.x,drop.z,0)&&clearPath(p,drop))
       .sort((left,right)=>(left.kind==='gold'?0:1)-(right.kind==='gold'?0:1)||distance(p,left)-distance(p,right)||left.id.localeCompare(right.id))[0];
   }
   afkPickup(p:Hero){
     if(!p.afk||p.attack)return false;
     const drop=this.afkDrop(p);
-    return !!drop&&distance(p,drop)<=PICKUP_RANGE&&this.pickUp(p,drop.id);
+    return !!drop&&this.pickUp(p,drop.id);
   }
   driveAfk(p: Hero){
     if(!p.afk)return {x:0,z:0,aim:null};
     if(!p.connected||p.dead){this.stopAfk(p);return {x:0,z:0,aim:null};}
-    const spot=AFK_SPOTS.find(candidate=>candidate.id===p.afk?.spotId);
-    if(!spot||!withinSpot(p,spot,-.46)){this.stopAfk(p,'Автоохота остановлена: герой вышел из спота');return {x:0,z:0,aim:null};}
-    if(!withinAfkTravel(p,spot,p.afkPreferences)){
-      const d=distance(p,spot);return {x:(spot.x-p.x)/d,z:(spot.z-p.z)/d,aim:null};
-    }
-    if(!p.attack){
-      const drop=this.afkDrop(p);
-      if(drop){
-        if(distance(p,drop)<=PICKUP_RANGE){this.pickUp(p,drop.id);return {x:0,z:0,aim:null};}
-        const yaw=Math.atan2(drop.x-p.x,drop.z-p.z);
-        return {x:Math.sin(yaw),z:Math.cos(yaw),aim:yaw};
-      }
-    }
     const target=this.afkTargets(p)[0];p.afk.targetId=target?.id??null;
-    if(p.attack)return {x:0,z:0,aim:target?Math.atan2(target.x-p.x,target.z-p.z):null};
-    if(!target){
-      if(distance(p,spot)<.6||!clearPath(p,spot))return {x:0,z:0,aim:null};
-      const d=distance(p,spot);return {x:(spot.x-p.x)/d,z:(spot.z-p.z)/d,aim:null};
-    }
-    const yaw=Math.atan2(target.x-p.x,target.z-p.z),d=distance(p,target),limit=Math.max(1.5,stats(p).range-.35);
-    return d>limit?{x:Math.sin(yaw),z:Math.cos(yaw),aim:yaw}:{x:0,z:0,aim:yaw};
+    return {x:0,z:0,aim:target?Math.atan2(target.x-p.x,target.z-p.z):null};
   }
   autoAttack(p: Hero){
     if(!p.afk||p.attack||p.dead)return false;
     const targets=this.afkTargets(p),target=targets.find(m=>m.id===p.afk?.targetId)??targets[0];
+    p.afk.targetId=target?.id??null;
     if(!target)return false;
-    p.afk.targetId=target.id;
-    const yaw=Math.atan2(target.x-p.x,target.z-p.z),d=distance(p,target),order=p.afkPreferences.skillOrder;
+    const yaw=Math.atan2(target.x-p.x,target.z-p.z),d=distance(p,target),body=MOB_TYPES[target.type].radius,order=p.afkPreferences.skillOrder;
     for(let offset=0;offset<order.length;offset++){
       const index=(p.afk.skillCursor+offset)%order.length,skill=SKILLS[order[index]];
-      if(!skill||skill.classId!==p.classId||d>skill.range||p.mana<skill.manaCost||
+      if(!skill||skill.classId!==p.classId||d>skill.range+body||p.mana<skill.manaCost||
         Math.max(p.skillCooldowns?.[skill.id]??0,skill.id===legacySkillId(p.classId)?p.specialCooldown:0)>0)continue;
-      if(this.castSkill(p,skill.id,yaw,target.id)){
+      const area=skill.id==='archer-rain'||skill.id==='mage-meteor';
+      if(this.castSkill(p,skill.id,yaw,target.id,area?{x:target.x,z:target.z}:undefined)){
         p.afk.skillCursor=(index+1)%order.length;return true;
       }
     }
-    if(p.afkPreferences.basicAttackFallback&&d<=stats(p).range&&this.attack(p,yaw,false,target.id))return true;
+    const basicRange=p.classId==='warrior'?WEAPONS[p.weapon].range:stats(p).range;
+    if(p.afkPreferences.basicAttackFallback&&d<=basicRange+body&&this.attack(p,yaw,false,target.id))return true;
     return false;
   }
   tick(dt: number,now=this.t+dt*1000){
@@ -646,18 +630,14 @@ export class World{
         if(prefs.manaPotion.enabled&&p.mana/s.maxMana*100<prefs.manaPotion.belowPercent)this.potion(p,'mana');
       }
       const input=p.afk?this.driveAfk(p):p.interactionTarget?this.interactionInput(p):p.connected&&this.t-p.inputAt<350?p.input:{x:0,z:0,aim:null};
-      const s=stats(p),before={x:p.x,z:p.z,gait:p.gait};p.speedScale=s.speedScale;moveHero(p,dt,input);p.ack=p.input.seq;
+      const s=stats(p),before={gait:p.gait};p.speedScale=s.speedScale;moveHero(p,dt,input);p.ack=p.input.seq;
       this.settleSafe(p);
       if(p.interactionTarget)this.interactionInput(p);
       if(p.afk){
-        const spot=AFK_SPOTS.find(candidate=>candidate.id===p.afk?.spotId);
-        if(!spot||!withinSpot(p,spot,-.46)||
-          !withinAfkTravel(p,spot,p.afkPreferences)&&
-            (withinAfkTravel(before,spot,p.afkPreferences)||distance(p,spot)>=distance(before,spot))){
-          p.x=before.x;p.z=before.z;p.vx=p.vz=0;p.gait=before.gait;p.moveBlend=p.runBlend=0;
-        }
-        if(!this.afkDrop(p))this.autoAttack(p);
+        // The activation point is invariant, including residual velocity and skill animation ticks.
+        p.x=p.afk.anchor.x;p.z=p.afk.anchor.z;p.vx=p.vz=0;p.gait=before.gait;p.moveBlend=p.runBlend=0;
         this.afkPickup(p);
+        this.autoAttack(p);
       }
       if(p.attack){
         const a=p.attack;a.age+=dt;
@@ -772,6 +752,6 @@ export class World{
   }
   snapshot(forId: string): WorldSnapshot{
     const p=this.players.get(forId);
-    return {t:this.t,players:[...this.players.values()].filter(other=>!p||sameLocation(p,other)).map(p=>({id:p.id,name:p.name,classId:p.classId,x:p.x,z:p.z,yaw:p.yaw,weapon:p.weapon,hp:p.hp,maxHp:stats(p).maxHp,level:p.level,dead:p.dead,hurt:p.hurt,attack:p.attack,moveBlend:p.moveBlend,runBlend:p.runBlend,gait:p.gait,vx:p.vx,vz:p.vz,connected:p.connected,appearance:equipmentAppearance(p)})),mobs:this.mobs.filter(m=>!p||sameLocation(p,m)).map(({contributors,patrol,slowUntil,slow,...m})=>({...m,slow:Math.max(0,((slowUntil??0)-this.t)/1000)})),projectiles:this.projectiles.filter(b=>!p||sameLocation(p,b)).map(({damage,aoe,maxTargets,hitIds,pierce,damageScaleOnPierce,slowMs,automatic,...b})=>b),groundLoot:this.groundLoot.filter(drop=>drop.owner===forId&&(!p||sameLocation(p,drop))).map(({owner,...drop})=>drop),self:p?{...stats(p),...persistentHero(p),appearance:equipmentAppearance(p),attackPower:stats(p).attack,targetYaw:p.targetYaw,vx:p.vx,vz:p.vz,hurt:p.hurt,gait:p.gait,moveBlend:p.moveBlend,runBlend:p.runBlend,ack:p.ack,afk:p.afk,interactionTarget:p.interactionTarget,shopActive:p.shopActive,stashActive:p.stashActive}:null,events:this.events.filter(e=>(!e.owner||e.owner===forId)&&(!p||!('x' in e&&'z' in e)||sameLocation(p,e)))};
+    return {t:this.t,players:[...this.players.values()].filter(other=>!p||sameLocation(p,other)).map(p=>({id:p.id,name:p.name,classId:p.classId,x:p.x,z:p.z,yaw:p.yaw,weapon:p.weapon,hp:p.hp,maxHp:stats(p).maxHp,level:p.level,dead:p.dead,hurt:p.hurt,attack:p.attack,moveBlend:p.moveBlend,runBlend:p.runBlend,gait:p.gait,vx:p.vx,vz:p.vz,connected:p.connected,appearance:equipmentAppearance(p)})),mobs:this.mobs.filter(m=>!p||sameLocation(p,m)).map(({contributors,patrol,slowUntil,slow,...m})=>({...m,slow:Math.max(0,((slowUntil??0)-this.t)/1000)})),projectiles:this.projectiles.filter(b=>!p||sameLocation(p,b)).map(({damage,aoe,maxTargets,hitIds,pierce,damageScaleOnPierce,slowMs,automatic,...b})=>b),groundLoot:this.groundLoot.filter(drop=>drop.owner===forId&&(!p||sameLocation(p,drop))).map(({owner,...drop})=>drop),self:p?{...stats(p),...persistentHero(p),appearance:equipmentAppearance(p),attackPower:stats(p).attack,targetYaw:p.targetYaw,vx:p.vx,vz:p.vz,hurt:p.hurt,gait:p.gait,moveBlend:p.moveBlend,runBlend:p.runBlend,ack:p.ack,afk:p.afk,afkRadius:this.afkRadius(p),interactionTarget:p.interactionTarget,shopActive:p.shopActive,stashActive:p.stashActive}:null,events:this.events.filter(e=>(!e.owner||e.owner===forId)&&(!p||!('x' in e&&'z' in e)||sameLocation(p,e)))};
   }
 }

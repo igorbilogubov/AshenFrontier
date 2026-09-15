@@ -3,6 +3,7 @@ import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 import {box,cylinder,ellipsoid,joint,mesh,materials} from './models.js';
 import {BOUNDS,SPAWNS,CAMERA} from './location.js';
 import {OBSTACLES,TREE_POSITIONS} from './terrain.js';
+import {AFK_SPOTS,forestTrailDistance,withinSpot} from './afk.js';
 import {surfaceMaterial} from './forms.js';
 import {pineGeometry,grassGeometry,fernGeometry,leafGeometry,windMaterial} from './vegetation.js';
 
@@ -15,13 +16,15 @@ export function createEnvironment(scene:T.Scene){
   const groundG=new T.PlaneGeometry(100,70,160,112);groundG.rotateX(-Math.PI/2);groundG.translate(10,0,0);
   const positions=groundG.attributes.position,colors:number[]=[],wear:number[]=[];
   for(let i=0;i<positions.count;i++){
-    const x=positions.getX(i),z=positions.getZ(i),distance=Math.hypot(x+1,z),path=Math.abs(z-1-Math.sin(x*.25)*.9);
+    const x=positions.getX(i),z=positions.getZ(i),distance=Math.hypot(x+1,z),path=forestTrailDistance(x,z);
     const clearing=Math.max(...SPAWNS.map(s=>Math.exp(-((x-s.x)**2+(z-s.z)**2)/9)));
+    const hollow=Math.exp(-((x-12.7)**2+(z+8.2)**2)/17),wallow=Math.exp(-((x-23)**2+(z-9.3)**2)/15);
     const dirt=Math.max(Math.exp(-distance*distance/28),Math.exp(-path*path/3)*.8,clearing*.48);
     const patches=Math.sin(x*.61+Math.sin(z*.32))*Math.cos(z*.73+x*.12);
-    const color=new T.Color('#a3b7a1').lerp(new T.Color('#e0c6a0'),dirt*.9);
+    const color=new T.Color('#97a28d').lerp(new T.Color('#c7ab83'),dirt*.9);
+    color.lerp(new T.Color('#929b91'),hollow*.62).lerp(new T.Color('#ad9575'),wallow*.72);
     color.multiplyScalar(1.05+patches*.11+random()*.04);
-    colors.push(color.r,color.g,color.b);wear.push(Math.max(1-T.MathUtils.smoothstep(distance,2.4,4.4),(1-T.MathUtils.smoothstep(path,.35,2.0))*.88));
+    colors.push(color.r,color.g,color.b);wear.push(Math.max(1-T.MathUtils.smoothstep(distance,2.4,4.4),(1-T.MathUtils.smoothstep(path,.35,2.0))*.88,wallow*.52,hollow*.3));
     if(x<BOUNDS.minX-1||x>BOUNDS.maxX+1||Math.abs(z)>16)positions.setY(i,Math.max(0,Math.sin(x*.5)*Math.cos(z*.3))*.8);
   }
   groundG.setAttribute('color',new T.Float32BufferAttribute(colors,3));groundG.setAttribute('pathWear',new T.Float32BufferAttribute(wear,1));groundG.computeVertexNormals();
@@ -112,10 +115,60 @@ export function createEnvironment(scene:T.Scene){
     for(let row=0;row<3;row++)for(let col=0;col<Math.ceil(w/.6);col++)box(scene,.57,.31,.52,rocks[(row+col)%3],x-w/2+col*.59,.15+row*.30,z);
 
   }
-  const ruinsFloor=mesh(scene,new T.CircleGeometry(3.0,28),material('#606054'),25,.012,-1.2);ruinsFloor.rotation.x=-Math.PI/2;ruinsFloor.castShadow=false;
+  // Broken, earth-filled paving follows the old watchpost footprint. Its centre
+  // stays flat: the boss arena has the same physical boundaries as before.
+  for(let row=-4;row<=4;row++)for(let col=-4;col<=4;col++){
+    const x=25+col*.62,z=-1.2+row*.62;if(Math.hypot(x-25,z+1.2)>2.9||random()<.18)continue;
+    const slab=box(scene,.48+random()*.1,.035,.48+random()*.09,rocks[(row+col+9)%3],x,.017,z);
+    slab.rotation.y=(random()-.5)*.13;slab.castShadow=false;
+  }
   for(const [x,z,r] of [[8.5,-8,.85],[14,10,.9],[18.5,6.5,.65],[20,-10,1.1],[29,8,.8],[10,-11,.6]]){
     const rock=mesh(scene,new T.DodecahedronGeometry(r,1),rocks[0],x,r*.42,z);rock.scale.y=.8;
   }
+  // Each hunting ground has a physical waymark and its own ground story. All
+  // details use shared materials and join the static batches below.
+  const waymarkCanvas=document.createElement('canvas');waymarkCanvas.width=1024;waymarkCanvas.height=256;
+  const waymarkInk=waymarkCanvas.getContext('2d');if(!waymarkInk)throw new Error('Canvas 2D is unavailable');
+  waymarkInk.fillStyle='#d4c19b';waymarkInk.textAlign='center';waymarkInk.font='bold 70px serif';
+  AFK_SPOTS.forEach((spot,i)=>waymarkInk.fillText(spot.name.toUpperCase(),512,86+i*128));
+  const waymarkTexture=new T.CanvasTexture(waymarkCanvas);waymarkTexture.colorSpace=T.SRGBColorSpace;
+  const waymarkMaterial=new T.MeshBasicMaterial({map:waymarkTexture,transparent:true,depthWrite:false});
+  for(const [i,x,z] of [[0,10.2,-1.2],[1,20.2,3.1]]){
+    const post=joint(scene,x,0,z);post.rotation.y=CAMERA.azimuth;
+    cylinder(post,.055,.085,1.15,wood,0,.575,0,7);
+    box(post,2.65,.44,.11,timber,0,1.08,0);
+    const faceGeometry=new T.PlaneGeometry(2.55,.40),uv=faceGeometry.attributes.uv;
+    for(let j=0;j<uv.count;j++)uv.setY(j,(uv.getY(j)+1-i)/2);
+    mesh(post,faceGeometry,waymarkMaterial,0,1.08,.06);
+    for(const side of [-1,1]){
+      const foot=mesh(post,new T.DodecahedronGeometry(.17,0),rocks[1],side*.13,.08,0);foot.scale.y=.5;
+    }
+  }
+  // A weathered escarpment behind the wolf hollow lies beyond the playable edge;
+  // it frames the den without introducing new collision into saved positions.
+  for(let i=0;i<9;i++){
+    const x=9.4+i*.85,z=-16.3-Math.sin(i*.7)*.45,s=1.1+random()*.7;
+    const rock=mesh(scene,new T.DodecahedronGeometry(1,1),rocks[i%3],x,.45,z);
+    rock.scale.set(s,s*(.65+random()*.5),s*.8);rock.rotation.set(.1,random()*3,.08);
+  }
+  // Low weathered branches and exposed roots leave the broad fighting circles
+  // navigable. The boar clearing is open, churned soil with old logging debris.
+  for(const [x,z,length,yaw] of [[26.5,12.4,2.4,.9],[19.7,12.2,1.6,-.6],[15.5,-11.8,1.9,.6]]){
+    const log=joint(scene,x,.14,z);log.rotation.y=yaw;
+    const trunk=cylinder(log,.12,.18,length,timber,0,0,0,9);trunk.rotation.z=Math.PI/2;
+    for(const side of [-1,1]){const end=cylinder(log,.105,.105,.018,wood,side*length/2,0,0,9);end.rotation.z=Math.PI/2;}
+    for(let i=0;i<3;i++){const branch=cylinder(log,.018,.04,.48,wood,(i-1)*.55,.07,.16,5);branch.rotation.x=1.0;branch.rotation.z=.4;}
+  }
+  // Small irregular boundary stones are terrain detail, not a luminous arena ring.
+  AFK_SPOTS.forEach((spot,index)=>{
+    for(let i=0;i<13;i++){
+      const a=i/13*Math.PI*2+.3,r=spot.radius+.35+random()*.45;
+      const x=spot.x+Math.cos(a)*r,z=spot.z+Math.sin(a)*r;
+      if(forestTrailDistance(x,z)<1.4)continue;
+      const stone=mesh(scene,new T.DodecahedronGeometry(.13+random()*.08,0),rocks[(i+index)%3],x,.04,z);
+      stone.scale.set(1.5,.4,.9);stone.rotation.y=a;
+    }
+  });
   // Instanced forest and undergrowth keep the prototype small and inexpensive to draw.
   const transforms=new T.Object3D(),treePositions=TREE_POSITIONS;
   const bark=surfaceMaterial('#514737',{grain:.18,frequency:22});
@@ -136,11 +189,12 @@ export function createEnvironment(scene:T.Scene){
   const ferns=new T.InstancedMesh(fernGeometry(),windMaterial(breeze,.035),260);scene.add(ferns);ferns.receiveShadow=true;
   const leaves=new T.InstancedMesh(leafGeometry(),new T.MeshStandardMaterial({color:'#89704b',roughness:1,side:T.DoubleSide}),650);scene.add(leaves);leaves.receiveShadow=true;
   for(let i=0;i<2000;i++){
-    const x=-12+random()*44,z=(random()-.5)*28,path=Math.abs(z-1-Math.sin(x*.25)*.9),noise=Math.sin(x*1.7+Math.cos(z))*Math.sin(z*2.3);
-    const s=path<1.6||Math.hypot(x+1,z)<3.3?0:(.45+random()*.65)*(noise>-.1?1:.28);
+    const x=-12+random()*44,z=(random()-.5)*28,path=forestTrailDistance(x,z),noise=Math.sin(x*1.7+Math.cos(z))*Math.sin(z*2.3);
+    const inSpot=AFK_SPOTS.some(spot=>withinSpot({x,z},spot,.5));
+    const s=path<1.6||Math.hypot(x+1,z)<3.3?0:(.45+random()*.65)*(noise>-.1?1:.28)*(inSpot?.22:1);
     transforms.position.set(x,.01,z);transforms.scale.set(s,s,s);transforms.rotation.set(0,random()*6.28,0);transforms.updateMatrix();grass.setMatrixAt(i,transforms.matrix);
     if(i<260){
-      const fernScale=path<2.7||Math.hypot(x+1,z)<4.5?0:.65+random()*.75;transforms.scale.setScalar(fernScale);transforms.updateMatrix();ferns.setMatrixAt(i,transforms.matrix);
+      const fernScale=path<2.7||inSpot||Math.hypot(x+1,z)<4.5?0:.65+random()*.75;transforms.scale.setScalar(fernScale);transforms.updateMatrix();ferns.setMatrixAt(i,transforms.matrix);
     }
     if(i<650){transforms.position.y=.018;transforms.scale.setScalar(.45+random()*.7);transforms.updateMatrix();leaves.setMatrixAt(i,transforms.matrix);leaves.setColorAt(i,new T.Color(i%3===0?'#c1a277':'#897656'));}
   }
@@ -152,15 +206,16 @@ export function createEnvironment(scene:T.Scene){
   const marker=mesh(scene,new T.RingGeometry(.18,.21,40),new T.MeshBasicMaterial({color:'#d5bb80',transparent:true,opacity:.8,side:T.DoubleSide}));marker.rotation.x=-Math.PI/2;marker.position.y=.025;marker.visible=false;marker.userData.dynamic=true;
   // Bake static scenery per material. Hundreds of slate tiles and beams become
   // a few draw calls; the fire, instanced forest and animated actors stay separate.
-  scene.updateMatrixWorld(true);const batches=new Map<string,{material:T.Material;geometries:T.BufferGeometry[];objects:T.Mesh[]}>();
+  scene.updateMatrixWorld(true);const batches=new Map<string,{material:T.Material;castShadow:boolean;receiveShadow:boolean;geometries:T.BufferGeometry[];objects:T.Mesh[]}>();
   scene.traverse(object=>{
     if(!(object instanceof T.Mesh)||object instanceof T.InstancedMesh||Array.isArray(object.material)||object.userData.dynamic||object===ground)return;
-    const key=object.material.uuid;let batch=batches.get(key);if(!batch){batch={material:object.material,geometries:[],objects:[]};batches.set(key,batch);}
+    const key=`${object.material.uuid}:${object.castShadow}:${object.receiveShadow}`;let batch=batches.get(key);if(!batch){batch={material:object.material,castShadow:object.castShadow,receiveShadow:object.receiveShadow,geometries:[],objects:[]};batches.set(key,batch);}
     const g=object.geometry.index?object.geometry.toNonIndexed():object.geometry.clone();g.applyMatrix4(object.matrixWorld);batch.geometries.push(g);batch.objects.push(object);
   });
   for(const batch of batches.values()){
     const combined=mergeGeometries(batch.geometries,false);if(!combined)continue;
-    mesh(scene,combined,batch.material);for(const object of batch.objects){object.removeFromParent();object.geometry.dispose();}for(const g of batch.geometries)g.dispose();
+    const baked=mesh(scene,combined,batch.material);baked.castShadow=batch.castShadow;baked.receiveShadow=batch.receiveShadow;
+    for(const object of batch.objects){object.removeFromParent();object.geometry.dispose();}for(const g of batch.geometries)g.dispose();
   }
   function animate(time:number){breeze.value=time;flames.forEach((flame,i)=>{flame.scale.set(.8+Math.sin(time*9+i)*.2,.85+Math.sin(time*11+i*4)*.25,.9+Math.sin(time*8+i)*.15);flame.rotation.z=Math.sin(time*5+i)*.15;});fireLight.intensity=32+Math.sin(time*12)*3+Math.sin(time*19)*2;}
   return {ground,obstacles,animate,marker,ready,setTreesVisible:(visible:boolean)=>{trunks.visible=visible;foliage.visible=visible;}};

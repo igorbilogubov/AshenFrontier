@@ -1,0 +1,36 @@
+{
+  "Bow_Recoil": {
+    "source": "bow-recoil.fbx",
+    "frames": [
+      1.0,
+      22.0
+    ],
+    "seconds": 0.7
+  },
+  "Bow_Draw": {
+    "source": "bow-draw.fbx",
+    "frames": [
+      1.0,
+      114.0
+    ],
+    "seconds": 3.7666666666666666
+  },
+  "Mage_Cast": {
+    "source": "mage-cast.fbx",
+    "frames": [
+      1.0,
+      70.0
+    ],
+    "seconds": 2.3
+  },
+  "Mage_Pulse": {
+    "source": "mage-pulse.fbx",
+    "frames": [
+      1.0,
+      99.0
+    ],
+    "seconds": 3.2666666666666666
+  },
+  "glbBytes": 400176,
+  "bones": 67
+}

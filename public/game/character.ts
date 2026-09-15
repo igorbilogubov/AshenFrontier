@@ -1,3 +1,6 @@
+import {createBowPresentation} from './bow-presentation.js';
+import {createCombatAnimator,loadCombatClips} from './combat-clips.js';
+import {SKILLS} from './skills.js';
 import * as T from './vendor/three.module.js';
 import {GLTFLoader,type GLTF} from './vendor/GLTFLoader.js';
 import type {ClassId,WeaponId,ItemAppearance} from '../../shared/types.js';
@@ -16,7 +19,7 @@ export const CHARACTER_URLS:Record<ClassId,string>={warrior:CHARACTER_URL,archer
 const assetPromises=new Map<ClassId,Promise<GLTF>>();
 export async function loadWarrior(classId:ClassId='warrior'){
   let promise=assetPromises.get(classId);if(!promise){promise=new GLTFLoader().loadAsync(CHARACTER_URLS[classId]);assetPromises.set(classId,promise);}
-  try{const asset=await promise;return createAnimatedWarrior({...asset,scene:clone(asset.scene)},classId);}
+  try{const [asset,combatClips]=await Promise.all([promise,loadCombatClips()]);return createAnimatedWarrior({...asset,scene:clone(asset.scene)},classId,combatClips);}
   catch(error){assetPromises.delete(classId);throw error;}
 }
 
@@ -41,7 +44,7 @@ function shareCharacterSkeletons(model:T.Object3D){
 }
 
 // Exported separately so animation/respawn transitions can be tested on the real asset.
-export function createAnimatedWarrior(gltf:{scene:T.Object3D;animations:T.AnimationClip[]},classId:ClassId='warrior'){
+export function createAnimatedWarrior(gltf:{scene:T.Object3D;animations:T.AnimationClip[]},classId:ClassId='warrior',combatClips:T.AnimationClip[]=[]){
   const root=new T.Group();root.name='Warrior';
   const model=gltf.scene;shareCharacterSkeletons(model);model.scale.setScalar(1.12);root.add(model);
   contactShadow(root,1.05,.84);
@@ -67,6 +70,7 @@ export function createAnimatedWarrior(gltf:{scene:T.Object3D;animations:T.Animat
     action.play();action.setEffectiveWeight(name==='Idle'?1:0);
     if(name!=='Idle')action.paused=true;
   }
+  const combat=createCombatAnimator(model,mixer,combatClips);
   const upperHit=clips.Hit.clone();upperHit.name='Hit_UpperBody';
   upperHit.tracks=upperHit.tracks.filter(t=>/Spine|Neck|Head|Shoulder|Arm|Hand/.test(t.name));
   T.AnimationUtils.makeClipAdditive(upperHit,0,clips.Idle,30);
@@ -130,7 +134,9 @@ export function createAnimatedWarrior(gltf:{scene:T.Object3D;animations:T.Animat
     if(buckler)buckler.visible=classId==='warrior'&&armed;bow.visible=classId==='archer';staff.visible=classId==='mage';
   }
   equipment('sword',classId);
+  const bowPresentation=createBowPresentation(model);
   function reset(){
+    combat.reset();
     lastAttack=null;wasDead=false;deathAge=0;hitAge=1;lastHurt=0;hitAction.weight=0;
     for(const name of CLIP_NAMES){weights[name]=name==='Idle'?1:0;actions[name].time=0;actions[name].setEffectiveWeight(weights[name]);}
   }
@@ -143,14 +149,17 @@ export function createAnimatedWarrior(gltf:{scene:T.Object3D;animations:T.Animat
       if(!wasDead)deathAge=0;
       deathAge+=dt;actions.Death.time=Math.min(deathAge,clips.Death.duration);
       target.Death=1;state='Death';
+    }else if(hero.attack&&hero.classId!=='warrior'&&hero.classId&&combat.available){
+      state='Attack_Sword_1'; // Existing workshop state name; motion comes from the class library.
     }else if(hero.attack){
       if((hero.attack.id??hero.attack)!==(lastAttack?.id??lastAttack)){
-        attackName=hero.weapon==='axe'?'Attack_Sword_2':`Attack_Sword_${1+(attackIndex++%2)}` as AttackClip;
+        attackName=hero.attack.skillId==='warrior-cleave'?'Attack_Sword_2':hero.attack.skillId==='warrior-whirlwind'?'Attack_Sword_1':hero.weapon==='axe'?'Attack_Sword_2':`Attack_Sword_${1+(attackIndex++%2)}` as AttackClip;
         actions[attackName].time=0;
       }
       // Align the blade's forward crossing with gameplay's 49% damage event.
       const phase=T.MathUtils.clamp(hero.attack.age/hero.attack.duration,0,1),impact=IMPACT_PHASE[attackName];
-      const sourcePhase=phase<.49?phase/.49*impact:impact+(phase-.49)/.51*(1-impact);
+      const contact=hero.attack.skillId?SKILLS[hero.attack.skillId].hitFraction:.49;
+      const sourcePhase=phase<contact?phase/contact*impact:impact+(phase-contact)/(1-contact)*(1-impact);
       actions[attackName].time=sourcePhase*clips[attackName].duration;
       target[attackName]=1;state=attackName;
     }else{
@@ -166,7 +175,8 @@ export function createAnimatedWarrior(gltf:{scene:T.Object3D;animations:T.Animat
     hitAction.weight=hero.dead||hero.attack?0:Math.sin(Math.min(hitAge/.48,1)*Math.PI)*.55;
     const blend=1-Math.exp(-dt*(hero.dead?22:hero.attack?30:16));
     for(const name of CLIP_NAMES){weights[name]+=(target[name]-weights[name])*blend;actions[name].setEffectiveWeight(weights[name]);}
-    if(sampleAnimation)mixer.update(dt);lastAttack=hero.attack;lastHurt=hero.hurt;wasDead=!!hero.dead;
+    combat.update(dt,hero.classId||'warrior',hero.attack,!!hero.dead);
+    if(sampleAnimation){mixer.update(dt);bowPresentation.update(hero);}lastAttack=hero.attack;lastHurt=hero.hurt;wasDead=!!hero.dead;
   }
   function previewClip(name:WarriorClip){
     if(!clips[name])return;
@@ -178,10 +188,10 @@ export function createAnimatedWarrior(gltf:{scene:T.Object3D;animations:T.Animat
     if(!preview)return;
     const duration=clips[preview].duration;
     actions[preview].time=preview==='Death'?Math.min(seconds,duration):seconds%duration;
-    mixer.update(0);
+    mixer.update(0);bowPresentation.update({weapon:'sword',classId,dead:preview==='Death',attack:null,moveBlend:0,runBlend:0,gait:0,hurt:0});
   }
   // Initialize the skeleton before the first rendered frame, avoiding a T-pose flash.
   mixer.update(0);root.updateMatrixWorld(true);
-  return {root,model,mixer,clips,animate,equipment,previewClip,samplePreview,
+  return {root,model,mixer,clips,animate,equipment,previewClip,samplePreview,disposeExtras:()=>bowPresentation.dispose(),
     get state(){return state;},get weights(){return {...weights};}};
 }

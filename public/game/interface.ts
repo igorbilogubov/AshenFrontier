@@ -109,7 +109,7 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
   $('item-sell').onclick=()=>{const item=selectedItem();if(item)interactions.sell(item);};
   function setIcon(element:HTMLElement,slot:EquipmentSlot,classId:ClassId,item?:Item,weapon:WeaponId='sword'){const key=item?'art:'+itemArtKey(item,classId,weapon):slot+':'+classId;if(element.dataset.icon!==key){element.innerHTML=item?itemArtwork(item,classId,weapon):itemIcon(slot,classId);element.dataset.icon=key;}}
   game.onStatus=(status,message)=>{
-    write($('connection'),status==='online'?`${game.players.filter(p=>p.connected).length} в мире`:message);
+    write($('connection'),status==='online'?`${game.players.filter(p=>p.connected).length} в локации`:message);
     $('connection').classList.toggle('offline',status!=='online');
     if(status!=='online'){clearInput();if(pending||total(draft))clearDraft(status==='error'?message:'Соединение потеряно. Распределение не отправлялось повторно.');write($('save-status'),message);}
   };
@@ -167,7 +167,7 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
     }
     write($('preview-label'),spent?'После распределения':'С учётом вещей');
     $('stat-apply').disabled=!editable||!!pending||!spent;$('stat-cancel').disabled=!!pending||!spent;write($('stat-apply'),pending?'Применяем…':spent?`Применить · ${spent}`:'Применить');
-    const message=pending?'Ждём подтверждения сервера…':!game.connected?'Нет соединения. Ожидаем общий мир.':!editable?'Распределение доступно у костра, вне боя.':statusMessage|| (spent?'Зелёным показаны будущие значения.':p.unspentPoints>0?'Выберите статы и примените очки.':'Следующий уровень принесёт 5 очков.');
+    const message=pending?'Ждём подтверждения сервера…':!game.connected?'Нет соединения. Ожидаем общий мир.':!editable?'Распределение доступно в безопасной зоне, вне боя.':statusMessage|| (spent?'Зелёным показаны будущие значения.':p.unspentPoints>0?'Выберите статы и примените очки.':'Следующий уровень принесёт 5 очков.');
     write($('stat-status'),message);$('stat-status').classList.toggle('pending',!!pending);
     $('reset-stats').disabled=!editable||!!pending||!total(p.allocatedStats);$('reset-confirm-yes').disabled=!editable||!!pending;
   }
@@ -176,7 +176,7 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
     const p=game.player,c=CLASSES[p.classId];if(!c)return;
     const editable=canEdit(),wornIds=Object.values(p.equipment),bag=backpackItems(p),key=JSON.stringify([p.items,p.pendingItems,p.equipment,p.weapon,p.classId,p.level,p.gold,editable,interactions.canTrade(),selectedItemId]);if(key===inventoryKey)return;inventoryKey=key;
     if(!p.items.some(item=>item.id===selectedItemId))selectedItemId=p.equipment.weapon||p.items[0]?.id||null;
-    write($('hero-details'),`${c.name} · уровень ${p.level} · 6 слотов снаряжения`);write($('inventory-gold'),`${p.gold} золота`);write($('inventory-status'),editable?'Можно менять снаряжение':!game.connected?'Нет соединения':'Изменение у костра, вне боя');
+    write($('hero-details'),`${c.name} · уровень ${p.level} · 6 слотов снаряжения`);write($('inventory-gold'),`${p.gold} золота`);write($('inventory-status'),editable?'Можно менять снаряжение':!game.connected?'Нет соединения':'Изменение в безопасной зоне, вне боя');
     for(const [slot,nodes] of slotNodes){
       const item=p.items.find(value=>value.id===p.equipment[slot]);nodes.button.className=`equipment-slot${item?' rarity-'+(item.rarity||0):' empty'}${item?.id===selectedItemId?' selected':''}`;
       nodes.button.dataset.itemId=item?.id||'';nodes.button.setAttribute('aria-label',`${EQUIPMENT_SLOTS[slot].name}: ${item?item.name+' · '+itemBonus(item):'Пусто'}`);nodes.button.setAttribute('aria-pressed',String(!!item&&item.id===selectedItemId));setIcon(nodes.icon,slot,item?.classId||p.classId,item,p.weapon);
@@ -210,9 +210,9 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
     write($('mana-text'),`${Math.floor(p.mana||0)} / ${p.maxMana||0}`);$('mana-fill').style.height=`${clampRatio(p.mana,p.maxMana)*100}%`;
     $('mana-orb').setAttribute('aria-valuemax',String(p.maxMana||0));$('mana-orb').setAttribute('aria-valuenow',String(Math.floor(p.mana||0)));$('hud-xp-fill').style.transform=`scaleX(${clampRatio(p.xp,p.xpNeeded)})`;
     for(const [index,skill] of skillsForClass(p.classId).entries()){
-      const button=$(index===0?'special':'skill-secondary'),remaining=p.skillCooldowns?.[skill.id]||0;
+      const button=$((['special','skill-secondary','skill-tertiary','skill-quaternary'] as const)[index]),remaining=p.skillCooldowns?.[skill.id]||0;
       if(button.dataset.skill!==skill.id)button.querySelector('.skill-sigil')!.innerHTML=actionIcon(skill.id);
-      button.dataset.skill=skill.id;button.style.setProperty('--cooldown',`${Math.min(1,remaining/skill.cooldown)*100}%`);
+      write(button.querySelector('kbd')!,skill.slot);button.dataset.skill=skill.id;button.style.setProperty('--cooldown',`${Math.min(1,remaining/skill.cooldown)*100}%`);
       write(button.querySelector('.skill-name')!,skill.name);write(button.querySelector('.skill-meta')!,remaining>0?`${remaining.toFixed(1)}с`:`${skill.manaCost} маны`);
       button.disabled=!game.connected||!!p.dead||!!p.attack||safe(p)||remaining>0||p.mana<skill.manaCost;
       button.title=`${skill.name} · ${skill.slot} · ${skill.manaCost} маны · ${skill.cooldown}с\n${skill.description}`;

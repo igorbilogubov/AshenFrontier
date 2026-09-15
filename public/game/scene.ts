@@ -1,18 +1,21 @@
 import * as T from './vendor/three.module.js';
 import {mesh} from './models.js';
 import {loadWarrior} from './character.js';
-import {createMob,loadMobAssets} from './mobs.js';
+import {createMob,loadMobAssets,type MobAssets} from './mobs.js';
 import {createEnvironment} from './environment.js';
 import {createWorldInteractions} from './world-interactions.js';
 import {drawWorldMapBackdrop} from './minimap-world.js';
-import {WORLD_CLEARINGS} from './world-layout.js';
+import {WORLD_CLEARINGS,boundsForPosition,locationAt,sameLocation} from './world-layout.js';
+import {PORTALS} from './stadium.js';
+import {createStadiumEnvironment} from './stadium-environment.js';
 import {angleDelta,gaitProfile} from './motion.js';
-import {CAMERA,BOUNDS,CAMP,WEAPONS,MOB_TYPES,safe,AFK_SPOTS,afkSpotAt} from './location.js';
+import {CAMERA,WEAPONS,MOB_TYPES,safe,AFK_SPOTS,afkSpotAt} from './location.js';
 
 import {NetworkGame} from './network.js';
 import {bindInterface} from './interface.js';
 import {skillsForClass} from './skills.js';
 import {createSkillEffects} from './skill-effects.js';
+import {createSkillProjectile,updateSkillProjectile,disposeSkillProjectile} from './skill-projectiles.js';
 import {classFor} from '../rules.js';
 import {Benchmark,stressEnabled} from './benchmark.js';
 import {heldMouseInput} from './mouse-input.js';
@@ -31,8 +34,9 @@ const canvas=$('scene');
 let renderer:T.WebGLRenderer,scene:T.Scene,camera:T.OrthographicCamera,sun:T.DirectionalLight,world:ReturnType<typeof createEnvironment>,warrior:Warrior,game:NetworkGame,ready=false,last=0,time=0,accumulator=0;
 let width=innerWidth,height=innerHeight,selected:number|null=null,pendingWeapon:WeaponId|null=null;
 let noticeTimer:ReturnType<typeof setTimeout>|undefined=undefined,lastSafeToast=0,uiTimer=0,frames:number[]=[],frameCounter=0,paused=false;
+let mobAssets:MobAssets,stadium:ReturnType<typeof createStadiumEnvironment>;
 let targetZoom=1,interfaceUI:ReturnType<typeof bindInterface>;
-const remoteModels=new Map<string,RemoteWarrior>(),loadingPlayers=new Set<string>(),visualHeroes=new Map<string,VisualHero>(),visualMobs=new Map<number,PublicMob>(),shots=new Map<string,T.Mesh<T.BufferGeometry,T.MeshBasicMaterial>>();
+const remoteModels=new Map<string,RemoteWarrior>(),loadingPlayers=new Set<string>(),visualHeroes=new Map<string,VisualHero>(),visualMobs=new Map<number,PublicMob>(),shots=new Map<string,T.Group>();
 const ZOOM={min:.7,max:1.9,sensitivity:.0015};
 const keys=new Set<string>(),models=new Map<number,MobModel>(),particles:Particle[]=[],floats:FloatingNumber[]=[];
 const raycaster=new T.Raycaster(),ndc=new T.Vector2(),groundPlane=new T.Plane(new T.Vector3(0,1,0),0),cameraTarget=new T.Vector3(.5,.3,2);
@@ -69,18 +73,18 @@ function pickGround(){
   return raycaster.ray.intersectPlane(groundPlane,new T.Vector3());
 }
 function pickMob(){
-  const objects:T.Mesh[]=[];for(const mob of game.mobs){if(mob.state==='dead'||mob.state==='return')continue;objects.push(...models.get(mob.id)!.pickMeshes);}
+  const objects:T.Mesh[]=[];for(const mob of game.mobs){const model=models.get(mob.id);if(!model||!model.root.visible||mob.state==='dead'||mob.state==='return')continue;objects.push(...model.pickMeshes);}
   const direct:unknown=raycaster.intersectObjects(objects,false)[0]?.object.userData.mob;if(typeof direct==='number')return direct;
   // Slimmer legs and a tapered muzzle should not demand pixel-perfect clicks.
   const box=new T.Box3(),point=new T.Vector3();let nearest=Infinity,id:number|null=null;
   for(const mob of game.mobs){
-    if(mob.state==='dead'||mob.state==='return')continue;
-    box.setFromObject(models.get(mob.id)!.pickRoot).expandByScalar(.12);
+    const model=models.get(mob.id);if(!model||!model.root.visible||mob.state==='dead'||mob.state==='return')continue;
+    box.setFromObject(model.pickRoot).expandByScalar(.12);
     if(raycaster.ray.intersectBox(box,point)){const d=point.distanceToSquared(raycaster.ray.origin);if(d<nearest){nearest=d;id=mob.id;}}
   }
   return id;
 }
-function selectedMob(){return selected===null?null:game.mobs[selected];}
+function selectedMob(){return selected===null?null:game.mobs.find(mob=>mob.id===selected);}
 function toggleRun(){
   if(!ready||game.player.dead)return;
   game.toggleRun(); // The movement button updates when the server confirms the mode.
@@ -108,9 +112,9 @@ function releaseMovement(){
   if(wasHeld)game?.stopInput();
 }
 function clearInput(){keys.clear();releaseMovement();mouse.active=false;mouse.point=null;game?.stopInput();if(game?.connected&&game.player.interactionTarget)game.send({type:'cancelInteraction'});}
-function chooseInteraction(kind:'loot'|'vendor',id:string){
+function chooseInteraction(kind:'loot'|'vendor'|'portal',id:string){
   if(!ready||!game.connected||game.player.dead||interfaceUI?.isPanelOpen())return;
-  releaseMovement();keys.clear();cancelAfk();game.send(kind==='loot'?{type:'pickup',id}:{type:'interact',npcId:id});
+  releaseMovement();keys.clear();cancelAfk();game.send(kind==='loot'?{type:'pickup',id}:kind==='portal'?{type:'portal',portalId:id}:{type:'interact',npcId:id});
 }
 function returnToCamp(){
   if(!ready)return;
@@ -118,6 +122,13 @@ function returnToCamp(){
   clearInput();game.returnToCamp();selected=null;
 }
 function number(event:Point & {amount?:number},kind=''){const element=document.createElement('span');element.className='damage-number '+kind;element.textContent=kind==='miss'?'Промах':(kind==='heal'?'+':kind==='loot'?'+':'')+String(event.amount);$('world-ui').append(element);floats.push({element,x:event.x,z:event.z,y:kind==='hurt'?2.2:1.5,life:.95});}
+function resetLocationView(){
+  clearInput();selected=null;pendingWeapon=null;visualHeroes.clear();visualMobs.clear();
+  cameraTarget.set(game.player.x,.3,game.player.z);updateCamera(0);
+  for(const model of shots.values())disposeSkillProjectile(model);shots.clear();skillEffects?.clear();
+  for(const particle of particles){particle.mesh.removeFromParent();particle.mesh.material.dispose();}particles.length=0;
+  for(const floating of floats)floating.element.remove();floats.length=0;
+}
 function processEvents(){
   let gainedLevel=null;
   for(const event of game.events.splice(0)){
@@ -134,15 +145,17 @@ function processEvents(){
     if(event.type==='heal')number(event,'heal');
     if(event.type==='loot')number(event,'loot');
     if(event.type==='kill'){toast(`${event.name} повержен · +${event.xp} опыта`);}
-    if(event.type==='safe'&&time-lastSafeToast>1.5){lastSafeToast=time;toast('Лагерь безопасен. Выйдите на лесную тропу');}
+    if(event.type==='safe'&&time-lastSafeToast>1.5){lastSafeToast=time;toast(locationAt(game.player)==='stadium'?'Безопасная площадка. Пройдите в один из трёх загонов':'Лагерь безопасен. Выйдите на лесную тропу');}
     if(event.type==='death'){clearInput();pendingWeapon=null;selected=null;}
-    if(event.type==='camp'){clearInput();selected=null;toast('У костра восстанавливаются здоровье, мана и зелья');}
+    if(event.type==='portal'){resetLocationView();toast(event.location==='stadium'?'Стадиум · три загона для охоты':'Пепельная опушка · безопасный лагерь');}
+    if(event.type==='camp'){resetLocationView();toast('У костра восстанавливаются здоровье, мана и зелья');}
     if(event.type==='quest')toast('Опушка очищена! Награда: 50 золота');
   }
   // Kill/loot events arrive in the same snapshot: keep level progression visible.
   if(gainedLevel!==null)toast(`Новый уровень: ${gainedLevel} · доступны очки характеристик · C`);
 }
 function tick(dt:number){
+  processEvents();
   if(!game.connected){processEvents();return;}
   if(interfaceUI?.isPanelOpen?.()){game.update(dt,{x:0,z:0,aim:null});processEvents();return;}
   const hero=game.player;
@@ -153,22 +166,28 @@ function tick(dt:number){
   if(pendingWeapon&&!hero.attack)chooseWeapon(pendingWeapon);
   processEvents();
 }
-function mapPosition(p:Point){return {x:10+(p.x-BOUNDS.minX)/(BOUNDS.maxX-BOUNDS.minX)*(mini.width-20),y:8+(p.z-BOUNDS.minZ)/(BOUNDS.maxZ-BOUNDS.minZ)*(mini.height-16)};}
+function mapPosition(p:Point){const BOUNDS=boundsForPosition(game.player);return {x:10+(p.x-BOUNDS.minX)/(BOUNDS.maxX-BOUNDS.minX)*(mini.width-20),y:8+(p.z-BOUNDS.minZ)/(BOUNDS.maxZ-BOUNDS.minZ)*(mini.height-16)};}
 function drawMap(){
-  drawWorldMapBackdrop(map,mini.width,mini.height);
-  for(const spot of AFK_SPOTS){const p=mapPosition(spot);map.strokeStyle=game.player.afk?.spotId===spot.id?'#dfc98a':'#82a497';map.lineWidth=1.2;map.beginPath();map.ellipse(p.x,p.y,spot.radius/(BOUNDS.maxX-BOUNDS.minX)*(mini.width-20),spot.radius/(BOUNDS.maxZ-BOUNDS.minZ)*(mini.height-16),0,0,Math.PI*2);map.stroke();}
+  drawWorldMapBackdrop(map,mini.width,mini.height,game.player);
+  const BOUNDS=boundsForPosition(game.player);
+  for(const spot of AFK_SPOTS){if(!sameLocation(spot,game.player))continue;const p=mapPosition(spot);map.strokeStyle=game.player.afk?.spotId===spot.id?'#dfc98a':'#82a497';map.lineWidth=1.2;map.beginPath();map.ellipse(p.x,p.y,spot.radius/(BOUNDS.maxX-BOUNDS.minX)*(mini.width-20),spot.radius/(BOUNDS.maxZ-BOUNDS.minZ)*(mini.height-16),0,0,Math.PI*2);map.stroke();}
+  for(const portal of PORTALS){if(!sameLocation(portal,game.player))continue;const p=mapPosition(portal);map.strokeStyle='#86dfe4';map.lineWidth=2;map.strokeRect(p.x-3,p.y-3,6,6);}
   for(const m of game.mobs){if(m.state==='dead')continue;const p=mapPosition(m);map.fillStyle=m.type==='alpha'?'#edba70':'#c27461';map.beginPath();map.arc(p.x,p.y,m.type==='alpha'?3:2.2,0,Math.PI*2);map.fill();}
   for(const other of game.players){if(other.id===game.id)continue;const p=mapPosition(other);map.fillStyle='#80cddd';map.beginPath();map.arc(p.x,p.y,2.8,0,Math.PI*2);map.fill();}
   const p=mapPosition(game.player);map.fillStyle='#f4e5bb';map.beginPath();map.arc(p.x,p.y,3,0,Math.PI*2);map.fill();map.strokeStyle='#eff3d0';map.beginPath();map.moveTo(p.x,p.y);map.lineTo(p.x+Math.sin(game.player.yaw)*7,p.y+Math.cos(game.player.yaw)*7);map.stroke();
 }
 function updateUI(){
-  const hero=game.player,camp=safe(hero),mob=selectedMob();
+  const hero=game.player,camp=safe(hero),mob=selectedMob(),inStadium=locationAt(hero)==='stadium';
+  $('location-name').textContent=inStadium?'Стадиум':'Пепельная опушка';
+  $('map-legend').innerHTML=inStadium?'<span>I · ВОЛКИ</span><span>II · КАБАНЫ</span><span>III · ВОЖАКИ</span>':'<span>ЛАГЕРЬ</span><span>◯ СПОТЫ</span><span>РУИНЫ</span>';
+  mini.setAttribute('aria-label',inStadium?'Стадиум: три загона на севере, безопасная площадка и портал на юге.':'Карта Пепельной опушки: лагерь, четыре спота и руины.');
+  $('forest-quest').hidden=inStadium;$('stadium-guide').hidden=!inStadium;
   const spot=afkSpotAt(hero);
   const clearing=WORLD_CLEARINGS.find(field=>Math.hypot(hero.x-field.x,hero.z-field.z)<field.radius);
-  $('zone-state').textContent=camp?'Безопасный лагерь':spot?spot.name:Math.hypot(hero.x-25,hero.z+1.2)<6?'Старые руины · вожак':clearing?`${clearing.id==='camp'?'Окраина лагеря':clearing.name} · опасная зона`:'Пепельная опушка · опасная зона';
+  $('zone-state').textContent=camp?(inStadium?'Безопасная площадка':'Безопасный лагерь'):spot?spot.name:inStadium?'Стадиум · входы в загоны':Math.hypot(hero.x-25,hero.z+1.2)<6?'Старые руины · вожак':clearing?`${clearing.id==='camp'?'Окраина лагеря':clearing.name} · опасная зона`:'Пепельная опушка · опасная зона';
   const afk=$('afk-toggle');afk.disabled=!game.connected||!!hero.dead||(!spot&&!hero.afk);afk.setAttribute('aria-pressed',String(!!hero.afk));afk.title=hero.afk?'Остановить автоохоту · F':'Встаньте внутри отмеченного спота · F. Опасная охота: нужны снаряжение и зелья.';
   $('afk-status').textContent=hero.afk?'Автоохота включена':spot?'Автоохота доступна':'Автоохота на споте';$('zone-state').classList.toggle('safe',camp);
-  $('hp-text').textContent=`${Math.ceil(hero.hp)} / ${hero.maxHp}`;$('hp-fill').style.height=`${Math.max(0,Math.min(1,hero.hp/hero.maxHp||0))*100}%`;
+  $('hp-text').textContent=`${Math.ceil(hero.hp)} / ${Math.ceil(hero.maxHp)}`;$('hp-fill').style.height=`${Math.max(0,Math.min(1,hero.hp/hero.maxHp||0))*100}%`;
   $('hp-orb').setAttribute('aria-valuemax',String(hero.maxHp));$('hp-orb').setAttribute('aria-valuenow',String(Math.ceil(hero.hp)));
   $('gold').textContent=`${hero.coins} золота`;$('xp').textContent=`${hero.xp} опыта`;$('potions').textContent=String(hero.potions);
   $('movement-label').textContent=hero.running?'Бег':'Ходьба';$('movement').setAttribute('aria-pressed',String(hero.running));$('movement').disabled=!!hero.dead;
@@ -217,16 +236,26 @@ function renderPlayers(dt:number){
 }
 function renderShots(){
   const ids=new Set(game.projectiles.map(p=>p.id));
-  for(const [id,model] of shots)if(!ids.has(id)){model.removeFromParent();model.geometry.dispose();model.material.dispose();shots.delete(id);}
+  for(const [id,model] of shots)if(!ids.has(id)){disposeSkillProjectile(model);shots.delete(id);}
   for(const p of game.projectiles){
     let model=shots.get(p.id);
-    if(!model){model=new T.Mesh(p.kind==='archer'?new T.CylinderGeometry(.025,.025,.65,5):new T.IcosahedronGeometry(.13,1),new T.MeshBasicMaterial({color:p.kind==='archer'?'#e5ce95':'#bb99ff'}));if(p.kind==='archer')model.geometry.rotateX(Math.PI/2);scene.add(model);shots.set(p.id,model);}
+    if(!model){model=createSkillProjectile(p);scene.add(model);shots.set(p.id,model);}
     const lead=Math.min(.075,(performance.now()-game.receivedAt)/1000,p.remaining/p.speed)*p.speed;
     model.position.set(p.x+Math.sin(p.yaw)*lead,1.05,p.z+Math.cos(p.yaw)*lead);model.rotation.y=p.yaw;
-    model.material.color.set(p.skillId==='mage-fireball'?'#ffab54':p.kind==='archer'?'#e5ce95':'#bb99ff');model.scale.setScalar(p.skillId==='mage-fireball'?1.8:p.skillId==='archer-piercing'?1.3:1);
+    updateSkillProjectile(model,p,time);
   }
 }
+function ensureMobModel(mob:PublicMob){
+  let model=models.get(mob.id);
+  if(!model){
+    model=Object.assign(createMob(mob.type,mobAssets),{pickMeshes:[] as T.Mesh[]});
+    model.pickRoot.traverse(object=>{if(object instanceof T.Mesh){object.userData.mob=mob.id;model!.pickMeshes.push(object);}});
+    models.set(mob.id,model);scene.add(model.root);
+  }
+  return model;
+}
 function render(dt:number){
+  if(!sameLocation(cameraTarget,game.player))resetLocationView();
   const hero=visualActor(game.player,dt);time+=dt;updateCamera(dt);mouse.point=pickGround();
   if(benchmark?.variant==='picking'){mouse.active=true;mouse.x=width*.5+Math.sin(time*2)*width*.18;mouse.y=height*.5;mouse.point=pickGround();pickMob();}
   if(mouse.held&&mouse.pickPending&&mouse.point){selected=pickMob();mouse.pickPending=false;}
@@ -234,15 +263,17 @@ function render(dt:number){
   benchmark?.mark('camera-picking');
   warrior.animate(dt,hero,!benchmark?.freezeAnimations);
   marker.position.set(hero.x,.03,hero.z);marker.rotation.y=hero.yaw;marker.visible=!hero.dead;
-  world.marker.visible=false;world.animate(time);
+  world.marker.visible=false;world.animate(time);stadium.animate(time);
   renderPlayers(dt);renderShots();skillEffects?.update(dt);skillEffects?.slowMobs(game.mobs);
+  const presentMobIds=new Set(game.mobs.map(mob=>mob.id));
+  for(const [id,model] of models)if(!presentMobIds.has(id)){model.root.visible=false;visualMobs.delete(id);}
   for(const mob of game.mobs){
     let v=visualMobs.get(mob.id);if(!v){v={...mob};visualMobs.set(mob.id,v);}
     const x=v.x,z=v.z,yaw=v.yaw,blend=1-Math.exp(-18*dt);Object.assign(v,mob);
     if(Math.hypot(x-mob.x,z-mob.z)<3){v.x=x+(mob.x-x)*blend;v.z=z+(mob.z-z)*blend;}
     v.yaw=yaw+angleDelta(yaw,mob.yaw)*blend;
     const lag=Math.min(.1,(performance.now()-game.receivedAt)/1000);v.age+=lag;if(v.state==='windup')v.timer=Math.max(0,v.timer-lag);v.flash=Math.max(0,v.flash-lag);
-    const model=models.get(mob.id);if(model){model.root.visible=actorVisible(v);model.animate(v,time,selected===mob.id,camera,model.root.visible&&!benchmark?.freezeAnimations);}
+    const model=ensureMobModel(mob);if(model){model.root.visible=actorVisible(v);model.animate(v,time,selected===mob.id,camera,model.root.visible&&!benchmark?.freezeAnimations);}
   }
   benchmark?.mark('actors');
   worldInteractions?.update(dt,camera,width,height,ready&&game.connected&&!game.player.dead&&!interfaceUI.isPanelOpen());
@@ -275,16 +306,16 @@ async function start(){
     }
     const pmrem=new T.PMREMGenerator(renderer);scene.environment=pmrem.fromScene(lightRoom,.08).texture;scene.environmentIntensity=.38;pmrem.dispose();for(const p of lightPanels){p.geometry.dispose();p.material.dispose();}
 
-    world=createEnvironment(scene);skillEffects=createSkillEffects(scene);game=new NetworkGame();interfaceUI=bindInterface(game,toast,clearInput);
+    world=createEnvironment(scene);stadium=createStadiumEnvironment(scene);skillEffects=createSkillEffects(scene);game=new NetworkGame();interfaceUI=bindInterface(game,toast,clearInput);
     $('load-progress').textContent='Загружаем персонажа и обитателей леса…';
-    const mobAssets=await loadMobAssets();
+    mobAssets=await loadMobAssets();
     $('load-progress').textContent='Подключаем героя к общему миру…';const stressMode=await stressEnabled();if(stressMode){game.storage.removeItem(game.tokenKey);await game.connect({name:'Наблюдатель FPS',classId:'warrior'});}else await interfaceUI.join();
     warrior=await loadWarrior(game.player.classId);scene.add(warrior.root);
-    worldInteractions=await createWorldInteractions(scene,game,chooseInteraction);
-    for(const mob of game.mobs){const model=Object.assign(createMob(mob.type,mobAssets),{pickMeshes:[] as T.Mesh[]});model.pickRoot.traverse(o=>{if(o instanceof T.Mesh){o.userData.mob=mob.id;model.pickMeshes.push(o);}});models.set(mob.id,model);scene.add(model.root);}
+    worldInteractions=await createWorldInteractions(scene,game,chooseInteraction,stadium.portals);
+    for(const mob of game.mobs)ensureMobModel(mob);
     const ring=mesh(marker,new T.RingGeometry(.43,.451,40),new T.MeshBasicMaterial({color:'#dac593',transparent:true,opacity:.62,side:T.DoubleSide,depthWrite:false}));ring.rotation.x=-Math.PI/2;ring.castShadow=false;ring.receiveShadow=false;scene.add(marker);
     $('load-progress').textContent='Загружаем материалы леса…';await world.ready;ready=true;if(stressMode){const link=document.createElement('link');link.rel='stylesheet';link.href='/game/benchmark.css';document.head.append(link);benchmark=new Benchmark({renderer,scene,camera,game,modelsReady:()=>remoteModels.size===game.players.length-1&&loadingPlayers.size===0,setVariant:variant=>{renderer.shadowMap.enabled=variant!=='no-shadows';fitCamera();world.setTreesVisible?.(variant!=='no-trees');}});}
-    render(1/60);$('load-progress').textContent='Готовим свет и тени…';await renderer.compileAsync(scene,camera);$('loading').hidden=true;canvas.focus({preventScroll:true});updateUI();renderer.setAnimationLoop(loop);
+    cameraTarget.set(game.player.x,.3,game.player.z);render(1/60);$('load-progress').textContent='Готовим свет и тени…';await renderer.compileAsync(scene,camera);$('loading').hidden=true;canvas.focus({preventScroll:true});updateUI();renderer.setAnimationLoop(loop);
   }catch(error){console.error(error);ready=false;$('loading').hidden=false;$('loading').querySelector('h2')!.textContent='Локацию не удалось открыть';$('load-progress').textContent=errorMessage(error);$('retry').hidden=false;}
 }
 canvas.addEventListener('pointermove',event=>{
@@ -325,13 +356,12 @@ addEventListener('keydown',event=>{
   if(document.activeElement?.tagName==='BUTTON'&&['Space','Enter'].includes(event.code))return;
   if(event.code==='Space'){event.preventDefault();keys.add(event.code);}if(event.repeat)return;
   if(['ShiftLeft','ShiftRight'].includes(event.code)&&(document.activeElement===canvas||document.activeElement===document.body))toggleRun();
-  if(event.code==='Space'){attackAt();}if(event.code==='Digit1')chooseWeapon('sword');if(event.code==='Digit2')chooseWeapon('axe');if(event.code==='KeyR')game.potion();if(event.code==='KeyQ')castSkill(0);if(event.code==='KeyE')castSkill(1);if(event.code==='KeyF')toggleAfk();if(event.code==='Escape'){cancelAfk();clearInput();}
+  if(event.code==='Space'){attackAt();}if(event.code==='Digit1')chooseWeapon('sword');if(event.code==='Digit2')chooseWeapon('axe');if(event.code==='KeyR')game.potion();if(event.code==='KeyQ')castSkill(0);if(event.code==='KeyE')castSkill(1);if(event.code==='KeyZ')castSkill(2);if(event.code==='KeyX')castSkill(3);if(event.code==='KeyF')toggleAfk();if(event.code==='Escape'){cancelAfk();clearInput();}
 });
 addEventListener('keyup',e=>keys.delete(e.code));addEventListener('blur',clearInput);document.addEventListener('visibilitychange',()=>{paused=document.hidden;if(paused)clearInput();last=0;accumulator=0;});addEventListener('resize',fitCamera);
 canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();ready=false;clearInput();$('loading').hidden=false;$('loading').querySelector('h2')!.textContent='3D-изображение приостановлено';$('load-progress').textContent='Нажмите «Повторить», чтобы открыть локацию снова.';$('retry').hidden=false;});
 for(const b of document.querySelectorAll<HTMLButtonElement>('[data-weapon]'))b.addEventListener('click',()=>{chooseWeapon(b.dataset.weapon);canvas.focus({preventScroll:true});});
-$('special').addEventListener('click',()=>{castSkill(0);canvas.focus({preventScroll:true});});
-$('skill-secondary').addEventListener('click',()=>{castSkill(1);canvas.focus({preventScroll:true});});
+for(const [index,id] of ['special','skill-secondary','skill-tertiary','skill-quaternary'].entries())$(id).addEventListener('click',()=>{castSkill(index);canvas.focus({preventScroll:true});});
 $('afk-toggle').addEventListener('click',()=>{toggleAfk();canvas.focus({preventScroll:true});});
 $('movement').addEventListener('click',()=>{toggleRun();canvas.focus({preventScroll:true});});
 $('attack').addEventListener('click',()=>{attackAt();canvas.focus({preventScroll:true});});$('potion').addEventListener('click',()=>{game.potion();canvas.focus({preventScroll:true});});$('reset').addEventListener('click',()=>{returnToCamp();canvas.focus({preventScroll:true});});$('retry').addEventListener('click',()=>location.reload());

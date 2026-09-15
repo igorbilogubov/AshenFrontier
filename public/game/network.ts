@@ -1,4 +1,5 @@
 import {moveHero,stand} from './location.js';
+import {sameLocation} from './world-layout.js';
 import {characterStats} from '../rules.js';
 import type {SelfSnapshot,PublicPlayer,PublicMob,PublicProjectile,WorldEvent,ChatEntry,ClientMessage,ServerMessage,ClassId,WeaponId,HeroInput,SkillId,GroundDrop} from '../../shared/types.js';
 
@@ -72,7 +73,9 @@ export class NetworkGame{
       }
       if(m.type==='state'&&welcomed&&m.self){
         clearTimeout(deadline);this.connected=true;this.retryDelay=600;this.receivedAt=performance.now();
-        const self=m.self;this.pending=this.pending.filter(input=>input.seq>self.ack);
+        const self=m.self;
+        const teleported=!sameLocation(this.player,self)||m.events.some(event=>event.type==='portal'||event.type==='camp');
+        this.pending=teleported?[]:this.pending.filter(input=>input.seq>self.ack);
         this.serverTime=m.t;
         const next:ClientPlayer={...self,coins:self.gold};
         if(next.afk||next.interactionTarget)this.pending=[];else for(const input of this.pending)moveHero(next,.05,input);

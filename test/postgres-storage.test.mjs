@@ -119,7 +119,8 @@ test('one retained writer owns the world lock; losing its session disables write
     const client=new pg.Client({connectionString:db.url});await client.connect();
     try{
       const lock=(await client.query(`SELECT pid FROM pg_locks WHERE locktype='advisory' AND classid=8675309::oid
-        AND objid=4732::oid AND mode='ExclusiveLock' AND granted`)).rows[0];
+        AND objid=4732::oid AND mode='ExclusiveLock' AND granted
+        AND database=(SELECT oid FROM pg_database WHERE datname=current_database())`)).rows[0];
       assert(lock);
       await client.query('SELECT pg_terminate_backend($1)',[lock.pid]);
     }finally{await client.end();}

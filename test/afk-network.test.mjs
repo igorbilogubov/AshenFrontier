@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {once} from 'node:events';
 import {setTimeout as delay} from 'node:timers/promises';
 import {WebSocket} from 'ws';
-import {newHero,persistentHero} from '../dist/world.js';
+import {newHero,persistentHero,stats} from '../dist/world.js';
 import {AFK_SPOTS} from '../dist/public/game/location.js';
 import {createTestDatabase,hasTestDatabase} from './helpers/postgres.mjs';
 import {startTestServer,stopTestServer} from './helpers/network.mjs';
@@ -32,5 +32,25 @@ test('real online AFK stops with the socket and never resumes from saved V3 afte
     assert.equal(restored.state.self.afk,null);assert.equal(restored.state.self.id,saved.id);
     assert.equal(restored.state.self.kills,saved.kills);assert.equal(restored.state.self.questKills,saved.questKills);
     await delay(180);assert(restored.states.every(state=>state.self.afk===null));
+  }finally{for(const client of clients)await close(client);await stopTestServer(server);await database.close();}
+});
+
+test('real online AFK collects personal gold and PostgreSQL keeps the award after restart',{skip:!hasTestDatabase},async()=>{
+  const database=await createTestDatabase(),token='f'.repeat(48),spot=AFK_SPOTS[0],hero=newHero('Автосбор','warrior');
+  Object.assign(hero,{x:spot.x,z:spot.z,level:35});hero.hp=stats(hero).maxHp;hero.mana=stats(hero).maxMana;
+  await database.seed(token,persistentHero(hero));let server;const clients=[];
+  try{
+    server=await startTestServer(database);const owner=await connect(server,{token});clients.push(owner);
+    owner.ws.send(JSON.stringify({type:'afk',enabled:true}));
+    await until(()=>owner.state?.self.afk?.spotId===spot.id);
+    await until(()=>owner.state?.self.gold>0,20000);
+    assert(owner.state.self.kills>0);assert(owner.state.self.afk);
+    const awarded=owner.state.self.gold;
+    let durable=0;
+    for(let i=0;i<40&&durable<awarded;i++){durable=(await database.load(token)).hero.gold;if(durable<awarded)await delay(100);}
+    assert(durable>=awarded);
+    await close(owner);await stopTestServer(server);
+    server=await startTestServer(database);const restored=await connect(server,{token});clients.push(restored);
+    assert(restored.state.self.gold>=awarded);assert.equal(restored.state.self.afk,null);
   }finally{for(const client of clients)await close(client);await stopTestServer(server);await database.close();}
 });

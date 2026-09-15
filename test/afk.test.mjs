@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {World,newHero,safeHero,persistentHero,makeLoot,stats} from '../dist/world.js';
 import {AFK_SPOTS,MOB_TYPES,withinSpot,clearPath,stand} from '../dist/public/game/location.js';
+import {CLASS_ITEMS,rollEquipment} from '../dist/public/game/equipment-items.js';
 
 const step=(w,n=1)=>{for(let i=0;i<n;i++)w.tick(.05,w.t+50);};
 function fixture(classId='warrior',spot=AFK_SPOTS[0]){
@@ -87,18 +88,18 @@ test('reconnect and V3 recovery discard a saved in-flight automatic attack',()=>
   assert.equal(p.afk,null);assert.equal(w.projectiles[0].remaining,0);
 });
 
-test('full backpack and sixteen pending items stop AFK before storage can grow without bound',()=>{
+test('full backpack and pending queue leave items on ground while AFK keeps hunting and collecting gold',()=>{
   const {w,p}=fixture();w.mobs=[];
   while(p.items.length<18)p.items.push(makeLoot(p.classId,1,0,'ring'));
   p.pendingItems=Array.from({length:16},()=>makeLoot(p.classId,1,0,'amulet'));
-  toggle(w,p,true);assert.equal(p.afk,null);
-  p.pendingItems.pop();toggle(w,p,true);assert(p.afk);
-  p.pendingItems.push(makeLoot(p.classId,1,0,'amulet'));step(w);
-  assert.equal(p.afk,null);assert.equal(p.pendingItems.length,16);
-  assert(w.events.some(e=>e.type==='notice'&&e.text.includes('заполнены')));
+  toggle(w,p,true);assert(p.afk);
+  w.addGroundDrop(p.id,{id:'full-gold',kind:'gold',x:p.x,z:p.z,amount:8,expiresAt:w.t+10000});
+  w.addGroundDrop(p.id,{id:'full-item',kind:'item',x:p.x,z:p.z,item:makeLoot(p.classId,1,0,'ring'),expiresAt:w.t+10000});
+  step(w,20);assert(p.afk);assert.equal(p.gold,8);assert.equal(p.pendingItems.length,16);
+  assert.equal(w.snapshot(p.id).groundLoot.length,1);assert.equal(w.snapshot(p.id).groundLoot[0].kind,'item');
 });
 
-test('multi-target AFK kills leave personal rewards on the ground without adding pending equipment',()=>{
+test('multi-target AFK kills collect gold and leave full-backpack items on the ground',()=>{
   const {w,p,spot}=fixture();
   w.mobs=w.mobs.filter(m=>spot.spawnIds.slice(0,3).includes(m.id));
   for(const [i,m] of w.mobs.entries())Object.assign(m,{x:spot.x+.9+i*.35,z:spot.z,hp:10,state:'recover',timer:100,target:p.id});
@@ -107,7 +108,7 @@ test('multi-target AFK kills leave personal rewards on the ground without adding
   toggle(w,p,true);for(let i=0;i<30;i++)step(w);
   assert.equal(p.pendingItems.length,15);assert.equal(p.items.length,18);
   assert(w.mobs.some(m=>m.state==='dead'));
-  assert(w.snapshot(p.id).groundLoot.some(drop=>drop.kind==='gold'));
+  assert(p.gold>0);assert(w.snapshot(p.id).groundLoot.some(drop=>drop.kind==='item'));
 });
 
 test('all six members of each spot respawn at their homes after sixteen seconds; original boss timer remains forty',()=>{
@@ -131,4 +132,36 @@ test('online AFK uses an authored skill, then falls back to free basic attacks a
   }
   assert(sawSkill);assert(sawBasic);assert(w.mobs[0].hp<10000);
   assert(withinSpot(p,spot,-.46));
+});
+
+test('AFK stays active through empty target waves and several respawns',()=>{
+  const {w,p,spot}=fixture();w.mobs=w.mobs.filter(m=>spot.spawnIds.includes(m.id));
+  toggle(w,p,true);assert(p.afk);
+  for(const m of w.mobs)w.kill(m);
+  let sawRespawn=false;
+  for(let i=0;i<500;i++){step(w);assert(p.afk);assert(withinSpot(p,spot,-.46));if(i>320&&w.mobs.some(m=>m.state!=='dead'))sawRespawn=true;}
+  assert(sawRespawn,'a later wave should have appeared');
+});
+
+test('AFK collects owned gold and rolled item, ignores foreign/outside loot and keeps rolls exact',()=>{
+  const {w,p,spot}=fixture();w.mobs=[];toggle(w,p,true);
+  const item=rollEquipment(CLASS_ITEMS[p.classId][0].id,'owned-rolled',()=>.37);
+  const near={x:spot.x+.8,z:spot.z};
+  w.addGroundDrop(p.id,{id:'owned-gold',kind:'gold',...near,amount:11,expiresAt:w.t+10000});
+  w.addGroundDrop(p.id,{id:'owned-item',kind:'item',...near,item,expiresAt:w.t+10000});
+  w.addGroundDrop('someone-else',{id:'foreign',kind:'gold',...near,amount:99,expiresAt:w.t+10000});
+  w.addGroundDrop(p.id,{id:'outside',kind:'gold',x:spot.x+spot.radius+1,z:spot.z,amount:99,expiresAt:w.t+10000});
+  for(let i=0;i<60&&(p.gold<11||!p.items.some(found=>found.id===item.id));i++)step(w);
+  assert.equal(p.gold,11);assert.deepEqual(p.items.find(found=>found.id===item.id),item);assert(p.afk);
+  assert.deepEqual(w.snapshot(p.id).groundLoot.map(drop=>drop.id),['outside']);
+  assert(w.groundLoot.some(drop=>drop.id==='foreign'));
+  assert(withinSpot(p,spot,-.46));
+  assert.deepEqual(safeHero(persistentHero(p)).items.find(found=>found.id===item.id),item);
+});
+
+test('AFK collects a drop near the spot edge without moving its body outside',()=>{
+  const {w,p,spot}=fixture();w.mobs=[];toggle(w,p,true);
+  w.addGroundDrop(p.id,{id:'edge-gold',kind:'gold',x:spot.x+spot.radius-.1,z:spot.z,amount:7,expiresAt:w.t+10000});
+  for(let i=0;i<180&&p.gold<7;i++){step(w);assert(p.afk);assert(withinSpot(p,spot,-.46));}
+  assert.equal(p.gold,7);assert.deepEqual(w.snapshot(p.id).groundLoot,[]);
 });

@@ -233,7 +233,6 @@ export class World{
     if(!p.connected||p.dead){this.notice(p,'Автоохота доступна только живому подключённому герою');return false;}
     const spot=afkSpotAt(p);
     if(!spot||!withinSpot(p,spot,-.46)){this.notice(p,'Войдите в охотничий спот или загон Стадиума для автоохоты');return false;}
-    if(backpackItems(p).length>=BAG_CAPACITY&&p.pendingItems.length>=BAG_CAPACITY){this.notice(p,'Рюкзак и очередь добычи заполнены');return false;}
     p.afk={spotId:spot.id,targetId:null};p.input={...p.input,x:0,z:0,aim:null};p.vx=p.vz=0;
     return true;
   }
@@ -500,12 +499,34 @@ export class World{
     return this.mobs.filter(m=>spot.spawnIds.includes(m.id)&&m.spotId===spot.id&&m.state!=='dead'&&m.state!=='return'&&withinSpot(m,spot,-MOB_TYPES[m.type].radius)&&clearPath(p,m))
       .sort((left,right)=>distance(p,left)-distance(p,right)||left.id-right.id);
   }
+  /** Only owned, reachable drops inside this hunting circle are eligible. */
+  afkDrop(p:Hero){
+    const spot=AFK_SPOTS.find(candidate=>candidate.id===p.afk?.spotId);
+    if(!spot||!p.connected||p.dead)return undefined;
+    const room=backpackItems(p).length<BAG_CAPACITY;
+    return this.groundLoot.filter(drop=>drop.owner===p.id&&drop.expiresAt>this.t&&
+      (drop.kind==='gold'||room&&drop.kind==='item')&&sameLocation(p,drop)&&
+      withinSpot(drop,spot)&&stand(drop.x,drop.z,0)&&!safe(drop)&&clearPath(p,drop))
+      .sort((left,right)=>(left.kind==='gold'?0:1)-(right.kind==='gold'?0:1)||distance(p,left)-distance(p,right)||left.id.localeCompare(right.id))[0];
+  }
+  afkPickup(p:Hero){
+    if(!p.afk||p.attack)return false;
+    const drop=this.afkDrop(p);
+    return !!drop&&distance(p,drop)<=PICKUP_RANGE&&this.pickUp(p,drop.id);
+  }
   driveAfk(p: Hero){
     if(!p.afk)return {x:0,z:0,aim:null};
     if(!p.connected||p.dead){this.stopAfk(p);return {x:0,z:0,aim:null};}
     const spot=AFK_SPOTS.find(candidate=>candidate.id===p.afk?.spotId);
     if(!spot||!withinSpot(p,spot,-.46)){this.stopAfk(p,'Автоохота остановлена: герой вышел из спота');return {x:0,z:0,aim:null};}
-    if(backpackItems(p).length>=BAG_CAPACITY&&p.pendingItems.length>=BAG_CAPACITY){this.stopAfk(p,'Автоохота остановлена: рюкзак и очередь добычи заполнены');return {x:0,z:0,aim:null};}
+    if(!p.attack){
+      const drop=this.afkDrop(p);
+      if(drop){
+        if(distance(p,drop)<=PICKUP_RANGE){this.pickUp(p,drop.id);return {x:0,z:0,aim:null};}
+        const yaw=Math.atan2(drop.x-p.x,drop.z-p.z);
+        return {x:Math.sin(yaw),z:Math.cos(yaw),aim:yaw};
+      }
+    }
     const target=this.afkTargets(p)[0];p.afk.targetId=target?.id??null;
     if(p.attack)return {x:0,z:0,aim:target?Math.atan2(target.x-p.x,target.z-p.z):null};
     if(!target){
@@ -551,7 +572,8 @@ export class World{
       if(p.afk){
         const spot=AFK_SPOTS.find(candidate=>candidate.id===p.afk?.spotId);
         if(!spot||!withinSpot(p,spot,-.46)){p.x=before.x;p.z=before.z;p.vx=p.vz=0;p.gait=before.gait;p.moveBlend=p.runBlend=0;}
-        this.autoAttack(p);
+        if(!this.afkDrop(p))this.autoAttack(p);
+        this.afkPickup(p);
       }
       if(p.attack){
         const a=p.attack;a.age+=dt;

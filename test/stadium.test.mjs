@@ -72,13 +72,13 @@ test('snapshots isolate players, mobs, ground loot and spatial effects by region
   assert.deepEqual(a.players.map(p=>p.id),[arena.id]);assert.deepEqual(f.players.map(p=>p.id),[forest.id]);assert.equal(a.mobs.length,24);assert.equal(f.mobs.length,71);assert.deepEqual(a.groundLoot.map(d=>d.id),['arena']);assert.equal(a.events.length,1);assert.equal(a.events[0].id,41);assert.equal(f.events.length,1);assert.equal(f.events[0].id,0);
 });
 
-test('online AFK works in every pen for all three classes while respecting hunting boundaries and manual loot',()=>{
+test('online AFK works in every pen for all three classes while respecting hunting boundaries and collecting loot',()=>{
   for(const pen of STADIUM_PENS)for(const classId of ['warrior','archer','mage']){
     const world=new World({random:()=>0}),p=newHero(`${classId}`,classId);world.add(p);Object.assign(p,{x:pen.x,z:pen.z,level:35});p.hp=stats(p).maxHp;p.mana=stats(p).maxMana;
     world.mobs=world.mobs.filter(m=>m.spotId===pen.id);assert(world.startAfk(p));
     for(let i=0;i<800&&p.afk;i++){world.tick(.05);assert(withinSpot(p,pen,-.46));assert(stand(p.x,p.z));}
-    assert(p.kills>0,`${pen.id}/${classId} cannot kill`);assert.equal(p.gold,0);assert.equal(p.questKills,0);assert.equal(p.items.length,2);
-    assert(world.groundLoot.some(drop=>drop.owner===p.id));world.command(p,{type:'input',x:1,z:0,aim:null,seq:2});assert.equal(p.afk,null);
+    assert(p.kills>0,`${pen.id}/${classId} cannot kill`);assert(p.gold>0);assert.equal(p.questKills,0);
+    assert(p.items.length>=2);world.command(p,{type:'input',x:1,z:0,aim:null,seq:2});assert.equal(p.afk,null);
   }
 });
 

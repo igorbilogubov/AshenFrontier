@@ -50,7 +50,7 @@ test('saved archer and mage rolls keep their exact instance identity through loa
   }
 });
 
-test('AFK kill credit remains separate while equipment waits on the ground for manual pickup',()=>{
+test('AFK kill credit remains separate while equipment initially appears on the ground',()=>{
   for(const classId of ['archer','mage']){
     const w=new World({random:()=>0}),p=newHero('Авто-добыча',classId),spot=AFK_SPOTS[0];w.add(p);
     Object.assign(p,{x:spot.x,z:spot.z,kills:2,questKills:0});

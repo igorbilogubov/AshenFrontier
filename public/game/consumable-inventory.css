@@ -1,8 +1,8 @@
 .hud-core .dock .quick-consumable{overflow:visible}
 .hud-core .dock .quick-consumable.quick-unavailable{opacity:.62;filter:saturate(.65);cursor:default}
 .hud-core .dock .quick-consumable.quick-unavailable:hover{border-color:#f1cf8f}
-.hud-core .dock .quick-consumable .quick-count{position:absolute;top:3px;right:3px;z-index:5;min-width:20px;min-height:20px;padding:2px 4px;border:1px solid #f4daa7;border-radius:11px;background:#152319;color:#fff3cf;box-shadow:0 2px 5px #000b;font:700 12px/14px system-ui;text-align:center;pointer-events:none}
-.hud-core .dock .quick-consumable.quick-empty .quick-count{color:#b6b8aa;border-color:#8b927d}
+.hud-core .dock .quick-consumable :is(#potions,#mana-potions){position:absolute;top:3px;right:3px;z-index:5;min-width:20px;min-height:20px;padding:2px 4px;border:1px solid #f4daa7;border-radius:11px;background:#152319;color:#fff3cf;box-shadow:0 2px 5px #000b;font:700 12px/14px system-ui;text-align:center;pointer-events:none}
+.hud-core .dock .quick-consumable.quick-empty :is(#potions,#mana-potions){color:#b6b8aa;border-color:#8b927d}
 .hud-core .dock .quick-consumable .action-art,.hud-core .dock .quick-consumable .action-name,.hud-core .dock .quick-consumable small{pointer-events:none}
 .hud-core .dock .quick-consumable.quick-drop-target{outline:2px dashed #f4d994;outline-offset:2px;box-shadow:0 0 15px #e9cb704f}
 .bag-cell.consumable-cell{position:relative;border-color:#d9aa6c;cursor:grab}
@@ -11,4 +11,4 @@
 .bag-cell.consumable-cell .stack-count{position:absolute;right:5px;bottom:5px;min-width:22px;padding:2px 4px;border:1px solid #f1c986;border-radius:11px;background:#152319;color:#fff0ce;font:700 12px/15px system-ui;text-align:center}
 .item-dragging .quick-consumable{outline:1px dashed #d5bc7d;outline-offset:2px}
 .item-drag-ghost .stack-count{display:block;position:absolute;right:2px;bottom:2px;color:#fff0ce;font:700 12px system-ui}
-@media(max-width:600px){.hud-core .dock .quick-consumable .quick-count{min-width:18px;min-height:18px;font-size:11px;line-height:13px}.bag-cell.consumable-cell .potion-icon{height:50px}}
+@media(max-width:600px){.hud-core .dock .quick-consumable :is(#potions,#mana-potions){min-width:18px;min-height:18px;font-size:11px;line-height:13px}.bag-cell.consumable-cell .potion-icon{height:50px}}

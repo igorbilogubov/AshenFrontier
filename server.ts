@@ -188,6 +188,7 @@ wss.on('connection',ws=>{
           if(receipt.length!==1||receipt[0].id!==p.id||!Number.isSafeInteger(receipt[0].revision))throw new Error('Incomplete hero normalization receipt');
           entry.revision=receipt[0].revision;entry.durable=economy(persistentHero(p));lastSavedAt=Date.now();
         }
+        if(ws.readyState!==WebSocket.OPEN||shuttingDown||writerLost){entry=null;return;}
         sessions.set(token,entry);
       }
       world.add(entry.p);connections.set(ws,entry);clearTimeout(helloTimeout);
@@ -235,8 +236,9 @@ async function runTick(){
     // Rewards, items, stat points, quest progress and consumables are durable
     // before their associated state/events leave the authoritative server.
     const economic=changedEntries().length>0;
-    if(economic||now-lastCheckpoint>=2000){
-      if(!await durable(economic?'economic mutation':'checkpoint',!economic))return;
+    const retiring=[...sessions.values()].some(session=>!session.ws&&session.p.disconnectAt<=now);
+    if(economic||retiring||now-lastCheckpoint>=2000){
+      if(!await durable(economic?'economic mutation':retiring?'disconnect':'checkpoint',retiring||!economic))return;
     }
     for(const [token,session] of sessions){
       if(session.ws||session.p.disconnectAt>now)continue;

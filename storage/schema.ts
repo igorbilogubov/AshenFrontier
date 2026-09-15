@@ -147,17 +147,49 @@ const afkPreferencesSchema=`
 ALTER TABLE heroes ADD COLUMN afk_preferences jsonb NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(afk_preferences)='object');
 `;
 
+// Each existing positive counter becomes one owned stack, without touching gear,
+// resources, progression, identities or revisions. Existing full bags keep both.
+const consumableInventorySchema=`
+CREATE TABLE consumable_stacks (
+  id text PRIMARY KEY CHECK (length(id) BETWEEN 1 AND 128),
+  hero_id text NOT NULL REFERENCES heroes(id) ON DELETE CASCADE,
+  definition_id text NOT NULL CHECK (length(definition_id) BETWEEN 1 AND 128),
+  quantity integer NOT NULL CHECK (quantity BETWEEN 1 AND 50),
+  stack_index integer NOT NULL CHECK (stack_index >= 0),
+  UNIQUE (hero_id,definition_id), UNIQUE (hero_id,stack_index)
+);
+ALTER TABLE heroes ADD COLUMN quick_slot_q text DEFAULT 'hp-basic';
+ALTER TABLE heroes ADD COLUMN quick_slot_w text DEFAULT 'mana-basic';
+ALTER TABLE heroes ADD COLUMN consumable_overflow integer NOT NULL DEFAULT 0 CHECK (consumable_overflow BETWEEN 0 AND 2);
+INSERT INTO consumable_stacks(id,hero_id,definition_id,quantity,stack_index)
+  SELECT 'migrated-hp-'||md5(id),id,'hp-basic',potions,0 FROM heroes WHERE potions>0;
+INSERT INTO consumable_stacks(id,hero_id,definition_id,quantity,stack_index)
+  SELECT 'migrated-mana-'||md5(id),id,'mana-basic',mana_potions,CASE WHEN potions>0 THEN 1 ELSE 0 END FROM heroes WHERE mana_potions>0;
+UPDATE heroes h SET consumable_overflow=GREATEST(0,
+  (SELECT count(*) FROM inventory_locations i WHERE i.hero_id=h.id AND i.kind='bag') +
+  (SELECT count(*) FROM consumable_stacks c WHERE c.hero_id=h.id) - 16);
+`;
+
 export async function migrate(client:PoolClient):Promise<void>{
   await client.query('BEGIN');
   try{
     await client.query('SELECT pg_advisory_xact_lock(8675309, 4733)');
     await client.query('CREATE TABLE IF NOT EXISTS schema_migrations (version integer PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())');
+    const applied=await client.query<{version:number}>('SELECT version FROM schema_migrations');
+    if([1,2,3,4].some(version=>!applied.rows.some(row=>row.version===version))){
+      // Data migrations must never copy counters while an older process can
+      // still buy or consume them. Read-only opens of a current schema stay free.
+      const world=await client.query<{locked:boolean}>('SELECT pg_try_advisory_xact_lock(8675309, 4732) AS locked');
+      if(!world.rows[0]?.locked)throw new Error('Stop the world writer before migrating hero storage');
+    }
     const existing=await client.query<{version:number}>('SELECT version FROM schema_migrations WHERE version=1');
     if(!existing.rowCount){await client.query(initialSchema);await client.query('INSERT INTO schema_migrations(version) VALUES (1)');}
     const second=await client.query<{version:number}>('SELECT version FROM schema_migrations WHERE version=2');
     if(!second.rowCount){await client.query(personalStashSchema);await client.query('INSERT INTO schema_migrations(version) VALUES (2)');}
     const third=await client.query<{version:number}>('SELECT version FROM schema_migrations WHERE version=3');
     if(!third.rowCount){await client.query(afkPreferencesSchema);await client.query('INSERT INTO schema_migrations(version) VALUES (3)');}
+    const fourth=await client.query<{version:number}>('SELECT version FROM schema_migrations WHERE version=4');
+    if(!fourth.rowCount){await client.query(consumableInventorySchema);await client.query('INSERT INTO schema_migrations(version) VALUES (4)');}
     await client.query('COMMIT');
   }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}
 }

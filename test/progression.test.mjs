@@ -120,7 +120,7 @@ test('real kills advance the existing XP curve, award five points per level and 
 test('v2 migration preserves 3D state, death, cooldowns, quest and gear; legacy pixels alone reset location',()=>{
   const {p}=fixture('archer');
   const v2={...persistentHero(p),schemaVersion:2,level:81,xp:73,x:8,z:2,hp:0,dead:1.8,combatUntil:123456,potionCooldown:2.2,specialCooldown:4.2,potions:1,questKills:8,boss:true,questClaimed:true,attack:{id:3,age:.1,duration:.72,yaw:1,hit:false,special:false}};
-  delete v2.mana;delete v2.allocatedStats;delete v2.statRevision;
+  delete v2.mana;delete v2.allocatedStats;delete v2.statRevision;delete v2.consumableInventory;delete v2.quickSlots;delete v2.consumableOverflow;
   const source=structuredClone(v2),m=safeHero(v2);assert.deepEqual(v2,source);
   assert.equal(m.schemaVersion,SAVE_VERSION);assert.equal(stats(m).unspentPoints,405);assert.equal(m.mana,stats(m).maxMana);
   for(const key of ['id','name','classId','level','xp','gold','kills','x','z','hp','dead','combatUntil','potions','potionCooldown','specialCooldown','questKills','boss','questClaimed','attack','items','equipment'])assert.deepEqual(m[key],v2[key],key);

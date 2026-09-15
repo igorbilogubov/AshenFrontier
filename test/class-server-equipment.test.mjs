@@ -6,7 +6,7 @@ import {itemArtKey} from '../dist/public/game/item-icons.js';
 import {AFK_SPOTS} from '../dist/public/game/location.js';
 
 function fifteenKills(classId){
-  const w=new World({random:()=>0}),p=newHero('Добыча',classId);w.add(p);
+  const w=new World({random:()=>0}),p=newHero('Добыча',classId);p.consumableInventory=[];w.add(p);
   Object.assign(p,{x:8,z:1.8});const m=w.mobs[0];
   for(let n=0;n<15;n++){
     Object.assign(m,{state:'idle',hp:60,target:null});m.contributors.set(p.id,{at:w.t,damage:60});w.kill(m);

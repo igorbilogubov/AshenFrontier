@@ -17,6 +17,9 @@ export type ItemStatKey = 'attack' | 'armor' | 'maxHp' | 'maxMana' | 'hpRegen' |
 export interface ItemRoll { key:ItemStatKey; value:number; min:number; max:number; step?:number }
 export type ItemAppearance = Partial<Record<EquipmentSlot,string|null>>;
 export interface Item { definitionId?:string; rollVersion?:1; itemLevel?:number; rolls?:ItemRoll[]; id: string; name: string; slot: EquipmentSlot; rarity: number; power: number; classId?: ClassId; bound?: boolean }
+export interface ConsumableStack {id:string;definitionId:string;quantity:number}
+export type QuickSlot='q'|'w';
+export type QuickSlots=Record<QuickSlot,string|null>;
 export interface HeroAttack { id: number; age: number; duration: number; weapon?: WeaponId; yaw: number | null; hit: boolean; special: boolean; skillId?: SkillId; automatic?: boolean; targetId?: number; target?: Point }
 export interface HeroInput extends Point { aim: number | null; seq: number }
 export interface StatSource { classId?: ClassId; level?: number; allocatedStats?: unknown; statRevision?: number; items?: Item[]; equipment?: Equipment }
@@ -28,6 +31,7 @@ export interface CharacterStats {
 export interface PersistentHero extends Point {
   schemaVersion: number; id: string; name: string; classId: ClassId; level: number; xp: number; gold: number; kills: number;
   items: Item[]; pendingItems: Item[]; stash: string[]; equipment: Equipment; allocatedStats: Attributes; statRevision: number;
+  consumableInventory:ConsumableStack[];quickSlots:QuickSlots;consumableOverflow:number;
   yaw: number; weapon: WeaponId; hp: number; mana: number; potions: number; potionCooldown: number; manaPotions:number; manaPotionCooldown:number;
   specialCooldown: number; skillCooldowns?: SkillCooldowns; dead: number; combatUntil: number; attack: HeroAttack | null; attackSerial: number;
   running: boolean; questKills: number; boss: boolean; questClaimed: boolean; afkPreferences:AfkPreferences;
@@ -77,6 +81,7 @@ export type ClientCommand =
   | {type:'pickup';id:string} | {type:'interact';npcId:string} | {type:'cancelInteraction'}
   | {type:'buy';definitionId:string;requestId?:string}
   | {type:'buyConsumable';kind:'hp'|'mana';requestId?:string}
+  | {type:'assignConsumable';slot:QuickSlot;definitionId:string|null} | {type:'useConsumable';slot:QuickSlot}
   | {type:'portal';portalId:string}
   | { type: 'resetStats'; revision: number };
 export type ClientMessage = ClientCommand | { type: 'join'; protocol: 2; name: string; classId: ClassId; token?: string | null } | { type: 'chat'; text: string } | { type: 'ping'; t: number };

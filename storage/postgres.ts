@@ -1,10 +1,10 @@
 import {createHash} from 'node:crypto';
 import pg from 'pg';
 import type {PoolClient} from 'pg';
-import type {EquipmentSlot,Item,PersistentHero} from '../shared/types.js';
+import type {EquipmentSlot,Item,PersistentHero,ConsumableStack} from '../shared/types.js';
 import {migrate} from './schema.js';
 import {BAG_CAPACITY,STASH_CAPACITY,backpackItems} from '../public/rules.js';
-import {CONSUMABLE_LIMIT} from '../public/game/consumables.js';
+import {CONSUMABLE_LIMIT,validateConsumables,backpackUsage,consumableKindQuantity} from '../public/game/consumables.js';
 import {defaultAfkPreferences,parseAfkPreferences} from '../public/game/afk-preferences.js';
 
 const {Pool}=pg;
@@ -55,6 +55,10 @@ function checkEntry(entry:CommitEntry):void{
   if(stashIds.size!==hero.stash.length||hero.stash.some(id=>typeof id!=='string'||!hero.items.some(item=>item.id===id)||worn.has(id)))throw new Error('Invalid stash references');
   if(backpackItems(hero).length>BAG_CAPACITY)throw new Error('Backpack capacity exceeded');
   if(!Number.isSafeInteger(hero.potions)||hero.potions<0||hero.potions>CONSUMABLE_LIMIT||!Number.isSafeInteger(hero.manaPotions)||hero.manaPotions<0||hero.manaPotions>CONSUMABLE_LIMIT||!Number.isFinite(hero.manaPotionCooldown)||hero.manaPotionCooldown<0)throw new Error('Invalid consumables');
+  validateConsumables(hero.consumableInventory,hero.quickSlots);
+  if(hero.potions!==consumableKindQuantity(hero,'hp')||hero.manaPotions!==consumableKindQuantity(hero,'mana'))throw new Error('Consumable counters must match inventory');
+  if(hero.consumableInventory.some(stack=>ids.has(stack.id)))throw new Error('Duplicate item and consumable identity');
+  if(!Number.isSafeInteger(hero.consumableOverflow)||hero.consumableOverflow<0||hero.consumableOverflow>2||backpackUsage(hero)>BAG_CAPACITY+hero.consumableOverflow)throw new Error('Backpack capacity exceeded');
   if(!parseAfkPreferences(hero.afkPreferences,hero.classId))throw new Error('Invalid AFK preferences');
 }
 function heroValues(hero:PersistentHero,hash:string):unknown[]{
@@ -62,11 +66,11 @@ function heroValues(hero:PersistentHero,hash:string):unknown[]{
   return [hero.id,hash,hero.schemaVersion,hero.name,hero.classId,hero.level,hero.xp,hero.gold,hero.kills,hero.statRevision,
     a.strength,a.dexterity,a.vitality,a.energy,hero.x,hero.z,hero.yaw,hero.weapon,hero.hp,hero.mana,hero.potions,
     hero.potionCooldown,hero.manaPotions,hero.manaPotionCooldown,hero.specialCooldown,hero.dead,hero.combatUntil,hero.attackSerial,hero.running,hero.questKills,
-    hero.boss,hero.questClaimed,JSON.stringify(hero.skillCooldowns??{}),hero.attack===null?null:JSON.stringify(hero.attack),JSON.stringify(hero.afkPreferences)];
+    hero.boss,hero.questClaimed,JSON.stringify(hero.skillCooldowns??{}),hero.attack===null?null:JSON.stringify(hero.attack),JSON.stringify(hero.afkPreferences),hero.quickSlots.q,hero.quickSlots.w,Math.min(hero.consumableOverflow,Math.max(0,backpackUsage(hero)-BAG_CAPACITY))];
 }
 const heroColumns=`id,token_hash,schema_version,name,class_id,level,xp,gold,kills,stat_revision,
   strength,dexterity,vitality,energy,x,z,yaw,weapon,hp,mana,potions,potion_cooldown,mana_potions,mana_potion_cooldown,special_cooldown,dead,
-  combat_until,attack_serial,running,quest_kills,boss,quest_claimed,skill_cooldowns,attack,afk_preferences`;
+  combat_until,attack_serial,running,quest_kills,boss,quest_claimed,skill_cooldowns,attack,afk_preferences,quick_slot_q,quick_slot_w,consumable_overflow`;
 const updateColumns=heroColumns.split(',').map(s=>s.trim()).filter(s=>s!=='id'&&s!=='token_hash');
 
 async function writeInventory(client:PoolClient,hero:PersistentHero):Promise<{gained:string[];lost:string[]}>{
@@ -118,6 +122,21 @@ async function writeInventory(client:PoolClient,hero:PersistentHero):Promise<{ga
   return {gained,lost};
 }
 
+async function writeConsumables(client:PoolClient,hero:PersistentHero):Promise<void>{
+  // Keep stable stack IDs while changing quantities; a foreign hero cannot reuse one.
+  const previous=await client.query<{id:string;definition_id:string}>('SELECT id,definition_id FROM consumable_stacks WHERE hero_id=$1',[hero.id]);
+  const old=new Map(previous.rows.map(row=>[row.id,row.definition_id]));
+  for(const stack of hero.consumableInventory)if(old.has(stack.id)&&old.get(stack.id)!==stack.definitionId)throw new StoreConflictError('Consumable stack definition changed');
+  const ids=hero.consumableInventory.map(stack=>stack.id);
+  await client.query('DELETE FROM consumable_stacks WHERE hero_id=$1 AND NOT(id=ANY($2::text[]))',[hero.id,ids]);
+  await client.query('UPDATE consumable_stacks SET stack_index=stack_index+1000 WHERE hero_id=$1',[hero.id]);
+  for(let index=0;index<hero.consumableInventory.length;index++){
+    const stack=hero.consumableInventory[index];
+    if(old.has(stack.id))await client.query('UPDATE consumable_stacks SET quantity=$1,stack_index=$2 WHERE hero_id=$3 AND id=$4',[stack.quantity,index,hero.id,stack.id]);
+    else await client.query('INSERT INTO consumable_stacks(id,hero_id,definition_id,quantity,stack_index) VALUES ($1,$2,$3,$4,$5)',[stack.id,hero.id,stack.definitionId,stack.quantity,index]);
+  }
+}
+
 async function readHero(client:PoolClient,hash:string):Promise<{hero:PersistentHero;revision:number}|null>{
   const result=await client.query('SELECT * FROM heroes WHERE token_hash=$1',[hash]);
   const row=result.rows[0];if(!row)return null;
@@ -140,13 +159,15 @@ async function readHero(client:PoolClient,hash:string):Promise<{hero:PersistentH
     if(raw.kind==='equipped')equipment[raw.equipped_slot as EquipmentSlot]=item.id;
     if(raw.kind==='stash')stashLocations.push({id:item.id,position:raw.position});
   }
+  const stackRows=await client.query<{id:string;definition_id:string;quantity:number}>('SELECT id,definition_id,quantity FROM consumable_stacks WHERE hero_id=$1 ORDER BY stack_index',[row.id]);
+  const consumableInventory:ConsumableStack[]=stackRows.rows.map(stack=>({id:stack.id,definitionId:stack.definition_id,quantity:stack.quantity}));
   const stash=stashLocations.sort((a,b)=>a.position-b.position).map(location=>location.id);
   const hero:PersistentHero={
     schemaVersion:row.schema_version,id:row.id,name:row.name,classId:row.class_id,level:row.level,
-    xp:numeric(row.xp),gold:numeric(row.gold),kills:row.kills,items,pendingItems,stash,equipment,
+    xp:numeric(row.xp),gold:numeric(row.gold),kills:row.kills,items,pendingItems,stash,equipment,consumableInventory,quickSlots:{q:row.quick_slot_q,w:row.quick_slot_w},consumableOverflow:row.consumable_overflow,
     allocatedStats:{strength:row.strength,dexterity:row.dexterity,vitality:row.vitality,energy:row.energy},statRevision:row.stat_revision,
-    x:row.x,z:row.z,yaw:row.yaw,weapon:row.weapon,hp:row.hp,mana:row.mana,potions:row.potions,
-    potionCooldown:row.potion_cooldown,manaPotions:row.mana_potions,manaPotionCooldown:row.mana_potion_cooldown,specialCooldown:row.special_cooldown,skillCooldowns:row.skill_cooldowns,
+    x:row.x,z:row.z,yaw:row.yaw,weapon:row.weapon,hp:row.hp,mana:row.mana,potions:consumableKindQuantity({consumableInventory},'hp'),
+    potionCooldown:row.potion_cooldown,manaPotions:consumableKindQuantity({consumableInventory},'mana'),manaPotionCooldown:row.mana_potion_cooldown,specialCooldown:row.special_cooldown,skillCooldowns:row.skill_cooldowns,
     dead:row.dead,combatUntil:row.combat_until,attack:row.attack,attackSerial:row.attack_serial,
     running:row.running,questKills:row.quest_kills,boss:row.boss,questClaimed:row.quest_claimed,
     afkPreferences:parseAfkPreferences(row.afk_preferences,row.class_id)??defaultAfkPreferences(row.class_id)
@@ -217,8 +238,9 @@ class PostgresHeroStore implements HeroStore{
         const receipt:CommitReceipt[]=[],changes:unknown[]=[];
         for(let i=0;i<entries.length;i++){
           const {hero,expectedRevision}=entries[i],hash=hashes[i],values=heroValues(hero,hash);
-          const before=await client.query<{gold:string;revision:string;class_id:string}>(
-            'SELECT gold,revision,class_id FROM heroes WHERE id=$1 FOR UPDATE',[hero.id]);
+          const before=await client.query<{gold:string;revision:string;class_id:string;consumable_overflow:number}>(
+            'SELECT gold,revision,class_id,consumable_overflow FROM heroes WHERE id=$1 FOR UPDATE',[hero.id]);
+          if(hero.consumableOverflow>(before.rows[0]?.consumable_overflow??0))throw new StoreConflictError('Consumable overflow cannot increase');
           if(expectedRevision===0){
             if(before.rowCount)throw new StoreConflictError('Hero already exists');
             const placeholders=values.map((_,n)=>`$${n+1}`).join(',');
@@ -236,6 +258,7 @@ class PostgresHeroStore implements HeroStore{
             receipt.push({id:hero.id,revision:numeric(updated.rows[0].revision)});
           }
           const inventory=await writeInventory(client,hero);
+          await writeConsumables(client,hero);
           changes.push({heroId:hero.id,goldDelta:hero.gold-(before.rows[0]?numeric(before.rows[0].gold):0),...inventory});
         }
         await client.query('UPDATE operation_journal SET receipt=$2::jsonb,economic_changes=$3::jsonb WHERE operation_id=$1',[
@@ -250,7 +273,7 @@ class PostgresHeroStore implements HeroStore{
       const result=await client.query<{locked?:boolean}> (this.writer?lockHealthSql:'SELECT 1 AS ok');
       if(this.writer&&!result.rows[0]?.locked){this.lost=true;return false;}
       const schema=await client.query<{version:number}>('SELECT max(version)::integer AS version FROM schema_migrations');
-      return !!result.rowCount&&schema.rows[0]?.version===3;
+      return !!result.rowCount&&schema.rows[0]?.version===4;
     });}catch{if(this.writer)this.lost=true;return false;}
   }
   async schemaVersion():Promise<number>{
@@ -274,13 +297,14 @@ export async function openHeroStore({connectionString,writer=false}:{connectionS
   let client:PoolClient|null=null;
   try{
     client=await pool.connect();
-    await migrate(client);
     if(writer){
       const result=await client.query<{locked:boolean}>(lockSql);
       if(!result.rows[0]?.locked)throw new StoreUnavailableError('Another world writer owns this database');
+      await migrate(client);
       client.on('error',()=>{});
       return new PostgresHeroStore(pool,client);
     }
+    await migrate(client);
     client.release();return new PostgresHeroStore(pool,null);
   }catch(error){if(client)client.release();await pool.end().catch(()=>{});throw error;}
 }

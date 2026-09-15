@@ -12,6 +12,8 @@ import {defaultAfkPreferences,parseAfkPreferences,afkCombatRadius} from '../dist
 import {createTestDatabase,hasTestDatabase} from './helpers/postgres.mjs';
 import {openHeroStore} from '../dist/storage/postgres.js';
 import {startTestServer,stopTestServer,until} from './helpers/network.mjs';
+const setBottles=(p,kind,quantity)=>{const id=kind==='hp'?'hp-basic':'mana-basic';p.consumableInventory=p.consumableInventory.filter(stack=>stack.definitionId!==id);if(quantity)p.consumableInventory.push({id:crypto.randomUUID(),definitionId:id,quantity});p[kind==='hp'?'potions':'manaPotions']=quantity;};
+
 
 function fixture(classId='warrior'){
   const w=new World({random:()=>.5}),p=newHero('Настройки',classId),spot=AFK_SPOTS[0];
@@ -105,7 +107,7 @@ test('schema 3 migration keeps a schema 2 hero, stash, potions and class-specifi
   const db=await createTestDatabase(),token=randomUUID(),hero=persistentHero(newHero('Старый','mage'));
   let store=await openHeroStore({connectionString:db.url});
   const item=rollEquipment('moon-amulet',randomUUID(),()=>.42);
-  hero.items.push(item);hero.stash.push(item.id);hero.gold=31;hero.potions=7;hero.manaPotions=4;
+  hero.items.push(item);hero.stash.push(item.id);hero.gold=31;setBottles(hero,'hp',7);setBottles(hero,'mana',4);
   try{
     await store.commit([{token,hero,expectedRevision:0}],randomUUID(),'schema2 fixture');await store.close();store=null;
     const client=new pg.Client({connectionString:db.url});await client.connect();
@@ -119,7 +121,7 @@ test('schema 3 migration keeps a schema 2 hero, stash, potions and class-specifi
     assert.equal(restored.revision,1);assert.equal(restored.hero.gold,31);assert.equal(restored.hero.potions,7);assert.equal(restored.hero.manaPotions,4);
     assert.deepEqual(restored.hero.items,hero.items);assert.deepEqual(restored.hero.stash,hero.stash);
     assert.deepEqual(restored.hero.afkPreferences,defaultAfkPreferences('mage'));
-    assert.equal(await store.schemaVersion(),3);assert.equal(await store.health(),true);
+    assert.equal(await store.schemaVersion(),4);assert.equal(await store.health(),true);
   }finally{if(store)await store.close();await db.close();}
 });
 

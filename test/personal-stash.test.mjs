@@ -8,6 +8,8 @@ import {rollEquipment} from '../dist/public/game/equipment-items.js';
 import {BAG_CAPACITY,STASH_CAPACITY,backpackItems} from '../dist/public/rules.js';
 import {CONSUMABLES,CONSUMABLE_LIMIT} from '../dist/public/game/consumables.js';
 import {createTestDatabase,hasTestDatabase} from './helpers/postgres.mjs';
+const setBottles=(p,kind,quantity)=>{const id=kind==='hp'?'hp-basic':'mana-basic';p.consumableInventory=p.consumableInventory.filter(stack=>stack.definitionId!==id);if(quantity)p.consumableInventory.push({id:crypto.randomUUID(),definitionId:id,quantity});p[kind==='hp'?'potions':'manaPotions']=quantity;};
+
 
 test('personal chest transfers only loose owned instances and cannot bypass bag or gear rules',()=>{
   const w=new World(),p=newHero('Кладовщик');w.add(p);w.mobs=[];
@@ -31,7 +33,7 @@ test('personal chest transfers only loose owned instances and cannot bypass bag 
   for(const item of backpackItems(p).slice(1))w.command(p,{type:'stashDeposit',id:item.id});
   assert.equal(p.stash.length,STASH_CAPACITY);
   w.command(p,{type:'stashDeposit',id:loose.id});assert.equal(p.stash.length,STASH_CAPACITY);
-  for(let i=backpackItems(p).length;i<BAG_CAPACITY;i++)p.items.push(makeLoot('warrior',1,0,'ring'));
+  for(let i=backpackItems(p).length+2;i<BAG_CAPACITY;i++)p.items.push(makeLoot('warrior',1,0,'ring'));
   const first=p.stash[0];w.command(p,{type:'stashWithdraw',id:first});assert(p.stash.includes(first));
   w.chestAvailable=()=>false;w.command(p,{type:'stashDeposit',id:loose.id});assert.equal(p.stash.length,STASH_CAPACITY);
   w.command(p,{type:'stashClose'});assert.equal(p.stashActive,false);
@@ -55,7 +57,7 @@ test('vendor potions spend once, retain counters on camp/death, and restore HP/M
   Object.assign(p,{x:8,z:2,hp:1});w.damagePlayer(p,1000);
   assert(p.dead>0);assert.equal(p.potions,3);assert.equal(p.manaPotions,3);
   w.camp(p,true);assert.equal(p.potions,3);assert.equal(p.manaPotions,3);
-  p.potions=CONSUMABLE_LIMIT;p.manaPotions=CONSUMABLE_LIMIT;
+  setBottles(p,'hp',CONSUMABLE_LIMIT);setBottles(p,'mana',CONSUMABLE_LIMIT);
   w.command(p,{type:'buyConsumable',kind:'hp'});w.command(p,{type:'buyConsumable',kind:'mana'});
   assert.equal(p.gold,100-CONSUMABLES.hp.price-CONSUMABLES.mana.price);
   const restored=safeHero(persistentHero(p));assert.equal(restored.potions,CONSUMABLE_LIMIT);assert.equal(restored.manaPotions,CONSUMABLE_LIMIT);
@@ -66,14 +68,14 @@ test('PostgreSQL stores stash locations and exact rolled item identity through w
   const db=await createTestDatabase(),store=await openHeroStore({connectionString:db.url});
   try{
     const token=randomUUID(),p=newHero('Сундук'),item=rollEquipment('copper-ring',randomUUID(),()=>.42),hero=persistentHero(p);
-    hero.items.push(item);hero.stash.push(item.id);hero.potions=11;hero.manaPotions=9;
+    hero.items.push(item);hero.stash.push(item.id);setBottles(hero,'hp',11);setBottles(hero,'mana',9);
     await store.commit([{token,hero,expectedRevision:0}],randomUUID(),'test chest deposit');
     assert.deepEqual((await store.load(token)).hero,hero);
     const client=new pg.Client({connectionString:db.url});await client.connect();
     try{
       const row=(await client.query('SELECT kind,position FROM inventory_locations WHERE item_id=$1',[item.id])).rows[0];
       assert.deepEqual(row,{kind:'stash',position:0});
-      assert.equal(Number((await client.query('SELECT max(version) AS version FROM schema_migrations')).rows[0].version),3);
+      assert.equal(Number((await client.query('SELECT max(version) AS version FROM schema_migrations')).rows[0].version),4);
     }finally{await client.end();}
     const withdrawn=structuredClone(hero);withdrawn.stash=[];
     await store.commit([{token,hero:withdrawn,expectedRevision:1}],randomUUID(),'test chest withdraw');
@@ -82,17 +84,19 @@ test('PostgreSQL stores stash locations and exact rolled item identity through w
   }finally{await store.close();await db.close();}
 });
 
-test('additive migrations through schema 3 preserve a version 1 hero and rolled bag item',
+test('additive migrations through schema 4 preserve a version 1 hero and rolled bag item',
   {skip:!hasTestDatabase},async()=>{
   const db=await createTestDatabase();let store=await openHeroStore({connectionString:db.url});
   const token=randomUUID(),hero=persistentHero(newHero('Старый герой')),item=rollEquipment('copper-ring',randomUUID(),()=>.53);
-  hero.items.push(item);hero.potions=2;
+  hero.items.push(item);setBottles(hero,'hp',2);
   try{
     await store.commit([{token,hero,expectedRevision:0}],randomUUID(),'old hero fixture');await store.close();store=null;
     const client=new pg.Client({connectionString:db.url});await client.connect();
     try{
       await client.query('BEGIN');
-      await client.query('DELETE FROM schema_migrations WHERE version IN (2,3)');
+      await client.query('DELETE FROM schema_migrations WHERE version IN (2,3,4)');
+      await client.query('DROP TABLE consumable_stacks');
+      await client.query('ALTER TABLE heroes DROP COLUMN quick_slot_q,DROP COLUMN quick_slot_w,DROP COLUMN consumable_overflow');
       await client.query('ALTER TABLE heroes DROP COLUMN afk_preferences');
       await client.query('DROP INDEX one_stash_position');
       await client.query('ALTER TABLE inventory_locations DROP CONSTRAINT inventory_locations_check');

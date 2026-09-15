@@ -6,6 +6,8 @@ import {CLASS_ITEMS,rollEquipment} from '../dist/public/game/equipment-items.js'
 import {skillsForClass} from '../dist/public/game/skills.js';
 import {PICKUP_RANGE} from '../dist/public/game/loot-rules.js';
 import {STADIUM_PENS,STADIUM_HUB} from '../dist/public/game/stadium.js';
+const setBottles=(p,kind,quantity)=>{const id=kind==='hp'?'hp-basic':'mana-basic';p.consumableInventory=p.consumableInventory.filter(stack=>stack.definitionId!==id);if(quantity)p.consumableInventory.push({id:crypto.randomUUID(),definitionId:id,quantity});p[kind==='hp'?'potions':'manaPotions']=quantity;};
+
 
 const step=(w,n=1)=>{for(let i=0;i<n;i++)w.tick(.05,w.t+50);};
 function fixture(classId='warrior',spot=AFK_SPOTS[0]){
@@ -57,9 +59,9 @@ test('stationary AFK waits for distant mobs and attacks nearby roaming or return
 
 test('real potion threshold and finite supply govern automatic survival; death and disconnect end it',()=>{
   const {w,p}=fixture();w.mobs=[];toggle(w,p,true);
-  p.hp=stats(p).maxHp*.34;p.potions=2;p.potionCooldown=0;p.combatUntil=w.t+15000;
+  p.hp=stats(p).maxHp*.34;setBottles(p,'hp',2);p.potionCooldown=0;p.combatUntil=w.t+15000;
   const hp=p.hp;step(w);assert.equal(p.potions,1);assert.equal(p.hp,hp+45);assert(p.potionCooldown>0);
-  p.hp=stats(p).maxHp*.2;p.potions=0;p.potionCooldown=0;const dry=p.hp;step(w);assert.equal(p.hp,dry);assert.equal(p.potions,0);
+  p.hp=stats(p).maxHp*.2;setBottles(p,'hp',0);p.potionCooldown=0;const dry=p.hp;step(w);assert.equal(p.hp,dry);assert.equal(p.potions,0);
   w.damagePlayer(p,10000);assert.equal(p.afk,null);assert(p.dead>0);
   const next=fixture();toggle(next.w,next.p,true);next.p.connected=false;step(next.w);assert.equal(next.p.afk,null);
 });

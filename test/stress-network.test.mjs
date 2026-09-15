@@ -62,7 +62,18 @@ test('isolated PostgreSQL stress profiles survive 1 → 16 AFK → 1 → 16 AFK 
       await sustainedAfk(server);
       await until(()=>client.state?.self.afk&&client.state.self.items.length===10&&client.state.self.items.every(item=>!firstIds.has(item.id)),
         {timeout:10000,message:'Fresh immutable item instances were not published'});
-      assert.equal((await fetch(server.url+'/health')).status,200);
+      // /health intentionally returns 503 while a valid economic commit is
+      // pending. Loaded test workers can overlap that brief barrier; only retry
+      // this specific state, never a lost writer or an unavailable database.
+      const healthDeadline=Date.now()+5000;
+      while(true){
+        const health=await fetch(server.url+'/health'),body=await health.json();
+        if(health.status===200)break;
+        assert.equal(body.storage?.writer,true,JSON.stringify(body));
+        assert.equal(body.storage?.pending,true,JSON.stringify(body));
+        assert(Date.now()<healthDeadline,'Stress profile did not reach durable healthy state');
+        await new Promise(resolve=>setTimeout(resolve,50));
+      }
       assert(client.state.self.items.every(item=>!firstIds.has(item.id)));
     }finally{
       if(client&&client.ws.readyState!==WebSocket.CLOSED){const ended=once(client.ws,'close');client.ws.close();await ended;}

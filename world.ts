@@ -2,7 +2,7 @@ import {WARRIOR_ITEMS,rollEquipment,validateEquipment,equipmentAppearance} from 
 import type {ClassId, EquipmentSlot, Item, Hero, PersistentHero, HeroAttack, Mob, Projectile, WorldEvent, EventPayloads, WorldSnapshot} from './shared/types.js';
 import {isRecord, isClassId, isEquipmentSlot, isWeaponId} from './shared/types.js';
 import {randomUUID} from 'node:crypto';
-import {CLASSES,EQUIPMENT_SLOTS,BAG_CAPACITY,classFor,canEquip,STAT_KEYS,CLASS_PROGRESSION,characterStats,normalizedAllocations} from './public/rules.js';
+import {CLASSES,EQUIPMENT_SLOTS,BAG_CAPACITY,backpackItems,classFor,canEquip,STAT_KEYS,CLASS_PROGRESSION,characterStats,normalizedAllocations} from './public/rules.js';
 import {BOUNDS,CAMP,SPAWNS,MOB_TYPES,WEAPONS,safe,stand,clearPath,distance,translate,moveHero} from './public/game/location.js';
 import {angleDelta,turnTowards,inStrike} from './public/game/motion.js';
 export {CLASSES,EQUIPMENT_SLOTS,CAMP,BOUNDS};
@@ -156,10 +156,10 @@ export class World{
     }
     if(typeof msg.type==='string'&&['equip','unequip','sell','claim'].includes(msg.type)){
       if(!safe(p)||p.dead||p.attack||p.combatUntil>this.t){this.notice(p,'Снаряжение меняется у костра, вне боя');return;}
-      if(msg.type==='claim'){while(p.pendingItems.length&&p.items.length<BAG_CAPACITY)p.items.push(p.pendingItems.shift()!);return;}
+      if(msg.type==='claim'){while(p.pendingItems.length&&backpackItems(p).length<BAG_CAPACITY)p.items.push(p.pendingItems.shift()!);return;}
       const item=p.items.find(i=>i.id===msg.id);if(!item)return;
       if(msg.type==='equip'&&canEquip(p,item)){p.equipment[item.slot]=item.id;if(item.definitionId&&item.slot==='weapon')p.weapon='sword';this.clampResources(p);}
-      if(msg.type==='unequip'&&p.equipment[item.slot]===item.id){p.equipment[item.slot]=null;this.clampResources(p);}
+      if(msg.type==='unequip'&&p.equipment[item.slot]===item.id){if(backpackItems(p).length>=BAG_CAPACITY){this.notice(p,'Рюкзак полон. Освободите ячейку, чтобы снять вещь.');return;}p.equipment[item.slot]=null;this.clampResources(p);}
       if(msg.type==='sell'&&!item.bound&&!Object.values(p.equipment).includes(item.id)){p.gold+=Math.max(1,Math.round(nonnegative(item.power)*3+5));p.items=p.items.filter(i=>i.id!==item.id);}
     }
   }
@@ -221,8 +221,9 @@ export class World{
         const slots=Object.keys(EQUIPMENT_SLOTS) as EquipmentSlot[],slot=slots[p.classId==='warrior'?Math.floor(p.questKills/3)%slots.length:(p.questKills-1)%slots.length];
         const choices=WARRIOR_ITEMS.filter(definition=>definition.slot===slot);
         const item=p.classId==='warrior'?rollEquipment(choices[Math.floor(this.random()*choices.length)].id,randomUUID(),this.random):makeLoot(p.classId,Math.min(12,p.level+1),m.type==='alpha'?2:1,slot);
-        if(p.items.length<BAG_CAPACITY)p.items.push(item);else p.pendingItems.push(item);
-        this.emit('item',{name:item.name,pending:p.items.length>=BAG_CAPACITY},p.id);
+        const pending=backpackItems(p).length>=BAG_CAPACITY;
+        if(pending)p.pendingItems.push(item);else p.items.push(item);
+        this.emit('item',{name:item.name,pending},p.id);
       }
       this.emit('kill',{id:m.id,name:cfg.name,xp:cfg.xp},p.id);this.emit('loot',{id:m.id,x:m.x,z:m.z,amount:cfg.coins},p.id);
     }

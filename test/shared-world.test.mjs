@@ -47,10 +47,10 @@ test('both nearby contributors earn personal persistent loot and a distant/idle 
   const peers=w.snapshot(p.id).players;assert(peers.every(p=>!('items'in p)&&!('token'in p)&&!('gold'in p)));
 });
 test('full bag keeps earned equipment pending across reconnect until a slot is freed',()=>{
-  const {w,p}=setup(),m=isolated(w,p);while(p.items.length<16)p.items.push(makeLoot(p.classId,1,0,'ring'));
-  w.hurtMob(p,m,100);assert.equal(p.items.length,16);assert.equal(p.pendingItems.length,1);
+  const {w,p}=setup(),m=isolated(w,p);while(p.items.length<18)p.items.push(makeLoot(p.classId,1,0,'ring'));
+  w.hurtMob(p,m,100);assert.equal(p.items.length,18);assert.equal(p.pendingItems.length,1);
   const restored=safeHero(persistentHero(p));assert.equal(restored.pendingItems.length,1);
-  w.camp(p,true);p.combatUntil=0;w.command(p,{type:'sell',id:p.items.at(-1).id});w.command(p,{type:'claim'});assert.equal(p.pendingItems.length,0);assert.equal(p.items.length,16);
+  w.camp(p,true);p.combatUntil=0;w.command(p,{type:'sell',id:p.items.at(-1).id});w.command(p,{type:'claim'});assert.equal(p.pendingItems.length,0);assert.equal(p.items.length,18);
 });
 test('quest payout and level advancement are persistent and not repeatable on re-entry',()=>{
   const {w,p}=setup();Object.assign(p,{questKills:5,boss:true,xp:64});step(w);assert.equal(p.gold,50);assert(p.questClaimed);

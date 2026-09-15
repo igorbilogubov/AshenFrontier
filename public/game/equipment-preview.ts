@@ -3,7 +3,7 @@ import {loadWarrior,CLIP_NAMES,type WarriorClip} from './character.js';
 import {WARRIOR_ITEMS,rollEquipment,equipmentAppearance,itemDefinition} from './equipment-items.js';
 import {renderItemRolls} from './item-details.js';
 import {characterStats,EQUIPMENT_SLOTS} from '../rules.js';
-import {itemIcon} from './item-icons.js';
+import {itemArtwork} from './item-icons.js';
 import {element as $,errorMessage} from './ui-types.js';
 import type {ClassId,Equipment,Item} from '../../shared/types.js';
 
@@ -24,13 +24,13 @@ const models=new Map<ClassId,Awaited<ReturnType<typeof loadWarrior>>>();
 const buttons=new Map<string,HTMLButtonElement>();
 const source=()=>({classId:'warrior' as const,level:1,items:[...samples.values()],equipment});
 const shortNames:Record<string,string>={weapon:'МЕЧ',armor:'ДОСПЕХ',helmet:'ГОЛОВА',boots:'САПОГИ',ring:'КОЛЬЦО',amulet:'АМУЛЕТ'};
-for(const definition of WARRIOR_ITEMS){const button=document.createElement('button');button.innerHTML=itemIcon(definition.slot,'warrior');const label=document.createElement('small');label.textContent=shortNames[definition.slot];button.append(label);button.title=definition.name;button.setAttribute('aria-label',definition.name);button.onclick=()=>{selected=definition.id;feedback='';update();};$('catalog').append(button);buttons.set(definition.id,button);}
+for(const definition of WARRIOR_ITEMS){const button=document.createElement('button');button.innerHTML=itemArtwork(samples.get(definition.id)!,'warrior');const label=document.createElement('small');label.textContent=shortNames[definition.slot];button.append(label);button.title=definition.name;button.setAttribute('aria-label',definition.name);button.onclick=()=>{selected=definition.id;feedback='';update();};$('catalog').append(button);buttons.set(definition.id,button);}
 function fit(){const {width,height}=canvas.getBoundingClientRect();renderer.setSize(width,height,false);camera.aspect=width/height;camera.updateProjectionMatrix();}
 new ResizeObserver(fit).observe(canvas);fit();
 function update(){
   const item=samples.get(selected)!,definition=itemDefinition(selected)!,worn=equipment[item.slot]===item.id;
   for(const [id,button] of buttons){button.classList.toggle('selected',id===selected);button.classList.toggle('worn',Object.values(equipment).includes(samples.get(id)!.id));button.setAttribute('aria-pressed',String(id===selected));}
-  $('sample-icon').innerHTML=itemIcon(item.slot,'warrior');$('sample-kind').textContent='НЕОБЫЧНЫЙ · '+EQUIPMENT_SLOTS[item.slot].name.toUpperCase();$('sample-name').textContent=item.name;$('sample-worn').textContent=worn?'◆ Надето на манекен':'Воин · от '+definition.level+'-го уровня';
+  $('sample-icon').innerHTML=itemArtwork(item,'warrior');$('sample-kind').textContent='НЕОБЫЧНЫЙ · '+EQUIPMENT_SLOTS[item.slot].name.toUpperCase();$('sample-name').textContent=item.name;$('sample-worn').textContent=worn?'◆ Надето на манекен':'Воин · от '+definition.level+'-го уровня';
   renderItemRolls($('sample-rolls'),item,[...samples.values()].find(other=>other.id===equipment[item.slot]));
   $('sample-equip').textContent=worn?'Снять':'Надеть';$('sample-feedback').textContent=feedback||'Каждая находка получает свои значения в указанном диапазоне.';
   const stats=characterStats(source()),values:[string,string][]=[['Урон',stats.attack.toFixed(1)],['Защита',stats.armor.toFixed(1)],['Здоровье',String(stats.maxHp)],['Мана',String(stats.maxMana)],['Попадание',(stats.hitChance*100).toFixed(1)+'%'],['Скорость атак','+'+Math.round(stats.attackSpeed*100)+'%']];

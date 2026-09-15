@@ -1,16 +1,16 @@
 import {renderItemRolls} from './item-details.js';
-import {CLASSES,EQUIPMENT_SLOTS,BAG_CAPACITY,canEquip,itemBonus,STAT_KEYS,STAT_DEFINITIONS,CLASS_PROGRESSION,characterStats} from '../rules.js';
+import {CLASSES,EQUIPMENT_SLOTS,BAG_CAPACITY,backpackItems,canEquip,itemBonus,STAT_KEYS,STAT_DEFINITIONS,CLASS_PROGRESSION,characterStats} from '../rules.js';
 import {safe} from './location.js';
-import {itemIcon,heroSilhouette} from './item-icons.js';
+import {itemIcon,itemArtwork,itemArtKey,heroSilhouette} from './item-icons.js';
 import {element as $,errorMessage} from './ui-types.js';
 import type {NetworkGame} from './network.js';
-import type {Attributes,ClassId,EquipmentSlot,StatKey,WorldEvent} from '../../shared/types.js';
+import type {Attributes,ClassId,EquipmentSlot,StatKey,WorldEvent,Item,WeaponId} from '../../shared/types.js';
 type PanelName='character'|'inventory';
 type StatNodes={row:HTMLDivElement;description:HTMLElement;number:HTMLSpanElement;gain:HTMLElement;value:HTMLDivElement;minus:HTMLButtonElement;plus:HTMLButtonElement};
 type DerivedStat='attack'|'armor'|'hitChance'|'damageReduction'|'maxHp'|'hpRegen'|'maxMana'|'manaRegen'|'attackSpeed';
 type DerivedNodes={before:HTMLSpanElement;arrow:HTMLSpanElement;after:HTMLSpanElement;formatter:(value:number)=>string};
 type SlotNodes={button:HTMLButtonElement;icon:HTMLSpanElement};
-type BagNodes=SlotNodes&{marker:HTMLSpanElement};
+type BagNodes=SlotNodes;
 const panelNames:PanelName[]=['character','inventory'];
 const classId=(value:string):ClassId=>value==='archer'||value==='mage'?value:'warrior';
 const write=(node:HTMLElement,value:unknown)=>{const text=String(value);if(node.textContent!==text)node.textContent=text;};
@@ -94,15 +94,15 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
     $('equipment-slots').append(button);slotNodes.set(slot,{button,icon});
   }
   for(let index=0;index<BAG_CAPACITY;index++){
-    const button=document.createElement('button'),icon=document.createElement('span'),marker=document.createElement('span');
-    button.type='button';button.className='bag-cell empty';marker.className='worn-marker';marker.textContent='◆';marker.hidden=true;marker.setAttribute('aria-hidden','true');button.append(icon,marker);
+    const button=document.createElement('button'),icon=document.createElement('span');
+    button.type='button';button.className='bag-cell empty';button.append(icon);
     button.onclick=()=>{if(button.dataset.itemId){selectedItemId=button.dataset.itemId;inventoryKey='';updateInventory();$('item-detail').scrollIntoView({block:'nearest'});}};
-    $('bag-items').append(button);bagNodes.push({button,icon,marker});
+    $('bag-items').append(button);bagNodes.push({button,icon});
   }
   const selectedItem=()=>game.player.items.find(item=>item.id===selectedItemId);
   $('item-equip').onclick=()=>{const item=selectedItem();if(item&&canEdit()&&canEquip(game.player,item))game.send({type:game.player.equipment[item.slot]===item.id?'unequip':'equip',id:item.id});};
   $('item-sell').onclick=()=>{const item=selectedItem();if(item&&canEdit()&&!item.bound&&!Object.values(game.player.equipment).includes(item.id))game.send({type:'sell',id:item.id});};
-  function setIcon(element:HTMLElement,slot:EquipmentSlot,classId:ClassId){const key=slot+':'+classId;if(element.dataset.icon!==key){element.innerHTML=itemIcon(slot,classId);element.dataset.icon=key;}}
+  function setIcon(element:HTMLElement,slot:EquipmentSlot,classId:ClassId,item?:Item,weapon:WeaponId='sword'){const key=item?'art:'+itemArtKey(item,classId,weapon):slot+':'+classId;if(element.dataset.icon!==key){element.innerHTML=item?itemArtwork(item,classId,weapon):itemIcon(slot,classId);element.dataset.icon=key;}}
   game.onStatus=(status,message)=>{
     write($('connection'),status==='online'?`${game.players.filter(p=>p.connected).length} в мире`:message);
     $('connection').classList.toggle('offline',status!=='online');
@@ -169,30 +169,30 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
   function updateInventory(){
     if(panels.inventory.hidden)return;
     const p=game.player,c=CLASSES[p.classId];if(!c)return;
-    const editable=canEdit(),wornIds=Object.values(p.equipment),key=JSON.stringify([p.items,p.pendingItems,p.equipment,p.classId,p.level,p.gold,editable,selectedItemId]);if(key===inventoryKey)return;inventoryKey=key;
+    const editable=canEdit(),wornIds=Object.values(p.equipment),bag=backpackItems(p),key=JSON.stringify([p.items,p.pendingItems,p.equipment,p.weapon,p.classId,p.level,p.gold,editable,selectedItemId]);if(key===inventoryKey)return;inventoryKey=key;
     if(!p.items.some(item=>item.id===selectedItemId))selectedItemId=p.equipment.weapon||p.items[0]?.id||null;
     write($('hero-details'),`${c.name} · уровень ${p.level} · 6 слотов снаряжения`);write($('inventory-gold'),`${p.gold} золота`);write($('inventory-status'),editable?'Можно менять снаряжение':!game.connected?'Нет соединения':'Изменение у костра, вне боя');
     for(const [slot,nodes] of slotNodes){
       const item=p.items.find(value=>value.id===p.equipment[slot]);nodes.button.className=`equipment-slot${item?' rarity-'+(item.rarity||0):' empty'}${item?.id===selectedItemId?' selected':''}`;
-      nodes.button.title=`${EQUIPMENT_SLOTS[slot].name}: ${item?item.name+' · '+itemBonus(item):'Пусто'}`;nodes.button.setAttribute('aria-label',nodes.button.title);nodes.button.setAttribute('aria-pressed',String(!!item&&item.id===selectedItemId));setIcon(nodes.icon,slot,item?.classId||p.classId);
+      nodes.button.title=`${EQUIPMENT_SLOTS[slot].name}: ${item?item.name+' · '+itemBonus(item):'Пусто'}`;nodes.button.setAttribute('aria-label',nodes.button.title);nodes.button.setAttribute('aria-pressed',String(!!item&&item.id===selectedItemId));setIcon(nodes.icon,slot,item?.classId||p.classId,item,p.weapon);
     }
-    write($('bag-count'),`${p.items.length} / ${BAG_CAPACITY}`);
+    write($('bag-count'),`${bag.length} / ${BAG_CAPACITY}`);
     bagNodes.forEach((nodes,index)=>{
-      const item=p.items[index],worn=item&&wornIds.includes(item.id);nodes.button.dataset.itemId=item?.id||'';nodes.button.className=`bag-cell${item?' rarity-'+(item.rarity||0):' empty'}${item?.id===selectedItemId?' selected':''}`;
-      nodes.button.setAttribute('aria-label',item?`${item.name}, ${itemBonus(item)}${worn?', надето':''}`:`Пустая ячейка ${index+1}`);nodes.button.title=nodes.button.getAttribute('aria-label')||'';nodes.button.setAttribute('aria-pressed',String(!!item&&item.id===selectedItemId));nodes.button.disabled=!item;nodes.marker.hidden=!worn;
-      if(item){nodes.icon.hidden=false;setIcon(nodes.icon,item.slot,item.classId||p.classId);}else nodes.icon.hidden=true;
+      const item=bag[index];nodes.button.dataset.itemId=item?.id||'';nodes.button.className=`bag-cell${item?' rarity-'+(item.rarity||0):' empty'}${item?.id===selectedItemId?' selected':''}`;
+      nodes.button.setAttribute('aria-label',item?`${item.name}, ${itemBonus(item)}`:`Пустая ячейка ${index+1}`);nodes.button.title=nodes.button.getAttribute('aria-label')||'';nodes.button.setAttribute('aria-pressed',String(!!item&&item.id===selectedItemId));nodes.button.disabled=!item;
+      if(item){nodes.icon.hidden=false;setIcon(nodes.icon,item.slot,item.classId||p.classId,item);}else nodes.icon.hidden=true;
     });
     const item=selectedItem(),worn=item&&wornIds.includes(item.id);
     if(item){
-      setIcon($('item-detail-icon'),item.slot,item.classId||p.classId);$('item-detail-icon').className='item-detail-icon rarity-'+(item.rarity||0);$('item-detail-icon').hidden=false;
+      setIcon($('item-detail-icon'),item.slot,item.classId||p.classId,item,worn?p.weapon:'sword');$('item-detail-icon').className='item-detail-icon rarity-'+(item.rarity||0);$('item-detail-icon').hidden=false;
       write($('item-rarity'),`${rarityNames[item.rarity]||rarityNames[0]} · ${EQUIPMENT_SLOTS[item.slot].name}`);write($('item-name'),item.name);write($('item-bonus'),item.rolls?'Значения этого экземпляра':itemBonus(item));write($('item-restriction'),item.classId||item.slot==='weapon'?`Класс: ${CLASSES[item.classId||'warrior'].name}`:'Для всех классов');write($('item-worn'),worn?'◆ Надето':item.bound?'Привязано к герою':'Можно продать у костра');
     }else{
       $('item-detail-icon').hidden=true;write($('item-rarity'),'РЮКЗАК ПУСТ');write($('item-name'),'Впереди первая добыча');write($('item-bonus'),'Предметы можно найти в опушке.');write($('item-restriction'),'');write($('item-worn'),'');
     }
     renderItemRolls($('item-rolls'),item,p.items.find(other=>other.id===p.equipment[item?.slot??'weapon']));
-    $('item-equip').disabled=!item||!editable||!canEquip(p,item);write($('item-equip'),worn?'Снять':'Надеть');
+    $('item-equip').disabled=!item||!editable||!canEquip(p,item)||!!worn&&bag.length>=BAG_CAPACITY;$('item-equip').title=worn&&bag.length>=BAG_CAPACITY?'Освободите ячейку рюкзака, чтобы снять вещь.':'';write($('item-equip'),worn?'Снять':'Надеть');
     $('item-sell').disabled=!item||!!worn||!editable||!!item.bound;write($('item-sell'),item&&!item.bound?`Продать · ${Math.max(1,Math.round(item.power*3+5))} зол.`:'Продать');
-    $('claim-items').hidden=!p.pendingItems?.length;write($('claim-items'),`Забрать ожидающие вещи · ${p.pendingItems?.length||0}`);$('claim-items').disabled=!editable||p.items.length>=BAG_CAPACITY;
+    $('claim-items').hidden=!p.pendingItems?.length;write($('claim-items'),`Забрать ожидающие вещи · ${p.pendingItems?.length||0}`);$('claim-items').disabled=!editable||bag.length>=BAG_CAPACITY;
   }
   function onEvent(event:WorldEvent){
     if(event.type!=='statResult')return;

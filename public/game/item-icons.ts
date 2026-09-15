@@ -1,5 +1,5 @@
-import type {ClassId,EquipmentSlot,StatKey} from '../../shared/types.js';
-// Original vector silhouettes, shared by equipment slots and backpack cells.
+import type {ClassId,EquipmentSlot,StatKey,Item,WeaponId} from '../../shared/types.js';
+// Quiet vector guides are only for empty slots and attribute labels.
 const shapes={
   sword:'<path d="m30 5 5 5-15 24-5-4Z"/><path d="m11 27 13 8M16 32l-7 11M5 41l7 5"/>',
   bow:'<path d="M17 5c23 10 23 28 0 38l7-19Z"/><path d="M7 24h32m-5-5 5 5-5 5"/>',
@@ -19,3 +19,16 @@ export function itemIcon(slot:EquipmentSlot|StatKey,classId:ClassId='warrior'){
   return `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true" focusable="false">${shapes[kind]||shapes.amulet}</svg>`;
 }
 export const heroSilhouette='<svg viewBox="0 0 120 210" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true" focusable="false"><path d="m60 8 13 7 3 18-8 12H52l-8-12 3-18Z M48 46 12 61 8 91l15 14 8-28 5 49-5 20 17 7 12-18 12 18 17-7-5-20 5-49 8 28 15-14-4-30-36-15M48 153l-6 41-10 9v4h22l6-54 6 54h22v-4l-10-9-6-41M38 61l22 12 22-12M60 73v62M36 126h48M47 23l13 4 13-4M55 32h10"/><path d="M20 11h80M11 106h98M20 204h80" stroke-dasharray="2 6" opacity=".5"/></svg>';
+
+// Explicit asset keys: item names, ids and server strings never become HTML/URLs.
+const definitionIcons=new Set(['wanderer-blade','watch-blade','wanderer-armor','watch-armor','wanderer-hood','watch-helm','wanderer-boots','watch-boots','copper-ring','ember-amulet']);
+export function itemArtKey(item:Item,ownerClass:ClassId='warrior',weapon:WeaponId='sword'){
+  if(item.definitionId&&definitionIcons.has(item.definitionId))return item.definitionId;
+  const classId=item.classId??ownerClass;
+  if(item.slot==='weapon')return classId==='archer'?'legacy-bow':classId==='mage'?'legacy-staff':weapon==='axe'?'legacy-axe':'wanderer-blade';
+  if(item.slot==='armor')return classId==='warrior'?'watch-armor':classId+'-armor';
+  return {helmet:'watch-helm',boots:'watch-boots',ring:'copper-ring',amulet:'ember-amulet'}[item.slot];
+}
+export function itemArtwork(item:Item,ownerClass:ClassId='warrior',weapon:WeaponId='sword'){
+  return `<img class="item-artwork" src="/game/item-icons/${itemArtKey(item,ownerClass,weapon)}.png" width="256" height="256" alt="" draggable="false" decoding="async">`;
+}

@@ -1,0 +1,113 @@
+{
+  "generator": "Blender 5.2.1 LTS",
+  "size": 256,
+  "icons": [
+    {
+      "id": "wanderer-blade",
+      "parts": [
+        "Weapon_Sword"
+      ],
+      "bytes": 33686
+    },
+    {
+      "id": "watch-blade",
+      "parts": [
+        "Weapon_WatchSword"
+      ],
+      "bytes": 34070
+    },
+    {
+      "id": "wanderer-armor",
+      "parts": [
+        "IconTorso_Traveller_Armor"
+      ],
+      "bytes": 60823
+    },
+    {
+      "id": "watch-armor",
+      "parts": [
+        "IconTorso_Armor_Body"
+      ],
+      "bytes": 68377
+    },
+    {
+      "id": "wanderer-hood",
+      "parts": [
+        "Traveller_Hood"
+      ],
+      "bytes": 51662
+    },
+    {
+      "id": "watch-helm",
+      "parts": [
+        "Helmet"
+      ],
+      "bytes": 59044
+    },
+    {
+      "id": "wanderer-boots",
+      "parts": [
+        "Traveller_Boots"
+      ],
+      "bytes": 59485
+    },
+    {
+      "id": "watch-boots",
+      "parts": [
+        "Boots"
+      ],
+      "bytes": 43958
+    },
+    {
+      "id": "copper-ring",
+      "parts": [
+        "Copper_Ring"
+      ],
+      "bytes": 55908
+    },
+    {
+      "id": "ember-amulet",
+      "parts": [
+        "Ember_Amulet"
+      ],
+      "bytes": 38768
+    },
+    {
+      "id": "legacy-axe",
+      "parts": [
+        "Weapon_Axe"
+      ],
+      "bytes": 35218
+    },
+    {
+      "id": "archer-armor",
+      "parts": [
+        "IconTorso_archer"
+      ],
+      "bytes": 52291
+    },
+    {
+      "id": "mage-armor",
+      "parts": [
+        "IconTorso_mage"
+      ],
+      "bytes": 71999
+    },
+    {
+      "id": "legacy-staff",
+      "parts": [
+        "Shaft",
+        "Icosphere.001"
+      ],
+      "bytes": 27662
+    },
+    {
+      "id": "legacy-bow",
+      "parts": [
+        "Bow",
+        "String"
+      ],
+      "bytes": 33913
+    }
+  ]
+}

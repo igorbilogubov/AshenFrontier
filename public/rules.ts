@@ -15,6 +15,9 @@ export const CLASSES: Record<ClassId, {name: string; color: string; hp: number; 
   mage:{name:'Маг',color:'#c6ace7',hp:85,hpPerLevel:6,damage:28,range:5.5,duration:.88,special:'Огненный шар',weaponNames:['Посох ученика','Посох сумерек','Свет разлома']}
 };
 export const BAG_CAPACITY=16;
+// items owns every instance; equipment references the worn subset. Only loose
+// items occupy backpack cells, so equipping never deletes or duplicates an item.
+export const backpackItems=(source:Pick<StatSource,'items'|'equipment'>)=>(source.items??[]).filter(item=>source.equipment?.[item.slot]!==item.id);
 const validClass=(id: unknown): ClassId=>id==='warrior'||id==='archer'||id==='mage'?id:'warrior';
 export const classFor=(id: unknown)=>CLASSES[validClass(id)];
 export const weaponClass=(item: Item | null | undefined)=>item?.classId||'warrior';

@@ -141,6 +141,7 @@ test('isolated stress controller creates 16 real sessions and cleans up; ordinar
 });
 
 test('rolled equipment survives real WebSocket equip, observer updates and a server restart',async()=>{
+  const {backpackItems}=await import('../dist/public/rules.js');
   const {rollEquipment}=await import('../dist/public/game/equipment-items.js');
   const dir=await mkdtemp(path.join(tmpdir(),'ashen-equipment-network-'));let server;const clients=[];
   try{
@@ -152,10 +153,13 @@ test('rolled equipment survives real WebSocket equip, observer updates and a ser
     owner.send({type:'equip',id:armor.id,rolls:[{key:'maxHp',value:99999}]});owner.send({type:'equip',id:blade.id});
     await until(()=>watcher.state.players.some(p=>p.id===hero.id&&p.appearance?.armor==='wanderer-armor'&&p.appearance?.weapon==='watch-sword'));
     assert.deepEqual(owner.state.self.items,original);assert.equal(owner.state.self.maxHp,112);
+    assert(!backpackItems(owner.state.self).some(item=>item.id===armor.id||item.id===blade.id));
     for(const client of clients)await close(client);clients.length=0;await stop(server);server=await start(dir);
     const restored=await connect(server,{token:keys[0]});clients.push(restored);
     assert.deepEqual(restored.state.self.items,original);assert.equal(restored.state.self.equipment.armor,armor.id);
     restored.send({type:'unequip',id:armor.id});await until(()=>restored.state.self.equipment.armor===null);
     assert.equal(restored.state.self.appearance.armor,null);assert.deepEqual(restored.state.self.items,original);
+    assert.equal(backpackItems(restored.state.self).filter(item=>item.id===armor.id).length,1);
+    assert(!backpackItems(restored.state.self).some(item=>item.id===blade.id));
   }finally{for(const client of clients)await close(client);await stop(server);await rm(dir,{recursive:true,force:true});}
 });

@@ -11,7 +11,7 @@ type InputFrame=Extract<ClientMessage,{type:'input'}>;
 type SaveState=Extract<ServerMessage,{type:'state'}>['save'];
 interface LegacyLoot {id:number;x:number;z:number}
 function initialPlayer():ClientPlayer {
-  return {...characterStats({classId:'warrior',level:1}),afkPreferences:defaultAfkPreferences('warrior'),schemaVersion:3,id:'',name:'Странник',classId:'warrior',level:1,
+  return {...characterStats({classId:'warrior',level:1}),afkPreferences:defaultAfkPreferences('warrior'),afkRadius:0,schemaVersion:3,id:'',name:'Странник',classId:'warrior',level:1,
     x:.5,z:4,yaw:Math.PI*.25,targetYaw:Math.PI*.25,vx:0,vz:0,gait:0,moveBlend:0,runBlend:0,hp:100,weapon:'sword',potions:3,
     coins:0,gold:0,xp:0,kills:0,attack:null,dead:0,hurt:0,items:[],pendingItems:[],stash:[],equipment:{},consumableInventory:[],quickSlots:{q:null,w:null},consumableOverflow:0,mana:40,manaPotions:3,
     potionCooldown:0,manaPotionCooldown:0,specialCooldown:0,combatUntil:0,attackSerial:0,running:false,questKills:0,boss:false,questClaimed:false,ack:0};

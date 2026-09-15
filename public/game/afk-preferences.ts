@@ -1,6 +1,6 @@
 const isRecord=(value:unknown):value is Record<string,unknown>=>!!value&&typeof value==='object'&&!Array.isArray(value);
 import type {AfkPreferences,ClassId,SkillId} from '../../shared/types.js';
-import {skillsForClass} from './skills.js';
+import {SKILLS,skillsForClass} from './skills.js';
 
 const RARITIES=[0,1,2] as const;
 export const MIN_AFK_RADIUS_PERCENT=25;
@@ -24,6 +24,6 @@ export function parseAfkPreferences(value:unknown,classId:ClassId):AfkPreference
   return {pickupGold:value.pickupGold,pickupRarities:[...rarities],hpPotion:{enabled:value.hpPotion.enabled as boolean,belowPercent:value.hpPotion.belowPercent as number},
     manaPotion:{enabled:value.manaPotion.enabled as boolean,belowPercent:value.manaPotion.belowPercent as number},skillOrder:[...order] as SkillId[],basicAttackFallback:value.basicAttackFallback,radiusPercent:value.radiusPercent};
 }
-export const afkTravelRadius=(spot:{radius:number},preferences:AfkPreferences)=>Math.min(spot.radius-.46,spot.radius*preferences.radiusPercent/100);
-export const withinAfkTravel=(point:{x:number;z:number},spot:{x:number;z:number;radius:number},preferences:AfkPreferences)=>
-  Math.hypot(point.x-spot.x,point.z-spot.z)<=afkTravelRadius(spot,preferences);
+/** Stable engagement radius, independent of temporary mana and cooldown availability. */
+export const afkCombatRadius=(preferences:AfkPreferences,basicRange:number)=>
+  Math.max(preferences.basicAttackFallback?basicRange:0,...preferences.skillOrder.map(id=>SKILLS[id].range))*preferences.radiusPercent/100;

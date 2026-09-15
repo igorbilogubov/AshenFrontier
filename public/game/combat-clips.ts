@@ -20,12 +20,18 @@ export function createCombatAnimator(model:T.Object3D,mixer:T.AnimationMixer,cli
         const draw=actions.get('Bow_Draw'),release=actions.get('Bow_Recoil');
         if(draw&&release){
           const blend=T.MathUtils.smoothstep(phase,contact-.035,contact+.035);target.set('Bow_Draw',1-blend);target.set('Bow_Recoil',blend);
-          draw.time=Math.min(1,phase/contact)*Math.min(.85,draw.getClip().duration);
-          release.time=T.MathUtils.clamp((phase-contact)/(1-contact),0,1)*release.getClip().duration;
+          const skill:string=attack.skillId||'',charge=T.MathUtils.clamp(phase/contact,0,1);
+          // A normal shot is a quick half draw. Piercing holds the full overdraw,
+          // volley sweeps into a fan, frost pauses low, and rain aims overhead.
+          const drawn=skill==='archer-piercing'?.98:skill==='archer-volley'?.72:skill==='archer-frost-shot'?.9:skill==='archer-rain'?.84:.52;
+          const progress=skill==='archer-piercing'?T.MathUtils.smoothstep(charge,0,.68):skill==='archer-frost-shot'?T.MathUtils.smoothstep(charge,.08,.8):charge;
+          draw.time=progress*Math.min(drawn,draw.getClip().duration);
+          const recovery=T.MathUtils.clamp((phase-contact)/(1-contact),0,1);
+          release.time=(skill==='archer-piercing'?Math.sqrt(recovery):recovery)*release.getClip().duration;
         }
       }else if(attack&&!dead&&classId==='mage'){
-        const name=attack.skillId==='mage-frost'?'Mage_Pulse':'Mage_Cast',action=actions.get(name);
-        if(action){const sourceContact=name==='Mage_Pulse'?.60:.45;action.time=(phase<contact?phase/contact*sourceContact:sourceContact+(phase-contact)/(1-contact)*(1-sourceContact))*action.getClip().duration;target.set(name,1);}
+        const skill:string=attack.skillId||'',name=skill==='mage-frost'||skill==='mage-meteor'?'Mage_Pulse':'Mage_Cast',action=actions.get(name);
+        if(action){const sourceContact=name==='Mage_Pulse'?.60:.45,charge=T.MathUtils.clamp(phase/contact,0,1),progress=skill==='mage-meteor'?T.MathUtils.smoothstep(charge,0,.78):skill==='mage-lightning'?charge**1.6:charge;action.time=(phase<contact?progress*sourceContact:sourceContact+(phase-contact)/(1-contact)*(1-sourceContact))*action.getClip().duration;target.set(name,1);}
       }
       const blend=1-Math.exp(-dt*28);
       for(const [name,action] of actions)action.weight+=((target.get(name)||0)-action.weight)*blend;

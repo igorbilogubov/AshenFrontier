@@ -1,4 +1,6 @@
 import {createBowPresentation} from './bow-presentation.js';
+import {createSkillMotion} from './skill-motion.js';
+import {createCharacterSkillCharge} from './character-skill-charge.js';
 import {createCombatAnimator,loadCombatClips} from './combat-clips.js';
 import {SKILLS} from './skills.js';
 import * as T from './vendor/three.module.js';
@@ -135,7 +137,10 @@ export function createAnimatedWarrior(gltf:{scene:T.Object3D;animations:T.Animat
   }
   equipment('sword',classId);
   const bowPresentation=createBowPresentation(model);
+  const skillMotion=createSkillMotion(model);
+  const skillCharge=createCharacterSkillCharge(model);
   function reset(){
+    skillMotion.restore();
     combat.reset();
     lastAttack=null;wasDead=false;deathAge=0;hitAge=1;lastHurt=0;hitAction.weight=0;
     for(const name of CLIP_NAMES){weights[name]=name==='Idle'?1:0;actions[name].time=0;actions[name].setEffectiveWeight(weights[name]);}
@@ -153,7 +158,8 @@ export function createAnimatedWarrior(gltf:{scene:T.Object3D;animations:T.Animat
       state='Attack_Sword_1'; // Existing workshop state name; motion comes from the class library.
     }else if(hero.attack){
       if((hero.attack.id??hero.attack)!==(lastAttack?.id??lastAttack)){
-        attackName=hero.attack.skillId==='warrior-cleave'?'Attack_Sword_2':hero.attack.skillId==='warrior-whirlwind'?'Attack_Sword_1':hero.weapon==='axe'?'Attack_Sword_2':`Attack_Sword_${1+(attackIndex++%2)}` as AttackClip;
+        const skill:string=hero.attack.skillId||'';
+        attackName=skill==='warrior-cleave'||skill==='warrior-shockwave'?'Attack_Sword_2':skill==='warrior-whirlwind'||skill==='warrior-thrust'?'Attack_Sword_1':hero.weapon==='axe'?'Attack_Sword_2':`Attack_Sword_${1+(attackIndex++%2)}` as AttackClip;
         actions[attackName].time=0;
       }
       // Align the blade's forward crossing with gameplay's 49% damage event.
@@ -176,7 +182,7 @@ export function createAnimatedWarrior(gltf:{scene:T.Object3D;animations:T.Animat
     const blend=1-Math.exp(-dt*(hero.dead?22:hero.attack?30:16));
     for(const name of CLIP_NAMES){weights[name]+=(target[name]-weights[name])*blend;actions[name].setEffectiveWeight(weights[name]);}
     combat.update(dt,hero.classId||'warrior',hero.attack,!!hero.dead);
-    if(sampleAnimation){mixer.update(dt);bowPresentation.update(hero,dt);}lastAttack=hero.attack;lastHurt=hero.hurt;wasDead=!!hero.dead;
+    if(sampleAnimation){skillMotion.restore();mixer.update(dt);skillMotion.apply(hero);bowPresentation.update(hero,dt);skillCharge.update(hero);}lastAttack=hero.attack;lastHurt=hero.hurt;wasDead=!!hero.dead;
   }
   function previewClip(name:WarriorClip){
     if(!clips[name])return;
@@ -192,6 +198,6 @@ export function createAnimatedWarrior(gltf:{scene:T.Object3D;animations:T.Animat
   }
   // Initialize the skeleton before the first rendered frame, avoiding a T-pose flash.
   mixer.update(0);bowPresentation.update({weapon:'sword',classId,dead:0,attack:null,moveBlend:0,runBlend:0,gait:0,hurt:0},0);root.updateMatrixWorld(true);
-  return {root,model,mixer,clips,animate,equipment,previewClip,samplePreview,disposeExtras:()=>bowPresentation.dispose(),
+  return {root,model,mixer,clips,animate,equipment,previewClip,samplePreview,disposeExtras:()=>{bowPresentation.dispose();skillCharge.dispose();},
     get state(){return state;},get weights(){return {...weights};}};
 }

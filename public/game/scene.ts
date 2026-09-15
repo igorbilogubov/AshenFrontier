@@ -6,7 +6,8 @@ import {mesh} from './models.js';
 import {loadWarrior} from './character.js';
 import {createMob,loadMobAssets,type MobAssets} from './mobs.js';
 import {createEnvironment} from './environment.js';
-import {CONSUMABLES} from './consumables.js';
+import {assignedConsumable,consumableQuantity} from './consumables.js';
+import {actionIcon} from './action-icons.js';
 import {createWorldInteractions} from './world-interactions.js';
 import {drawWorldMapBackdrop} from './minimap-world.js';
 import {WORLD_CLEARINGS,boundsForPosition,locationAt,sameLocation} from './world-layout.js';
@@ -205,12 +206,17 @@ function updateUI(){
   $('afk-status').textContent=hero.afk?'Автоохота включена':spot?'Автоохота доступна':'Автоохота на споте';$('zone-state').classList.toggle('safe',camp);
   $('hp-text').textContent=`${Math.ceil(hero.hp)} / ${Math.ceil(hero.maxHp)}`;$('hp-fill').style.height=`${Math.max(0,Math.min(1,hero.hp/hero.maxHp||0))*100}%`;
   $('hp-orb').setAttribute('aria-valuemax',String(hero.maxHp));$('hp-orb').setAttribute('aria-valuenow',String(Math.ceil(hero.hp)));
-  $('potions').textContent=String(hero.potions);$('mana-potions').textContent=String(hero.manaPotions);
+  for(const [slot,id,countId] of [['q','potion','potions'],['w','mana-potion','mana-potions']] as const){
+    const button=$(id) as HTMLButtonElement,definition=assignedConsumable(hero,slot),count=definition?consumableQuantity(hero,definition.id):0;
+    $(countId).textContent=String(count);button.classList.toggle('quick-empty',!definition);button.classList.toggle('quick-unavailable',!game.connected||!!hero.dead||!definition||count===0||!!(definition?.kind==='mana'?hero.manaPotionCooldown:hero.potionCooldown)||!!definition&&(definition.kind==='mana'?hero.mana>=hero.maxMana:hero.hp>=hero.maxHp));
+    const art=button.querySelector<HTMLElement>('.potion-icon')!;const iconKey=definition?.kind==='mana'?'mana-potion':'potion';if(art.dataset.icon!==iconKey){art.innerHTML=actionIcon(iconKey);art.dataset.icon=iconKey;}
+    button.querySelector('.action-name')!.textContent=definition?definition.kind==='hp'?'HP':'MP':'Пусто';
+    button.querySelector('small')!.textContent=definition?definition.name:'Зелье';
+    button.title=definition?`${definition.name} · ${count} шт. · восстановить ${definition.restore} ${definition.kind==='hp'?'HP':'MP'} · ${slot.toUpperCase()} · перетащите другое зелье для замены`:`${slot.toUpperCase()}: пустой слот · перетащите зелье из рюкзака`;
+    button.setAttribute('aria-label',button.title);
+  }
   $('movement-label').textContent=hero.running?'Бег':'Ходьба';$('movement').setAttribute('aria-pressed',String(hero.running));$('movement').disabled=!!hero.dead;
   $('movement').title=hero.running?'Перейти на ходьбу · Shift':'Перейти на бег · Shift';
-  $('potion').disabled=!!hero.dead||hero.potions===0||hero.potionCooldown>0||hero.hp>=hero.maxHp;$('potion').title=hero.potionCooldown>0?`Готово через ${Math.ceil(hero.potionCooldown)} с`:`Восстановить ${CONSUMABLES.hp.restore} здоровья · Q`;
-  ($('mana-potion') as HTMLButtonElement).disabled=!game.connected||!!hero.dead||hero.manaPotions===0||hero.manaPotionCooldown>0||hero.mana>=hero.maxMana;
-  $('mana-potion').title=hero.manaPotionCooldown>0?`Готово через ${Math.ceil(hero.manaPotionCooldown)} с`:`Восстановить ${CONSUMABLES.mana.restore} маны · W`;
   $('attack').disabled=!!hero.dead;$('reset').disabled=!!hero.dead;
   $('death-screen').hidden=!hero.dead;$('hurt-vignette').style.opacity=String(hero.hurt*.9);
   $('kills-goal').innerHTML=`Победите существ: <b>${Math.min(5,hero.questKills)} / 5</b>`;$('kills-goal').classList.toggle('done',hero.questKills>=5);$('boss-goal').classList.toggle('done',hero.boss);$('camp-goal').classList.toggle('done',hero.questClaimed);
@@ -382,7 +388,7 @@ addEventListener('keydown',event=>{
   if(['ShiftLeft','ShiftRight'].includes(event.code)&&(document.activeElement===canvas||document.activeElement===document.body))toggleRun();
   if(event.code==='Space')attackAt();
   const skillIndex=['Digit1','Digit2','Digit3','Digit4'].indexOf(event.code);if(skillIndex>=0)castSkill(skillIndex);
-  if(event.code==='KeyQ'){event.preventDefault();game.potion('hp');}if(event.code==='KeyW'){event.preventDefault();game.potion('mana');}
+  if(event.code==='KeyQ'){event.preventDefault();drink('q');}if(event.code==='KeyW'){event.preventDefault();drink('w');}
   if(event.code==='KeyF')toggleAfk();if(event.code==='Escape'&&!interfaceUI?.isPanelOpen()){cancelAfk();clearInput();}
 });
 addEventListener('keyup',e=>keys.delete(e.code));addEventListener('blur',clearInput);document.addEventListener('visibilitychange',()=>{paused=document.hidden;if(paused)clearInput();last=0;accumulator=0;});addEventListener('resize',fitCamera);
@@ -391,5 +397,6 @@ for(const b of document.querySelectorAll<HTMLButtonElement>('[data-weapon]'))b.a
 for(const [index,id] of ['special','skill-secondary','skill-tertiary','skill-quaternary'].entries())$(id).addEventListener('click',()=>{castSkill(index);canvas.focus({preventScroll:true});});
 $('afk-toggle').addEventListener('click',()=>{toggleAfk();canvas.focus({preventScroll:true});});
 $('movement').addEventListener('click',()=>{toggleRun();canvas.focus({preventScroll:true});});
-$('attack').addEventListener('click',()=>{attackAt();canvas.focus({preventScroll:true});});$('potion').addEventListener('click',()=>{game.potion('hp');canvas.focus({preventScroll:true});});$('mana-potion').addEventListener('click',()=>{game.potion('mana');canvas.focus({preventScroll:true});});$('reset').addEventListener('click',()=>{returnToCamp();canvas.focus({preventScroll:true});});$('retry').addEventListener('click',()=>location.reload());
+function drink(slot:'q'|'w'){if(!$(slot==='q'?'potion':'mana-potion').classList.contains('quick-unavailable'))game.useConsumable(slot);}
+$('attack').addEventListener('click',()=>{attackAt();canvas.focus({preventScroll:true});});$('potion').addEventListener('click',()=>{drink('q');canvas.focus({preventScroll:true});});$('mana-potion').addEventListener('click',()=>{drink('w');canvas.focus({preventScroll:true});});$('reset').addEventListener('click',()=>{returnToCamp();canvas.focus({preventScroll:true});});$('retry').addEventListener('click',()=>location.reload());
 start();

@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="game/panels.css">
   <link rel="stylesheet" href="game/hud.css">
   <link rel="stylesheet" href="game/inventory-interactions.css">
+  <link rel="stylesheet" href="game/consumable-inventory.css">
   <link rel="stylesheet" href="game/camp-ui.css">
   <link rel="stylesheet" href="game/target-presentation.css">
   <link rel="stylesheet" href="game/afk-settings.css">
@@ -55,8 +56,8 @@
           <button id="skill-secondary" class="skill-button action-cell" type="button"><kbd>2</kbd><span class="skill-sigil action-art" aria-hidden="true"></span><span class="skill-name">Навык</span><small class="skill-meta">Мана</small></button>
           <button id="skill-tertiary" class="skill-button action-cell" type="button"><kbd>3</kbd><span class="skill-sigil action-art" aria-hidden="true"></span><span class="skill-name">Навык</span><small class="skill-meta">Мана</small></button>
           <button id="skill-quaternary" class="skill-button action-cell" type="button"><kbd>4</kbd><span class="skill-sigil action-art" aria-hidden="true"></span><span class="skill-name">Навык</span><small class="skill-meta">Мана</small></button>
-          <button id="potion" class="action-cell" type="button"><kbd>Q</kbd><span class="potion-icon action-art" aria-hidden="true"></span><span class="action-name">HP <b id="potions">3</b></span><small>Здоровье</small></button>
-          <button id="mana-potion" class="action-cell" type="button"><kbd>W</kbd><span class="potion-icon action-art" aria-hidden="true"></span><span class="action-name">MP <b id="mana-potions">0</b></span><small>Мана</small></button>
+          <button id="potion" class="action-cell quick-consumable" data-quick-slot="q" type="button"><kbd>Q</kbd><b id="potions" class="quick-count" aria-hidden="true">0</b><span class="potion-icon action-art" aria-hidden="true"></span><span class="action-name">Пусто</span><small>Зелье</small></button>
+          <button id="mana-potion" class="action-cell quick-consumable" data-quick-slot="w" type="button"><kbd>W</kbd><b id="mana-potions" class="quick-count" aria-hidden="true">0</b><span class="potion-icon action-art" aria-hidden="true"></span><span class="action-name">Пусто</span><small>Зелье</small></button>
         </div>
       </div>
       <div id="mana-orb" class="resource-orb mana-orb" role="progressbar" aria-label="Мана" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">

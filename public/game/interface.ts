@@ -2,6 +2,7 @@ import {skillsForClass} from './skills.js';
 import {actionIcon} from './action-icons.js';
 import {bindInventoryInteractions} from './inventory-interactions.js';
 import {CLASSES,EQUIPMENT_SLOTS,BAG_CAPACITY,backpackItems,itemBonus,STAT_KEYS,STAT_DEFINITIONS,CLASS_PROGRESSION,characterStats} from '../rules.js';
+import {backpackUsage,consumableDefinition} from './consumables.js';
 import {safe} from './location.js';
 import {itemIcon,itemArtwork,itemArtKey,heroSilhouette} from './item-icons.js';
 import {element as $,errorMessage} from './ui-types.js';
@@ -94,10 +95,9 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
     button.append(icon,caption);
     $('equipment-slots').append(button);slotNodes.set(slot,{button,icon});
   }
-  for(let index=0;index<BAG_CAPACITY;index++){
-    const button=document.createElement('button'),icon=document.createElement('span');
-    button.type='button';button.className='bag-cell empty';button.append(icon);
-    $('bag-items').append(button);bagNodes.push({button,icon});
+  function ensureBagCells(count:number){
+    while(bagNodes.length<count){const button=document.createElement('button'),icon=document.createElement('span');button.type='button';button.className='bag-cell empty';button.append(icon);$('bag-items').append(button);bagNodes.push({button,icon});}
+    while(bagNodes.length>count){bagNodes.pop()!.button.remove();}
   }
   const interactions=bindInventoryInteractions(game,toast,()=>{panels.character.hidden=true;openPanel('inventory');});
   function setIcon(element:HTMLElement,slot:EquipmentSlot,classId:ClassId,item?:Item,weapon:WeaponId='sword'){const key=item?'art:'+itemArtKey(item,classId,weapon):slot+':'+classId;if(element.dataset.icon!==key){element.innerHTML=item?itemArtwork(item,classId,weapon):itemIcon(slot,classId);element.dataset.icon=key;}}
@@ -167,19 +167,22 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
   function updateInventory(){
     if(panels.inventory.hidden)return;
     const p=game.player,c=CLASSES[p.classId];if(!c)return;
-    const editable=canEdit(),bag=backpackItems(p),key=JSON.stringify([p.items,p.pendingItems,p.equipment,p.stash,p.weapon,p.classId,p.level,p.gold,editable]);if(key===inventoryKey)return;inventoryKey=key;
+    const editable=canEdit(),bag=backpackItems(p),stacks=p.consumableInventory||[],usage=backpackUsage(p),key=JSON.stringify([p.items,p.pendingItems,p.equipment,p.stash,p.consumableInventory,p.weapon,p.classId,p.level,p.gold,editable]);if(key===inventoryKey)return;inventoryKey=key;
     write($('hero-details'),`${c.name} · уровень ${p.level} · 6 слотов снаряжения`);write($('inventory-gold'),`${p.gold} золота`);write($('inventory-status'),editable?'Можно менять снаряжение':!game.connected?'Нет соединения':'Изменение в безопасной зоне, вне боя');
     for(const [slot,nodes] of slotNodes){
       const item=p.items.find(value=>value.id===p.equipment[slot]);nodes.button.className=`equipment-slot${item?' rarity-'+(item.rarity||0):' empty'}`;
       nodes.button.dataset.itemId=item?.id||'';nodes.button.setAttribute('aria-label',`${EQUIPMENT_SLOTS[slot].name}: ${item?item.name+' · '+itemBonus(item):'Пусто'}`);setIcon(nodes.icon,slot,item?.classId||p.classId,item,p.weapon);
     }
-    write($('bag-count'),`${bag.length} / ${BAG_CAPACITY}`);
+    write($('bag-count'),`${usage} / ${BAG_CAPACITY}`);
+    ensureBagCells(Math.max(BAG_CAPACITY,bag.length+stacks.length));
     bagNodes.forEach((nodes,index)=>{
-      const item=bag[index];nodes.button.dataset.itemId=item?.id||'';nodes.button.className=`bag-cell${item?' rarity-'+(item.rarity||0):' empty'}`;
-      nodes.button.setAttribute('aria-label',item?`${item.name}, ${itemBonus(item)}`:`Пустая ячейка ${index+1}`);nodes.button.disabled=false;
-      if(item){nodes.icon.hidden=false;setIcon(nodes.icon,item.slot,item.classId||p.classId,item);}else nodes.icon.hidden=true;
+      const item=bag[index],stack=index>=bag.length?stacks[index-bag.length]:undefined,definition=stack&&consumableDefinition(stack.definitionId);
+      nodes.button.dataset.itemId=item?.id||'';nodes.button.dataset.consumableId=stack?.id||'';nodes.button.dataset.consumableDefinition=stack?.definitionId||'';
+      nodes.button.className=`bag-cell${item?' rarity-'+(item.rarity||0):stack?' consumable-cell':' empty'}`;
+      nodes.button.setAttribute('aria-label',item?`${item.name}, ${itemBonus(item)}`:stack?`${definition?.name||'Зелье'}, ${stack.quantity} шт. Перетащите на Q или W`:`Пустая ячейка ${index+1}`);nodes.button.disabled=false;
+      if(item){nodes.icon.hidden=false;setIcon(nodes.icon,item.slot,item.classId||p.classId,item);}else if(stack){nodes.icon.hidden=false;nodes.icon.dataset.icon='';nodes.icon.innerHTML=`<span class="potion-icon"></span><b class="stack-count"></b>`;nodes.icon.querySelector('.potion-icon')!.innerHTML=actionIcon(definition?.kind==='mana'?'mana-potion':'potion');nodes.icon.querySelector('.stack-count')!.textContent=String(stack.quantity);}else{nodes.icon.hidden=true;nodes.icon.dataset.icon='';}
     });
-    $('claim-items').hidden=!p.pendingItems?.length;write($('claim-items'),`Забрать ожидающие вещи · ${p.pendingItems?.length||0}`);$('claim-items').disabled=!editable||bag.length>=BAG_CAPACITY;
+    $('claim-items').hidden=!p.pendingItems?.length;write($('claim-items'),`Забрать ожидающие вещи · ${p.pendingItems?.length||0}`);$('claim-items').disabled=!editable||usage>=BAG_CAPACITY;
   }
   function onEvent(event:WorldEvent){
     interactions.onEvent(event);

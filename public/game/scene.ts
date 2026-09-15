@@ -285,7 +285,8 @@ canvas.addEventListener('pointerdown',event=>{
 addEventListener('pointerup',event=>{if(event.pointerId===mouse.pointerId&&!(event.buttons&1))releaseMovement();});
 addEventListener('pointercancel',event=>{if(event.pointerId===mouse.pointerId)clearInput();});
 canvas.addEventListener('lostpointercapture',event=>{if(event.pointerId===mouse.pointerId)clearInput();});
-canvas.addEventListener('contextmenu',e=>e.preventDefault());
+// Inventory, HUD and overlays belong to the game as much as the canvas.
+document.addEventListener('contextmenu',event=>event.preventDefault(),{capture:true});
 canvas.addEventListener('wheel',event=>{
   if(!ready||event.ctrlKey||event.metaKey)return;
   event.preventDefault();

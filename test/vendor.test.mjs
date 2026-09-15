@@ -31,7 +31,7 @@ test('shop opens only on server arrival; purchase deducts once and min rolls sur
   assert.deepEqual(safeHero(persistentHero(p)).items.at(-1),item);
 });
 
-test('only an active nearby vendor buys/sells; bound/equipped items and insufficient funds are protected',()=>{
+test('only an active nearby vendor buys/sells; equipped items and insufficient funds are protected',()=>{
   const {w,p}=fixture(),loose=makeLoot('warrior',1,0,'ring');p.items.push(loose);
   w.command(p,{type:'sell',id:loose.id});assert(p.items.includes(loose));
   open(w,p);w.command(p,{type:'sell',id:p.equipment.weapon});assert(p.items.some(i=>i.id===p.equipment.weapon));
@@ -42,6 +42,23 @@ test('only an active nearby vendor buys/sells; bound/equipped items and insuffic
   w.command(p,{type:'buy',definitionId:listing.definitionId});assert.equal(p.items.length,3);
   Object.assign(p,{x:8,z:1.8});tick(w);assert.equal(p.shopActive,false);
   w.command(p,{type:'sell',id:p.items.at(-1).id});assert.equal(p.items.length,3);
+});
+
+test('bound starter equipment has a nonzero price and sells once after removal from its slot',()=>{
+  const {w,p}=fixture();const starter=p.items.find(item=>item.id===p.equipment.weapon);
+  assert(starter.bound);assert(sellPrice(starter)>0);
+  open(w,p);w.command(p,{type:'sell',id:starter.id});assert.equal(p.gold,0);
+  w.command(p,{type:'unequip',id:starter.id});assert.equal(p.equipment.weapon,null);
+  w.command(p,{type:'sell',id:starter.id});assert.equal(p.gold,sellPrice(starter));assert(!p.items.some(item=>item.id===starter.id));
+  w.command(p,{type:'sell',id:starter.id});assert.equal(p.gold,sellPrice(starter));
+});
+
+test('bound items in another hero or stash cannot be sold through a forged command',()=>{
+  const {w,p}=fixture(),other=newHero('Другой');w.add(other);
+  const loose={...makeLoot('warrior',1,0,'ring'),bound:true};p.items.push(loose);
+  open(w,p);w.command(p,{type:'sell',id:other.equipment.weapon});assert.equal(p.gold,0);
+  p.stash.push(loose.id);w.command(p,{type:'sell',id:loose.id});assert.equal(p.gold,0);assert(p.items.includes(loose));
+  p.stash=[];w.command(p,{type:'sell',id:loose.id});assert.equal(p.gold,sellPrice(loose));
 });
 
 test('full bag and canceled approach cannot spend gold; camp/death/disconnect clear shop session',()=>{

@@ -97,7 +97,8 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
     const worn=Object.values(game.player.equipment).includes(item.id);
     const listing=shopItems().find(value=>value.definitionId===element.dataset.definitionId);
     const stored=game.player.stash.includes(item.id);
-    const status=stashOpened?`${stored?'В сундуке · ПКМ — забрать':worn?'Надето · сначала снимите предмет':'В рюкзаке · ПКМ — положить в сундук'}`:listing?`Цена: ${listing.price} золота · ПКМ — купить`:item.bound?'Привязано к герою · не продаётся':worn?'Надето · ПКМ — снять':opened?`Продажа: ${sellPrice(item)} золота · ПКМ — продать`:`Продажа: ${sellPrice(item)} золота · ПКМ — надеть`;
+    const binding=item.bound?'Привязано к герою · ':'';
+    const status=stashOpened?`${stored?'В сундуке · ПКМ — забрать':worn?'Надето · сначала снимите предмет':'В рюкзаке · ПКМ — положить в сундук'}`:listing?`Цена: ${listing.price} золота · ПКМ — купить`:worn?`${binding}Надето · ПКМ — снять`:opened?`${binding}Продажа: ${sellPrice(item)} золота · ПКМ — продать`:`${binding}Продажа: ${sellPrice(item)} золота · ПКМ — надеть`;
     tooltip.append(node('p','tooltip-footer',status));tooltip.hidden=false;
     const position=tooltipPosition(element.getBoundingClientRect(),tooltip.offsetWidth,tooltip.offsetHeight,innerWidth,innerHeight);
     tooltip.style.left=`${position.x}px`;tooltip.style.top=`${position.y}px`;
@@ -105,7 +106,7 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
   function itemAction(item:Item,mode:'equip'|'unequip'|'sell'){
     if(mode==='sell'){
       if(!canTrade()){toast('Продавать вещи можно у торговца');return;}
-      if(item.bound||Object.values(game.player.equipment).includes(item.id)){toast('Сначала снимите вещь. Привязанные предметы не продаются');return;}
+      if(Object.values(game.player.equipment).includes(item.id)){toast('Сначала снимите вещь');return;}
     }else{
       if(!canEdit()){toast('Снаряжение меняется в лагере, вне боя');return;}
       if(!canEquip(game.player,item)){toast('Предмет не подходит вашему классу');return;}

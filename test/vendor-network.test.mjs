@@ -35,8 +35,15 @@ test('real WebSocket vendor purchases and sales preserve the exact PostgreSQL ec
     const stored=await database.load(token);assert.equal(stored.hero.gold,c.state.self.gold);assert.deepEqual(stored.hero.items.at(-1),bought);
     c.send({type:'sell',id:bought.id});await until(()=>c.state?.self.items.length===2);
     const expected=100-listing.price+sellPrice(bought);assert.equal(c.state.self.gold,expected);assert.equal((await database.load(token)).hero.gold,expected);
+    const starter=c.state.self.items.find(item=>item.id===hero.equipment.weapon);assert(starter.bound);assert(sellPrice(starter)>0);
+    c.send({type:'sell',id:starter.id});await new Promise(resolve=>setTimeout(resolve,100));assert.equal(c.state.self.gold,expected);
+    c.send({type:'unequip',id:starter.id});await until(()=>c.state?.self.equipment.weapon===null);
+    c.send({type:'sell',id:starter.id});await until(()=>c.state?.self.items.length===1);
+    const boundExpected=expected+sellPrice(starter);assert.equal(c.state.self.gold,boundExpected);
+    c.send({type:'sell',id:starter.id});await new Promise(resolve=>setTimeout(resolve,100));assert.equal(c.state.self.gold,boundExpected);
+    const soldStorage=await database.load(token);assert.equal(soldStorage.hero.gold,boundExpected);assert(!soldStorage.hero.items.some(item=>item.id===starter.id));
     await close(c);await stopTestServer(server);server=await startTestServer(database,{dataDir});
     const restored=await connect(server,token);clients.push(restored);
-    assert.equal(restored.state.self.gold,expected);assert.equal(restored.state.self.items.length,2);
+    assert.equal(restored.state.self.gold,boundExpected);assert.equal(restored.state.self.items.length,1);
   }finally{for(const c of clients)await close(c);await stopTestServer(server);await database.close();await rm(dataDir,{recursive:true,force:true});}
 });

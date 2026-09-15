@@ -390,7 +390,7 @@ export class World{
       const item=backpackItems(p).find(i=>i.id===msg.id)??(msg.type==='unequip'?p.items.find(i=>i.id===msg.id&&p.equipment[i.slot]===i.id):undefined);if(!item)return;
       if(msg.type==='equip'&&canEquip(p,item)){p.equipment[item.slot]=item.id;if(item.definitionId&&item.slot==='weapon')p.weapon='sword';this.clampResources(p);}
       if(msg.type==='unequip'&&p.equipment[item.slot]===item.id){if(backpackItems(p).length>=BAG_CAPACITY){this.notice(p,'Рюкзак полон. Освободите ячейку, чтобы снять вещь.');return;}p.equipment[item.slot]=null;this.clampResources(p);}
-      if(msg.type==='sell'&&p.shopActive&&this.vendorAvailable(p)&&!item.bound&&!Object.values(p.equipment).includes(item.id)){p.gold+=sellPrice(item);p.items=p.items.filter(i=>i.id!==item.id);}
+      if(msg.type==='sell'&&p.shopActive&&this.vendorAvailable(p)&&!Object.values(p.equipment).includes(item.id)){p.gold+=sellPrice(item);p.items=p.items.filter(i=>i.id!==item.id);}
     }
   }
   aimedMob(p:Hero,id:unknown,range:number){

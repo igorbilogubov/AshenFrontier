@@ -106,7 +106,11 @@ export class NetworkGame{
     }
   }
   attack(yaw:number,special=false,targetId?:number){if(this.connected&&performance.now()-this.lastAttack>100){this.lastAttack=performance.now();this.send({type:'attack',yaw,special,...(targetId!==undefined?{targetId}:{})});}}
-  skill(skillId:SkillId,yaw:number,aim:{targetId?:number;target?:{x:number;z:number}}={}){if(this.connected)this.send({type:'skill',skillId,yaw,...aim});}
+  skill(skillId:SkillId,yaw:number,aim:{targetId?:number;target?:{x:number;z:number}}={}){
+    if(!this.connected)return;
+    const area=skillId==='archer-rain'||skillId==='mage-meteor';
+    this.send({type:'skill',skillId,yaw,...(aim.targetId!==undefined?{targetId:aim.targetId}:{}),...(area&&aim.target?{target:aim.target}:{})});
+  }
   setAfk(enabled:boolean){if(this.connected)this.send({type:'afk',enabled});}
   potion(kind:'hp'|'mana'='hp'){if(this.connected)this.send({type:'potion',kind});}
   useConsumable(slot:'q'|'w'){if(this.connected)this.send({type:'useConsumable',slot});}

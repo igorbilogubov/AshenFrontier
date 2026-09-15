@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import * as T from '../dist/public/game/vendor/three.module.js';
 import {GLTFLoader} from '../dist/public/game/vendor/GLTFLoader.js';
-import {createMob,CREATURE_CLIPS,WOLF_CLIPS,ATTACK_CONTACT,STRIDES} from '../dist/public/game/mobs.js';
+import {createMob,CREATURE_CLIPS,WOLF_CLIPS,BEAR_CLIPS,ATTACK_CONTACT,STRIDES} from '../dist/public/game/mobs.js';
 import {MOB_TYPES} from '../dist/public/game/location.js';
 
 const assets={},files={};
@@ -57,7 +57,7 @@ test('fixed skinned-mesh culling bounds cover every exported animal pose and all
 test('creature assets carry their animations, a complete skin and actual coat colors in COLOR_0',()=>{
   for(const [type,{bytes,json,binary}] of Object.entries(files)){
     assert.equal(json.skins[0].joints.length,24);
-    assert.deepEqual(json.animations.map(a=>a.name),type==='wolf'?WOLF_CLIPS:CREATURE_CLIPS);
+    assert.deepEqual(json.animations.map(a=>a.name),type==='wolf'?WOLF_CLIPS:type==='bear'?BEAR_CLIPS:CREATURE_CLIPS);
     assert.ok(bytes.length<2*1024*1024);
     assert.ok(json.images.every(i=>i.bufferView!==undefined&&!i.uri));
     const fur=json.materials.findIndex(m=>m.name==='Layered_Fur');
@@ -101,58 +101,80 @@ test('walk/run support paws hold the ground at the speed used by the renderer',(
   }
 });
 
-test('refined wolf plants all four paws through a full stride and closes its locomotion loops',()=>{
-  const m=createMob('wolf',assets),scale=MOB_TYPES.wolf.scale;
-  for(const clip of ['Walk','Run','Turn_Left','Turn_Right']){
-    const turn=clip.startsWith('Turn_'),run=clip==='Run',stride=STRIDES.wolf[run?'run':'walk'];
-    const phases={Front_L:0,Front_R:.5,Hind_L:run?.5:.25,Hind_R:run?0:.75};
-    m.previewClip(clip);
-    for(const [leg,offset] of Object.entries(phases)){
-      const name=leg+(leg.startsWith('Front')?'_Paw':'_Toe'),positions=[];
-      // Sample a planted interval, including intervals crossing a clip boundary.
-      for(let i=0;i<=16;i++){
-        const phase=.04+i*.028-offset;
-        m.samplePreview(((phase+1)%1)*m.clips[clip].duration);
-        const p=point(m,name);
-        if(turn)p.applyAxisAngle(new T.Vector3(0,1,0),phase*(clip==='Turn_Left'?1:-1));
-        else p.z+=phase*stride*scale;
-        positions.push(p);
+test('refined wolf and bear plant all four paws through a full stride and close their locomotion loops',()=>{
+  for(const type of ['wolf','bear']){
+    const m=createMob(type,assets),scale=MOB_TYPES[type].scale;
+    for(const clip of ['Walk','Run','Turn_Left','Turn_Right']){
+      const turn=clip.startsWith('Turn_'),run=clip==='Run',stride=STRIDES[type][run?'run':'walk'];
+      const phases={Front_L:0,Front_R:.5,Hind_L:run?.5:.25,Hind_R:run?0:.75};
+      m.previewClip(clip);
+      for(const [leg,offset] of Object.entries(phases)){
+        const name=leg+(leg.startsWith('Front')?'_Paw':'_Toe'),positions=[];
+        // Sample a planted interval, including intervals crossing a clip boundary.
+        for(let i=0;i<=16;i++){
+          const phase=.04+i*.028-offset;
+          m.samplePreview(((phase+1)%1)*m.clips[clip].duration);
+          const p=point(m,name);
+          if(turn)p.applyAxisAngle(new T.Vector3(0,1,0),phase*(clip==='Turn_Left'?1:-1));
+          else p.z+=phase*stride*scale;
+          positions.push(p);
+        }
+        const drift=Math.max(...positions.map(p=>p.distanceTo(positions[0])));
+        assert.ok(drift<.028*scale,`${clip} ${name} slid ${drift/scale} model units`);
       }
-      const drift=Math.max(...positions.map(p=>p.distanceTo(positions[0])));
-      assert.ok(drift<.028*scale,`${clip} ${name} slid ${drift/scale} model units`);
+      m.samplePreview(0);const starts={};m.model.traverse(o=>{if(o.isBone)starts[o.name]=point(m,o.name);});
+      m.samplePreview(m.clips[clip].duration-.00001);
+      for(const [name,start] of Object.entries(starts))assert.ok(start.distanceTo(point(m,name))<.001*scale,`${clip} ${name}: loop snaps`);
     }
-    m.samplePreview(0);const starts={};m.model.traverse(o=>{if(o.isBone)starts[o.name]=point(m,o.name);});
-    m.samplePreview(m.clips[clip].duration-.00001);
-    for(const [name,start] of Object.entries(starts))assert.ok(start.distanceTo(point(m,name))<.001*scale,`${clip} ${name}: loop snaps`);
   }
 });
 
-test('wolf movement and pivot transitions keep poses continuous at 30 and 60 FPS',()=>{
-  const camera=new T.PerspectiveCamera(),scale=MOB_TYPES.wolf.scale;
-  for(const fps of [30,60]){
-    const model=createMob('wolf',assets),mob=actor('wolf'),tracked=['Head','Front_L_Paw','Front_R_Paw','Hind_L_Toe','Hind_R_Toe'];
-    const states=new Set();let previous=null,maxJump=0,maxWalkJump=0;
-    for(let frame=0;frame<fps*10;frame++){
-      const t=frame/fps;
-      mob.speed=t<1?0:t<2?(t-1)*.62:t<4?.62:t<5?.62+(t-4)*1.38:t<6?2:t<7?2*(7-t):0;
-      mob.state=t>=4&&t<7?'chase':'idle';mob.z+=mob.speed/fps;
-      if(t>=7&&t<9)mob.yaw-=.9/fps;
-      model.animate(mob,t,false,camera);states.add(model.state);
-      const pose=tracked.map(name=>point(model,name));
-      for(const p of pose)assert.ok([...p].every(Number.isFinite));
-      for(const p of pose.slice(1))assert.ok(p.y>-.02*scale,'paw penetrated the floor during a transition');
-      if(previous)for(let i=0;i<pose.length;i++){
-        const jump=pose[i].distanceTo(previous[i]);maxJump=Math.max(maxJump,jump);
-        if(t>=1&&t<4)maxWalkJump=Math.max(maxWalkJump,jump);
+test('bear keeps the asset budget, lifts its striking paw and lands with a grounded broad silhouette',()=>{
+  const {json,bytes}=files.bear,primitives=json.meshes.flatMap(m=>m.primitives);
+  assert.ok(primitives.length<=6,'bear exceeds its material draw-call budget');
+  assert.ok(primitives.reduce((n,p)=>n+json.accessors[p.indices].count/3,0)<=25000,'bear triangle budget exceeded');
+  assert.ok(bytes.length<2*1024*1024,'bear GLB budget exceeded');
+  const m=createMob('bear',assets),scale=MOB_TYPES.bear.scale;
+  m.previewClip('Idle');m.samplePreview(0);const rest=point(m,'Front_R_Paw');
+  m.previewClip('Attack');m.samplePreview(m.clips.Attack.duration*.36);const raised=point(m,'Front_R_Paw');
+  assert.ok(raised.y-rest.y>.25*scale,'bear attack lacks a readable lifted paw');
+  m.samplePreview(m.clips.Attack.duration*ATTACK_CONTACT);const contact=point(m,'Front_R_Paw');
+  assert.ok(contact.z-rest.z>.35*scale,'bear swipe does not reach forward at damage phase');
+  m.samplePreview(m.clips.Attack.duration-.00001);
+  assert.ok(point(m,'Front_R_Paw').distanceTo(rest)<.002*scale,'bear swipe does not recover its support pose');
+  m.previewClip('Death');m.samplePreview(m.clips.Death.duration);
+  const box=new T.Box3();m.model.traverse(o=>{if(o.isSkinnedMesh){o.skeleton.update();o.computeBoundingBox();box.union(o.boundingBox.clone().applyMatrix4(o.matrixWorld));}});
+  assert.ok(box.min.y>=-.015*scale&&box.min.y<.04*scale,'bear corpse floats or sinks');
+});
+
+test('wolf and bear movement and pivot transitions keep poses continuous at 30 and 60 FPS',()=>{
+  for(const type of ['wolf','bear']){
+    const camera=new T.PerspectiveCamera(),scale=MOB_TYPES[type].scale;
+    for(const fps of [30,60]){
+      const model=createMob(type,assets),mob=actor(type),tracked=['Head','Front_L_Paw','Front_R_Paw','Hind_L_Toe','Hind_R_Toe'];
+      const states=new Set();let previous=null,maxJump=0,maxWalkJump=0;
+      for(let frame=0;frame<fps*10;frame++){
+        const t=frame/fps;
+        mob.speed=t<1?0:t<2?(t-1)*.62:t<4?.62:t<5?.62+(t-4)*1.38:t<6?2:t<7?2*(7-t):0;
+        mob.state=t>=4&&t<7?'chase':'idle';mob.z+=mob.speed/fps;
+        if(t>=7&&t<9)mob.yaw-=.9/fps;
+        model.animate(mob,t,false,camera);states.add(model.state);
+        const pose=tracked.map(name=>point(model,name));
+        for(const p of pose)assert.ok([...p].every(Number.isFinite));
+        for(const p of pose.slice(1))assert.ok(p.y>-.02*scale,'paw penetrated the floor during a transition');
+        if(previous)for(let i=0;i<pose.length;i++){
+          const jump=pose[i].distanceTo(previous[i]);maxJump=Math.max(maxJump,jump);
+          if(t>=1&&t<4)maxWalkJump=Math.max(maxWalkJump,jump);
+        }
+        assert.ok(Math.abs(Object.values(model.weights).reduce((a,b)=>a+b,0)-1)<1e-6,'blend lost its base pose');
+        previous=pose;
       }
-      assert.ok(Math.abs(Object.values(model.weights).reduce((a,b)=>a+b,0)-1)<1e-6,'blend lost its base pose');
-      previous=pose;
+      // Returning paws move faster than the body, especially during the trot.
+      assert.ok(maxJump<8*scale/fps,`${fps} FPS: pose jumps ${maxJump/scale}`);
+      assert.ok(maxWalkJump<3.5*scale/fps,`${fps} FPS: walk pose jumps ${maxWalkJump/scale}`);
+      for(const state of ['Idle','Walk','Run','Turn_Right'])assert.ok(states.has(state),`missing ${state}`);
+      assert.ok(model.weights.Idle>.99,`${type} did not settle after the turn`);
     }
-    // Returning paws move faster than the body, especially during the trot.
-    assert.ok(maxJump<8*scale/fps,`${fps} FPS: pose jumps ${maxJump/scale}`);
-    assert.ok(maxWalkJump<3.5*scale/fps,`${fps} FPS: walk pose jumps ${maxWalkJump/scale}`);
-    for(const state of ['Idle','Walk','Run','Turn_Right'])assert.ok(states.has(state),`missing ${state}`);
-    assert.ok(model.weights.Idle>.99,'wolf did not settle after the turn');
   }
 });
 

@@ -10,8 +10,9 @@ import {angleDelta} from './motion.js';
 
 export const CREATURE_CLIPS=['Idle','Walk','Run','Attack','Hit','Death'] as const;
 export const WOLF_CLIPS=[...CREATURE_CLIPS,'Turn_Left','Turn_Right'] as const;
+export const BEAR_CLIPS=[...CREATURE_CLIPS,'Turn_Left','Turn_Right'] as const;
 export const ATTACK_CONTACT=.68;
-export const STRIDES={wolf:{walk:.72,run:1.12},boar:{walk:.52,run:.82},alpha:{walk:.70,run:1.12}};
+export const STRIDES={wolf:{walk:.72,run:1.12},boar:{walk:.52,run:.82},alpha:{walk:.70,run:1.12},bear:{walk:.72,run:1.00}};
 // Mesh-local bind-space bounds, sampled from the shipped GLBs throughout every
 // exported clip (including lunge and death), with at least .12 m clearance.
 // Three.js transforms these fixed boxes/spheres with each skinned mesh; no
@@ -19,7 +20,8 @@ export const STRIDES={wolf:{walk:.72,run:1.12},boar:{walk:.52,run:.82},alpha:{wa
 const CULLING_BOUNDS:Readonly<Record<MobType,Readonly<{min:readonly [number,number,number];max:readonly [number,number,number]}>>>=Object.freeze({
   wolf:{min:[-1.5,-.2,-1.45],max:[.6,1.65,1.5]},
   boar:{min:[-1.5,-.2,-1.1],max:[.6,1.5,1.4]},
-  alpha:{min:[-1.65,-.2,-1.45],max:[.5,1.75,1.5]}
+  alpha:{min:[-1.65,-.2,-1.45],max:[.5,1.75,1.5]},
+  bear:{min:[-1.75,-.2,-1.2],max:[.75,1.8,1.65]}
 });
 let assetPromise:Promise<MobAssets>|undefined;
 export function loadMobAssets(){
@@ -34,7 +36,7 @@ export function createMob(type:MobType,assets:MobAssets){
   const cfg=MOB_TYPES[type],asset=assets?.[type];
   if(!cfg||!asset)throw new Error(`Модель ${type} не загружена`);
   const root=new T.Group(),body=clone(asset.scene);root.name=`Creature_${type}`;body.scale.setScalar(cfg.scale);root.add(body);
-  const contact=contactShadow(root,1.25*cfg.scale,2.45*cfg.scale);
+  const contact=contactShadow(root,(type==='bear'?1.55:1.25)*cfg.scale,2.45*cfg.scale);
   body.traverse(o=>{if(o instanceof T.Mesh){
     o.castShadow=true;o.receiveShadow=true;o.frustumCulled=true;
     if(o instanceof T.SkinnedMesh){
@@ -45,7 +47,7 @@ export function createMob(type:MobType,assets:MobAssets){
     for(const mat of Array.isArray(o.material)?o.material:[o.material])if(mat instanceof T.MeshStandardMaterial&&mat.map)mat.map.anisotropy=4;
   }});
   const clips=Object.fromEntries(asset.animations.map(c=>[c.name,c]));
-  const clipNames=Object.keys(clips),refined=type==='wolf'&&!!clips.Turn_Left&&!!clips.Turn_Right;
+  const clipNames=Object.keys(clips),refined=(type==='wolf'||type==='bear')&&!!clips.Turn_Left&&!!clips.Turn_Right;
   const mixer=new T.AnimationMixer(body),actions:Record<string,T.AnimationAction>={},weights:Record<string,number>={};
   for(const name of clipNames){const a=mixer.clipAction(clips[name]).play();a.paused=true;a.setEffectiveWeight(name==='Idle'?1:0);actions[name]=a;weights[name]=name==='Idle'?1:0;}
   const additive=clips.Hit.clone();additive.name='Hit_UpperBody';
@@ -53,7 +55,7 @@ export function createMob(type:MobType,assets:MobAssets){
   T.AnimationUtils.makeClipAdditive(additive,0,clips.Idle,30);
   const reaction=mixer.clipAction(additive).play();reaction.paused=true;reaction.weight=0;
 
-  const health=joint(root,0,(type==='boar'?1.45:1.78)*cfg.scale,0);
+  const health=joint(root,0,(type==='boar'?1.45:type==='bear'?1.84:1.78)*cfg.scale,0);
   box(health,1.12,.08,.018,new T.MeshBasicMaterial({color:'#1c2420'}));
   const fill=box(health,1.06,.045,.022,new T.MeshBasicMaterial({color:type==='alpha'?'#dfaf69':'#be705b'}),0,0,.015);
   health.traverse(o=>{o.castShadow=false;o.receiveShadow=false;});

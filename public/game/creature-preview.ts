@@ -6,7 +6,7 @@ import {element as $,errorMessage} from './ui-types.js';
 type MobModel=ReturnType<typeof createMob>;
 type MobType=keyof typeof MOB_TYPES;
 type CreatureKey=MobType|'wolf-before';
-const creatureType=(value:string):MobType=>value==='boar'||value==='alpha'?value:'wolf';
+const creatureType=(value:string):MobType=>value==='boar'||value==='alpha'||value==='bear'?value:'wolf';
 const renderer=new T.WebGLRenderer({canvas:$('portrait'),antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.1;
 const scene=new T.Scene();scene.background=new T.Color('#192125');scene.fog=new T.Fog('#192125',10,24);
@@ -52,7 +52,7 @@ try{
     current.root.rotation.y=Number($('angle').value)*Math.PI/180+turning*elapsed/current.clips[clip].duration;current.samplePreview(elapsed);
     focus.set(0,.75,0);
     if(clip==='Death'){current.model.getObjectByName('Chest')?.getWorldPosition(focus);focus.y=.75;}
-    const framing=$('creature').value==='alpha'?1.18:1;
+    const framing=$('creature').value==='alpha'?1.18:$('creature').value==='bear'?1.12:1;
     camera.position.set(focus.x+3.1*framing,.75+1.95*framing,focus.z+5.5*framing);camera.lookAt(focus);
     const d=current.clips[clip].duration,frame=clip==='Death'?Math.min(elapsed,d):elapsed%d;$('timeline').value=String(Math.round(frame/d*1000));$('status').textContent=`${labels[clip]} · ${frame.toFixed(2)} / ${d.toFixed(2)} с${paused?' · пауза':''}`;
     renderer.render(scene,camera);

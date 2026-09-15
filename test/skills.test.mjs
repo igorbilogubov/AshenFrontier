@@ -64,6 +64,13 @@ test('warrior cleave uses a forward sector; whirlwind reaches behind but caps fo
   assert(w.events.some(e=>e.type==='skillImpact'&&e.skillId==='warrior-whirlwind'&&e.yaw===east));
 });
 
+test('ordinary warrior attack strikes only one nearest target; AoE belongs to skills',()=>{
+  const {w,p,mobs}=fixture('warrior',[[9.2,1.8],[9.4,2.1],[9.4,1.5]]);
+  assert(w.attack(p,east));step(w,15);
+  assert(damage(mobs[0])>0);
+  assert.equal(damage(mobs[1]),0);assert.equal(damage(mobs[2]),0);
+});
+
 test('piercing arrow travels through three line targets, with falloff and no duplicate strike',()=>{
   const {w,p,mobs}=fixture('archer',[[9.4,1.8],[10.8,1.8],[12.2,1.8],[13.6,1.8]]);
   cast(w,p,'archer-piercing');step(w,25);

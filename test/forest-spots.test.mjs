@@ -54,13 +54,13 @@ test('new clustered mobs respawn at their own homes without duplicate rewards',(
     Object.assign(player,{x:spot.x,z:spot.z});
     for(const id of spot.spawnIds){
       const mob=world.mobs[id];assert(world.hurtMob(player,mob,MOB_TYPES[mob.type].hp));
-      assert.equal(mob.state,'dead');assert.equal(mob.timer,24);
+      assert.equal(mob.state,'dead');assert.equal(mob.timer,16);
       assert.equal(world.hurtMob(player,mob,999),false);
     }
   }
   assert.equal(player.kills,12);assert.equal(player.gold,6*8+6*12);
   world.remove(player.id);
-  for(let i=0;i<480;i++)world.tick(.05);
+  for(let i=0;i<320;i++)world.tick(.05);
   // Allow a floating-point timer remainder to expire, without a patrol step.
   for(const spot of AFK_SPOTS)for(const id of spot.spawnIds){
     const mob=world.mobs[id];if(mob.state==='dead')world.tick(.00001);

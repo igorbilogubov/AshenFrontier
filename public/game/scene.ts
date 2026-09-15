@@ -34,6 +34,10 @@ const ZOOM={min:.7,max:1.9,sensitivity:.0015};
 const keys=new Set<string>(),models=new Map<number,MobModel>(),drops=new Map<number,T.Group>(),particles:Particle[]=[],floats:FloatingNumber[]=[];
 const raycaster=new T.Raycaster(),ndc=new T.Vector2(),groundPlane=new T.Plane(new T.Vector3(0,1,0),0),cameraTarget=new T.Vector3(.5,.3,2);
 const mouse:HeldMouse={x:0,y:0,active:false,point:null,held:false,pointerId:null,pickPending:false};
+// Five metres cover the full animated actor and its shadow beyond the viewport.
+// Keep pose bookkeeping current, but sample/draw only groups near the camera.
+const actorFrustum=new T.Frustum(),actorProjection=new T.Matrix4(),actorBounds=new T.Sphere(new T.Vector3(),5);
+function actorVisible(p:Point){actorBounds.center.set(p.x,1,p.z);return actorFrustum.intersectsSphere(actorBounds);}
 const marker=new T.Group();
 const distance=(a:Point,b:Point)=>Math.hypot(a.x-b.x,a.z-b.z);
 const mini=$('minimap'),map=mini.getContext('2d')!;
@@ -54,7 +58,7 @@ function updateCamera(dt:number){
   const hero=game.player,follow=new T.Vector3(hero.x,.3,hero.z);cameraTarget.lerp(follow,1-Math.exp(-7*dt));
   const d=28,ce=Math.cos(CAMERA.elevation);
   camera.position.set(cameraTarget.x+Math.sin(CAMERA.azimuth)*ce*d,cameraTarget.y+Math.sin(CAMERA.elevation)*d,cameraTarget.z+Math.cos(CAMERA.azimuth)*ce*d);
-  camera.lookAt(cameraTarget);camera.updateMatrixWorld();
+  camera.lookAt(cameraTarget);camera.updateMatrixWorld();actorFrustum.setFromProjectionMatrix(actorProjection.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse));
   sun.position.set(hero.x-8,15,hero.z+7);sun.target.position.set(hero.x,0,hero.z);
 }
 function pickGround(){
@@ -160,7 +164,7 @@ function updateUI(){
   const hero=game.player,camp=safe(hero),mob=selectedMob();
   const spot=afkSpotAt(hero);
   $('zone-state').textContent=camp?'Безопасный лагерь':spot?spot.name:hero.x>21?'Старые руины · вожак':'Пепельная опушка · опасная зона';
-  const afk=$('afk-toggle');afk.disabled=!game.connected||!!hero.dead||(!spot&&!hero.afk);afk.setAttribute('aria-pressed',String(!!hero.afk));afk.title=hero.afk?'Остановить автоохоту · F':'Встаньте внутри отмеченного спота · F';
+  const afk=$('afk-toggle');afk.disabled=!game.connected||!!hero.dead||(!spot&&!hero.afk);afk.setAttribute('aria-pressed',String(!!hero.afk));afk.title=hero.afk?'Остановить автоохоту · F':'Встаньте внутри отмеченного спота · F. Опасная охота: нужны снаряжение и зелья.';
   $('afk-status').textContent=hero.afk?'Автоохота включена':spot?'Автоохота доступна':'Автоохота на споте';$('zone-state').classList.toggle('safe',camp);
   $('hp-text').textContent=`${Math.ceil(hero.hp)} / ${hero.maxHp}`;$('hp-fill').style.height=`${Math.max(0,Math.min(1,hero.hp/hero.maxHp||0))*100}%`;
   $('hp-orb').setAttribute('aria-valuemax',String(hero.maxHp));$('hp-orb').setAttribute('aria-valuenow',String(Math.ceil(hero.hp)));
@@ -200,8 +204,8 @@ function renderPlayers(dt:number){
       }).catch(error=>console.error(error));
     }
     const model=remoteModels.get(p.id);if(!model)continue;
-    const v=visualActor(p,dt);model.root.position.set(v.x,0,v.z);model.root.rotation.y=v.yaw;model.animate(dt,v,!benchmark?.freezeAnimations);
-    if(benchmark?.variant==='no-labels'){model.label.hidden=true;continue;}
+    const v=visualActor(p,dt);model.root.position.set(v.x,0,v.z);model.root.rotation.y=v.yaw;model.root.visible=actorVisible(v);model.animate(dt,v,model.root.visible&&!benchmark?.freezeAnimations);
+    if(!model.root.visible||benchmark?.variant==='no-labels'){model.label.hidden=true;continue;}
     const projected=new T.Vector3(v.x,2.45,v.z).project(camera);
     model.label.textContent=`${p.name} · ${classFor(p.classId).name} ${p.level} · ${Math.ceil(p.hp)}/${p.maxHp}${p.connected?'':' · нет связи'}`;
     model.label.style.transform=`translate(${(projected.x*.5+.5)*width}px,${(-projected.y*.5+.5)*height}px) translate(-50%,-100%)`;
@@ -236,7 +240,7 @@ function render(dt:number){
     if(Math.hypot(x-mob.x,z-mob.z)<3){v.x=x+(mob.x-x)*blend;v.z=z+(mob.z-z)*blend;}
     v.yaw=yaw+angleDelta(yaw,mob.yaw)*blend;
     const lag=Math.min(.1,(performance.now()-game.receivedAt)/1000);v.age+=lag;if(v.state==='windup')v.timer=Math.max(0,v.timer-lag);v.flash=Math.max(0,v.flash-lag);
-    models.get(mob.id)?.animate(v,time,selected===mob.id,camera,!benchmark?.freezeAnimations);
+    const model=models.get(mob.id);if(model){model.root.visible=actorVisible(v);model.animate(v,time,selected===mob.id,camera,model.root.visible&&!benchmark?.freezeAnimations);}
   }
   benchmark?.mark('actors');
   for(const drop of game.loot){let model=drops.get(drop.id);if(!model){model=new T.Group();for(let i=0;i<3;i++)mesh(model,lootGeometry,lootMaterial,(i-1)*.12,.1,Math.sin(i*2)*.1);scene.add(model);drops.set(drop.id,model);}model.position.set(drop.x,.05+Math.sin(time*3+drop.id)*.04,drop.z);model.rotation.y=time*.7;}

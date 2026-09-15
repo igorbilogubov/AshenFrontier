@@ -5,7 +5,8 @@ export const CAMP_SAFE_BOUNDS=Object.freeze({minX:-9,maxX:5.6,minZ:-8,maxZ:7});
 export const CAMP_FIRE=Object.freeze({x:.5,z:2,r:.85});
 export const CAMP_SPAWN=Object.freeze({x:.5,z:4});
 export const CAMP_HOUSE=Object.freeze({x:-5,z:-4.6,width:4.8,depth:4,doorX:-5.65,doorZ:-2.6,doorWidth:1.5});
-export const PERSONAL_CHEST=Object.freeze({id:'camp-chest',name:'Личный сундук',x:-4,z:-5.4,range:1.5});
+import {PERSONAL_CHEST} from './personal-stash.js';
+export {PERSONAL_CHEST};
 export const campSafe=(p:Position)=>p.x>CAMP_SAFE_BOUNDS.minX&&p.x<CAMP_SAFE_BOUNDS.maxX&&p.z>CAMP_SAFE_BOUNDS.minZ&&p.z<CAMP_SAFE_BOUNDS.maxZ;
 export const insideHouse=(p:Position,padding=0)=>Math.abs(p.x-CAMP_HOUSE.x)<CAMP_HOUSE.width/2+padding&&Math.abs(p.z-CAMP_HOUSE.z)<CAMP_HOUSE.depth/2+padding;
 export const CAMP_FENCES:readonly Readonly<Obstacle>[]=Object.freeze([

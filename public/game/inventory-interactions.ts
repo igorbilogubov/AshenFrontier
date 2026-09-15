@@ -6,6 +6,9 @@ import {renderItemRolls} from './item-details.js';
 import {itemArtwork} from './item-icons.js';
 import {rollEquipment} from './equipment-items.js';
 import {SHOP,shopItems,sellPrice} from './shop.js';
+import {CONSUMABLES,CONSUMABLE_LIMIT} from './consumables.js';
+import {PERSONAL_CHEST} from './personal-stash.js';
+import {actionIcon} from './action-icons.js';
 
 const rarities=['Обычный','Необычный','Редкий'];
 const node=<K extends keyof HTMLElementTagNameMap>(tag:K,className='',text='')=>{const value=document.createElement(tag);value.className=className;value.textContent=text;return value;};
@@ -23,18 +26,54 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
   const close=node('button','panel-close','×');close.type='button';close.setAttribute('aria-label','Закрыть магазин');heading.append(titles,close);
   const tabs=node('nav','vendor-tabs');tabs.setAttribute('aria-label','Комплекты классов');
   const body=node('div','panel-body'),intro=node('p','vendor-intro','Простое снаряжение с минимальными свойствами. Лучшие экземпляры ищите в лесу.'),wares=node('div','vendor-grid');
-  body.append(intro,wares);
+  const supplies=node('div','vendor-supplies');
+  for(const kind of ['hp','mana'] as const){
+    const info=CONSUMABLES[kind],button=node('button','vendor-consumable');button.type='button';
+    button.dataset.consumable=kind;const icon=node('span','consumable-art');icon.innerHTML=actionIcon(kind==='hp'?'potion':'mana-potion');
+    button.append(icon,node('span','',`${info.name} · ${info.price} зол.`),node('small','',`+${info.restore} · ${kind==='hp'?'Q':'W'}`));
+    const purchase=()=>{if(!canTrade())return;const count=kind==='hp'?game.player.potions:game.player.manaPotions;if(count>=CONSUMABLE_LIMIT){toast('Запас зелий заполнен');return;}if(game.player.gold<info.price){toast('Недостаточно золота');return;}send({type:'buyConsumable',kind,requestId:crypto.randomUUID()});};
+    button.onclick=purchase;button.oncontextmenu=event=>{event.preventDefault();event.stopPropagation();purchase();};supplies.append(button);
+  }
+  body.append(intro,supplies,wares);
   const sellZone=node('div','vendor-sell-zone','Перетащите сюда вещь из рюкзака, чтобы продать');sellZone.setAttribute('aria-label','Продать предмет');body.append(sellZone);
   const footer=node('div','panel-bottom vendor-bottom'),gold=node('span'),hint=node('small','','ПКМ по товару — купить · ПКМ в рюкзаке — продать');footer.append(gold,hint);
   vendor.append(heading,tabs,body,footer);document.body.append(vendor);
+  const stash=node('aside','rpg-panel stash-panel');stash.id='stash-panel';stash.hidden=true;stash.setAttribute('aria-label','Личный сундук');
+  const stashHeading=node('div','panel-title'),stashTitles=node('div');stashTitles.append(node('p','eyebrow','ЛИЧНОЕ ХРАНИЛИЩЕ'),node('h2','','Сундук в доме'));
+  const stashClose=node('button','panel-close','×');stashClose.type='button';stashClose.setAttribute('aria-label','Закрыть сундук');stashHeading.append(stashTitles,stashClose);
+  const stashBody=node('div','panel-body'),stashCount=node('p','vendor-intro'),stashGrid=node('div','bag-grid stash-grid');stashBody.append(stashCount,stashGrid);
+  stash.append(stashHeading,stashBody,node('div','panel-bottom','ПКМ или перетаскивание — переложить вещь'));document.body.append(stash);
+  let stashOpened=false,stashKey='';
   let opened=false,tab:ClassId=game.player.classId,hover:HTMLElement|null=null,hoverSignature='',pendingSignature='',pendingUntil=0,dragging=false;
   const vendorSamples=new Map(shopItems().map(listing=>[listing.definitionId,rollEquipment(listing.definitionId,`shop-preview:${listing.definitionId}`,()=>0)]));
-  const signature=()=>JSON.stringify([game.player.gold,game.player.items,game.player.equipment]);
+  const signature=()=>JSON.stringify([game.player.gold,game.player.items,game.player.equipment,game.player.stash,game.player.potions,game.player.manaPotions]);
   const canTrade=()=>opened&&game.player.shopActive===true&&game.connected&&!game.player.dead&&!game.player.attack&&safe(game.player)&&distance(game.player,SHOP)<=SHOP.range&&(game.player.combatUntil||0)<=game.serverTime;
   const canEdit=()=>game.connected&&!game.player.dead&&!game.player.attack&&safe(game.player)&&(game.player.combatUntil||0)<=game.serverTime;
   function hideTooltip(){tooltip.hidden=true;if(hover)hover.removeAttribute('aria-describedby');hover=null;hoverSignature='';}
-  function setOpen(value:boolean){opened=value;vendor.hidden=!value;document.body.classList.toggle('vendor-open',value);hideTooltip();if(value){tab=game.player.classId;openInventory();renderShop();}update();}
+  function setOpen(value:boolean){if(value&&stashOpened)setStashOpen(false);opened=value;vendor.hidden=!value;document.body.classList.toggle('vendor-open',value);hideTooltip();if(value){tab=game.player.classId;openInventory();renderShop();}update();}
   close.onclick=()=>setOpen(false);
+  function setStashOpen(value:boolean,notify=true){
+    const changed=stashOpened!==value;stashOpened=value;stash.hidden=!value;document.body.classList.toggle('stash-open',value);hideTooltip();
+    if(!value&&changed&&notify&&game.connected)game.send({type:'stashClose'});
+    if(value){if(opened)setOpen(false);openInventory();renderStash();}
+  }
+  stashClose.onclick=()=>setStashOpen(false);
+  function transfer(item:Item,withdraw:boolean){
+    if(!stashOpened||!game.player.stashActive||!canEdit()){toast('Откройте личный сундук в доме');return;}
+    if(Object.values(game.player.equipment).includes(item.id)){toast('Сначала снимите предмет');return;}
+    if(withdraw&&backpackItems(game.player).length>=BAG_CAPACITY){toast('В рюкзаке нет свободной ячейки');return;}
+    if(!withdraw&&game.player.stash.length>=32){toast('Сундук заполнен');return;}
+    send({type:withdraw?'stashWithdraw':'stashDeposit',id:item.id});
+  }
+  function renderStash(){
+    const key=JSON.stringify([game.player.stash,game.player.items]);if(key===stashKey)return;stashKey=key;
+    stashCount.textContent=`${game.player.stash.length} / 32 ячейки · вещи сохранены у этого героя`;stashGrid.replaceChildren();
+    for(let i=0;i<32;i++){
+      const item=game.player.items.find(item=>item.id===game.player.stash[i]),button=node('button',`bag-cell ${item?'rarity-'+item.rarity:'empty'}`);button.type='button';
+      if(item){button.dataset.itemId=item.id;button.innerHTML=itemArtwork(item,item.classId||game.player.classId);button.setAttribute('aria-label',item.name);}else button.setAttribute('aria-label','Пустая ячейка сундука');
+      stashGrid.append(button);
+    }
+  }
   function send(command:ClientCommand){
     if(pendingUntil>performance.now()){toast('Дождитесь подтверждения предыдущего действия');return;}
     pendingSignature=signature();pendingUntil=performance.now()+2500;hideTooltip();game.send(command);
@@ -46,7 +85,7 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
   }
   function showTooltip(element:HTMLElement){
     const item=itemFor(element);if(!item||dragging)return;
-    const key=JSON.stringify([item,game.player.equipment,opened,game.player.items.find(other=>other.id===game.player.equipment[item.slot])]);
+    const key=JSON.stringify([item,game.player.equipment,opened,stashOpened,game.player.stash,game.player.items.find(other=>other.id===game.player.equipment[item.slot])]);
     if(hover===element&&hoverSignature===key&&!tooltip.hidden)return;
     hideTooltip();hover=element;hoverSignature=key;element.setAttribute('aria-describedby',tooltip.id);tooltip.replaceChildren();
     const head=node('div','tooltip-heading'),art=node('div','tooltip-art');art.innerHTML=itemArtwork(item,item.classId||game.player.classId);
@@ -57,7 +96,8 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
     if(!canEquip(game.player,item))tooltip.append(node('p','tooltip-warning','Этот предмет предназначен другому классу'));
     const worn=Object.values(game.player.equipment).includes(item.id);
     const listing=shopItems().find(value=>value.definitionId===element.dataset.definitionId);
-    const status=listing?`Цена: ${listing.price} золота · ПКМ — купить`:item.bound?'Привязано к герою · не продаётся':worn?'Надето · ПКМ — снять':opened?`Продажа: ${sellPrice(item)} золота · ПКМ — продать`:`Продажа: ${sellPrice(item)} золота · ПКМ — надеть`;
+    const stored=game.player.stash.includes(item.id);
+    const status=stashOpened?`${stored?'В сундуке · ПКМ — забрать':worn?'Надето · сначала снимите предмет':'В рюкзаке · ПКМ — положить в сундук'}`:listing?`Цена: ${listing.price} золота · ПКМ — купить`:item.bound?'Привязано к герою · не продаётся':worn?'Надето · ПКМ — снять':opened?`Продажа: ${sellPrice(item)} золота · ПКМ — продать`:`Продажа: ${sellPrice(item)} золота · ПКМ — надеть`;
     tooltip.append(node('p','tooltip-footer',status));tooltip.hidden=false;
     const position=tooltipPosition(element.getBoundingClientRect(),tooltip.offsetWidth,tooltip.offsetHeight,innerWidth,innerHeight);
     tooltip.style.left=`${position.x}px`;tooltip.style.top=`${position.y}px`;
@@ -92,7 +132,7 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
     }
   }
   function cell(event:Event){return event.target instanceof Element?event.target.closest<HTMLElement>('.bag-cell,.equipment-slot,.vendor-item'):null;}
-  for(const container of [inventory,vendor]){
+  for(const container of [inventory,vendor,stash]){
     container.addEventListener('pointerover',event=>{const target=cell(event);if(target)showTooltip(target);});
     container.addEventListener('pointerout',event=>{const target=cell(event);if(target&&(!(event.relatedTarget instanceof Node)||!target.contains(event.relatedTarget)))hideTooltip();});
     container.addEventListener('focusin',event=>{const target=cell(event);if(target)showTooltip(target);});
@@ -100,7 +140,7 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
     container.addEventListener('contextmenu',event=>{
       event.preventDefault();const target=cell(event);if(!target)return;event.stopPropagation();
       if(target.dataset.definitionId){buy(target.dataset.definitionId);return;}
-      const item=itemFor(target);if(item)itemAction(item,opened?'sell':Object.values(game.player.equipment).includes(item.id)?'unequip':'equip');
+      const item=itemFor(target);if(item&&stashOpened){transfer(item,game.player.stash.includes(item.id));return;}if(item)itemAction(item,opened?'sell':Object.values(game.player.equipment).includes(item.id)?'unequip':'equip');
     });
     container.addEventListener('dragstart',event=>event.preventDefault());
   }
@@ -110,6 +150,9 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
     const inBag=bag.contains(target),slot=target.closest<HTMLElement>('.equipment-slot');
     if(payload.definitionId){if(inBag)buy(payload.definitionId);return;}
     const item=game.player.items.find(value=>value.id===payload.id);if(!item)return;
+    if(stashOpened&&stash.contains(target)){if(!game.player.stash.includes(item.id))transfer(item,false);return;}
+    if(stashOpened&&inBag&&game.player.stash.includes(item.id)){transfer(item,true);return;}
+    if(game.player.stash.includes(item.id))return;
     if(vendor.contains(target)){itemAction(item,'sell');return;}
     const worn=Object.values(game.player.equipment).includes(item.id);
     if(inBag){if(worn)itemAction(item,'unequip');return;}
@@ -122,7 +165,7 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
     const old=drag;drag=null;dragging=false;old?.ghost?.remove();document.body.classList.remove('item-dragging');
     if(old?.source.hasPointerCapture(old.pointerId))old.source.releasePointerCapture(old.pointerId);
   }
-  for(const container of [inventory,vendor])container.addEventListener('pointerdown',event=>{
+  for(const container of [inventory,vendor,stash])container.addEventListener('pointerdown',event=>{
     if(event.button!==0||event.isPrimary===false)return;
     const source=cell(event),item=source&&itemFor(source);if(!source||!item)return;
     endDrag();suppressClickUntil=0;
@@ -143,21 +186,22 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
     const payload=drag.payload,complete=dragging,target=document.elementFromPoint(event.clientX,event.clientY);
     endDrag();if(complete){event.preventDefault();suppressClickUntil=performance.now()+300;dropItem(payload,target);}
   });
-  for(const container of [inventory,vendor])container.addEventListener('click',event=>{if(performance.now()<suppressClickUntil){event.preventDefault();event.stopImmediatePropagation();suppressClickUntil=0;}},true);
+  for(const container of [inventory,vendor,stash])container.addEventListener('click',event=>{if(performance.now()<suppressClickUntil){event.preventDefault();event.stopImmediatePropagation();suppressClickUntil=0;}},true);
   addEventListener('pointercancel',endDrag);addEventListener('blur',endDrag);
-  addEventListener('keydown',event=>{if(event.code==='Escape'){setOpen(false);hideTooltip();}});
+  addEventListener('keydown',event=>{if(event.code==='Escape'){setOpen(false);setStashOpen(false);hideTooltip();}});
   addEventListener('resize',hideTooltip);addEventListener('blur',hideTooltip);
   function update(){
     if(opened&&(!game.connected||!game.player.shopActive||game.player.dead||distance(game.player,SHOP)>SHOP.range||inventory.hidden)){opened=false;vendor.hidden=true;document.body.classList.remove('vendor-open');hideTooltip();}
-    if(inventory.hidden&&vendor.hidden){hideTooltip();endDrag();}
+    if(stashOpened&&(!game.connected||!game.player.stashActive||game.player.dead||distance(game.player,PERSONAL_CHEST)>PERSONAL_CHEST.range||inventory.hidden))setStashOpen(false,false);
+    if(stashOpened)renderStash();
+    if(inventory.hidden&&vendor.hidden&&stash.hidden){hideTooltip();endDrag();}
     if(pendingUntil&&(signature()!==pendingSignature||performance.now()>pendingUntil)){pendingUntil=0;pendingSignature='';}
     gold.textContent=`${game.player.gold} золота`;
     for(const element of inventory.querySelectorAll<HTMLElement>('.bag-cell,.equipment-slot')){element.draggable=false;element.removeAttribute('title');}
     for(const element of wares.querySelectorAll<HTMLElement>('.vendor-item')){const listing=shopItems().find(value=>value.definitionId===element.dataset.definitionId);element.classList.toggle('unaffordable',game.player.gold<(listing?.price||0));}
-    const sell=document.getElementById('item-sell') as HTMLButtonElement;sell.hidden=!opened;
-    const hint=document.getElementById('inventory-hint')!;hint.textContent=opened?'Магазин открыт · ПКМ по вещи — продать · перетащите вещь торговцу':'Наведите для описания · ПКМ — надеть / снять · перетащите в слот';
+    const hint=document.getElementById('inventory-hint')!;hint.textContent=stashOpened?'Сундук открыт · ПКМ или перетаскивание — переложить вещь':opened?'Магазин открыт · ПКМ по вещи — продать · перетащите вещь торговцу':'Наведите для описания · ПКМ — надеть / снять · перетащите в слот';
     if(hover&&!tooltip.hidden){if(!itemFor(hover))hideTooltip();else showTooltip(hover);}
   }
-  function onEvent(event:WorldEvent){if(event.type==='shopOpen'&&event.npcId===SHOP.id)setOpen(true);if(event.type==='death'||event.type==='camp')setOpen(false);}
-  return {update,onEvent,isOpen:()=>opened,canTrade,hideTooltip,sell:(item:Item)=>itemAction(item,'sell')};
+  function onEvent(event:WorldEvent){if(event.type==='shopOpen'&&event.npcId===SHOP.id)setOpen(true);if(event.type==='stashOpened'&&event.npcId===PERSONAL_CHEST.id)setStashOpen(true);if(event.type==='death'||event.type==='camp'){setOpen(false);setStashOpen(false,false);}}
+  return {update,onEvent,isOpen:()=>opened||stashOpened,canTrade,hideTooltip,sell:(item:Item)=>itemAction(item,'sell')};
 }

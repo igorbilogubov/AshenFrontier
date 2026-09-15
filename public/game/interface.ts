@@ -37,7 +37,7 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
   function openPanel(name:PanelName){
     if(panels[name].hidden)clearInput();
     lastPanel=name;if(compact.matches)Object.values(panels).forEach(panel=>{panel.hidden=true;});
-    panels[name].hidden=false;syncPanels();update();$(name+'-close').focus({preventScroll:true});
+    panels[name].hidden=false;syncPanels();update();$('scene').focus({preventScroll:true});
   }
   function closePanel(name:PanelName){panels[name].hidden=true;interactions.hideTooltip();syncPanels();if(!isPanelOpen())$('scene').focus({preventScroll:true});}
   function togglePanel(name:PanelName){if(panels[name].hidden)openPanel(name);else closePanel(name);}
@@ -167,7 +167,7 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
   function updateInventory(){
     if(panels.inventory.hidden)return;
     const p=game.player,c=CLASSES[p.classId];if(!c)return;
-    const editable=canEdit(),bag=backpackItems(p),key=JSON.stringify([p.items,p.pendingItems,p.equipment,p.weapon,p.classId,p.level,p.gold,editable]);if(key===inventoryKey)return;inventoryKey=key;
+    const editable=canEdit(),bag=backpackItems(p),key=JSON.stringify([p.items,p.pendingItems,p.equipment,p.stash,p.weapon,p.classId,p.level,p.gold,editable]);if(key===inventoryKey)return;inventoryKey=key;
     write($('hero-details'),`${c.name} · уровень ${p.level} · 6 слотов снаряжения`);write($('inventory-gold'),`${p.gold} золота`);write($('inventory-status'),editable?'Можно менять снаряжение':!game.connected?'Нет соединения':'Изменение в безопасной зоне, вне боя');
     for(const [slot,nodes] of slotNodes){
       const item=p.items.find(value=>value.id===p.equipment[slot]);nodes.button.className=`equipment-slot${item?' rarity-'+(item.rarity||0):' empty'}`;

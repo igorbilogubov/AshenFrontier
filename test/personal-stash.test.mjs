@@ -11,9 +11,10 @@ import {createTestDatabase,hasTestDatabase} from './helpers/postgres.mjs';
 
 test('personal chest transfers only loose owned instances and cannot bypass bag or gear rules',()=>{
   const w=new World(),p=newHero('Кладовщик');w.add(p);w.mobs=[];
-  // The camp house collision is owned by the integration branch. Exercise
-  // server transfer rules with an authenticated chest session here.
-  w.chestAvailable=()=>true;
+  w.command(p,{type:'interact',npcId:'camp-chest'});
+  for(let i=0;i<600&&!p.stashActive;i++)w.tick(.05);
+  assert(p.stashActive,'hero must enter through the real door and reach the chest');
+  w.command(p,{type:'stashClose'});
   const loose=makeLoot('warrior',1,0,'ring');p.items.push(loose);
   w.command(p,{type:'stashDeposit',id:loose.id});assert.deepEqual(p.stash,[]);
   w.command(p,{type:'stashOpen'});assert(p.stashActive);

@@ -24,7 +24,7 @@ export function bindTargetPresentation(scene:T.Scene):(target:PresentedTarget|nu
   const heading=document.createElement('div');heading.className='target-loot-heading';
   const row=document.createElement('div');row.className='target-loot-row';loot.append(heading,row);panel.append(loot);
   const geometry=new T.RingGeometry(.88,1,48),material=new T.MeshBasicMaterial({color:'#d7a469',transparent:true,opacity:.8,side:T.DoubleSide,depthWrite:false});
-  const ring=new T.Mesh(geometry,material);ring.rotation.x=-Math.PI/2;ring.position.y=.08;ring.renderOrder=4;ring.visible=false;ring.castShadow=false;scene.add(ring);
+  const ring=new T.Mesh(geometry,material);ring.rotation.x=-Math.PI/2;ring.position.y=.08;ring.renderOrder=4;ring.visible=false;ring.castShadow=false;ring.userData.dynamic=true;scene.add(ring);
   let shownLootType:MobType|null=null;
   function showLoot(type:MobType){
     loot.hidden=false;

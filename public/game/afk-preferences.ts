@@ -1,4 +1,4 @@
-import {isRecord} from '../../shared/types.js';
+const isRecord=(value:unknown):value is Record<string,unknown>=>!!value&&typeof value==='object'&&!Array.isArray(value);
 import type {AfkPreferences,ClassId,SkillId} from '../../shared/types.js';
 import {skillsForClass} from './skills.js';
 

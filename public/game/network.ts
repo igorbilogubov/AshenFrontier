@@ -1,3 +1,4 @@
+import {defaultAfkPreferences} from './afk-preferences.js';
 import {moveHero,stand} from './location.js';
 import {sameLocation} from './world-layout.js';
 import {characterStats} from '../rules.js';
@@ -10,8 +11,8 @@ type InputFrame=Extract<ClientMessage,{type:'input'}>;
 type SaveState=Extract<ServerMessage,{type:'state'}>['save'];
 interface LegacyLoot {id:number;x:number;z:number}
 function initialPlayer():ClientPlayer {
-  return {...characterStats({classId:'warrior',level:1}),schemaVersion:3,id:'',name:'Странник',classId:'warrior',level:1,
-    x:.5,z:2,yaw:Math.PI*.25,targetYaw:Math.PI*.25,vx:0,vz:0,gait:0,moveBlend:0,runBlend:0,hp:100,weapon:'sword',potions:3,
+  return {...characterStats({classId:'warrior',level:1}),afkPreferences:defaultAfkPreferences('warrior'),schemaVersion:3,id:'',name:'Странник',classId:'warrior',level:1,
+    x:.5,z:4,yaw:Math.PI*.25,targetYaw:Math.PI*.25,vx:0,vz:0,gait:0,moveBlend:0,runBlend:0,hp:100,weapon:'sword',potions:3,
     coins:0,gold:0,xp:0,kills:0,attack:null,dead:0,hurt:0,items:[],pendingItems:[],stash:[],equipment:{},mana:40,manaPotions:3,
     potionCooldown:0,manaPotionCooldown:0,specialCooldown:0,combatUntil:0,attackSerial:0,running:false,questKills:0,boss:false,questClaimed:false,ack:0};
 }
@@ -104,10 +105,10 @@ export class NetworkGame{
       if(!this.player.afk&&!this.player.interactionTarget)moveHero(this.player,.05,frame);
     }
   }
-  attack(yaw:number,special=false){if(this.connected&&performance.now()-this.lastAttack>100){this.lastAttack=performance.now();this.send({type:'attack',yaw,special});}}
-  skill(skillId:SkillId,yaw:number){if(this.connected)this.send({type:'skill',skillId,yaw});}
+  attack(yaw:number,special=false,targetId?:number){if(this.connected&&performance.now()-this.lastAttack>100){this.lastAttack=performance.now();this.send({type:'attack',yaw,special,...(targetId!==undefined?{targetId}:{})});}}
+  skill(skillId:SkillId,yaw:number,aim:{targetId?:number;target?:{x:number;z:number}}={}){if(this.connected)this.send({type:'skill',skillId,yaw,...aim});}
   setAfk(enabled:boolean){if(this.connected)this.send({type:'afk',enabled});}
-  potion(){if(this.connected)this.send({type:'potion'});}
+  potion(kind:'hp'|'mana'='hp'){if(this.connected)this.send({type:'potion',kind});}
   toggleRun(){if(this.connected)this.send({type:'run',running:!this.player.running});}
   returnToCamp(){if(this.connected)this.send({type:'camp'});}
   weapon(id:WeaponId){if(this.connected)this.send({type:'weapon',weapon:id});}

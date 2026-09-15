@@ -1,5 +1,7 @@
 # Four active skills per class
 
+> Обновление локального main, 15 сентября 2026. Current local rules supersede the initial table below: keys 1/2/3/4; first three skills per class have zero individual cooldown, fourth retains 9/10/12 seconds. Updated costs, coefficients and DPS assumptions: [SKILL_CADENCE.md](SKILL_CADENCE.md). Client may send targetId and ground target; server validates range and line of sight.
+
 Implementation in `codex/four-skills-backend`, 15 September 2026. All twelve skills are available from level 1. Q/E are unchanged; new skills occupy Z/X. Server owns mana, cooldown, contact, hit chance, line of sight, target caps, slow duration, damage and kill credit. Client sends only `skillId` and finite yaw. Skill cooldowns remain private in hero saves and owner snapshots.
 
 | Class | Z | X |

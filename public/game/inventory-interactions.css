@@ -48,6 +48,8 @@
 /* Dock and chat retain their place when character panels open. */
 footer{bottom:0;z-index:20}
 .combat-hud{width:min(100%,900px)}
-#chat-panel{left:16px;bottom:205px;z-index:20;opacity:1;pointer-events:auto}
-@media(max-width:1100px){#chat-panel{bottom:205px}}
-@media(max-width:600px){#chat-panel{left:10px;bottom:265px}.hud-core .dock{grid-template-columns:repeat(4,minmax(0,1fr))}.hero-shortcuts{bottom:230px;right:8px}.hero-shortcuts button{width:40px;height:46px}.hero-shortcuts .shortcut-icon{width:22px;height:22px}.hud-core .dock .action-cell{height:57px!important}.hud-core .dock .action-art{width:28px;height:28px}}
+#chat-panel{left:16px;bottom:0;z-index:20;opacity:1;pointer-events:auto}
+@media(max-width:1100px){#chat-panel{bottom:0}}
+@media(max-width:600px){#chat-panel{left:10px;bottom:0}.hud-core .dock{grid-template-columns:repeat(4,minmax(0,1fr))}.hero-shortcuts{bottom:230px;right:8px}.hero-shortcuts button{width:40px;height:46px}.hero-shortcuts .shortcut-icon{width:22px;height:22px}.hud-core .dock .action-cell{height:57px!important}.hud-core .dock .action-art{width:28px;height:28px}}
+
+@media(min-width:601px) and (max-width:1200px){.hero-shortcuts{bottom:174px}}

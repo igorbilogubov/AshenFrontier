@@ -1,31 +1,15 @@
+import {defaultAfkPreferences,parseAfkPreferences} from './afk-preferences.js';
 import {skillsForClass} from './skills.js';
 import type {NetworkGame} from './network.js';
-import type {ClassId,ClientMessage,SkillId,WorldEvent} from '../../shared/types.js';
+import type {AfkPreferences,ClassId,SkillId,WorldEvent} from '../../shared/types.js';
 
-/** The server owns this persistent contract; the panel keeps a draft between snapshots. */
-interface AfkPreferences {
-  pickupGold:boolean;
-  pickupRarities:number[];
-  hpPotion:{enabled:boolean;belowPercent:number};
-  manaPotion:{enabled:boolean;belowPercent:number};
-  skillOrder:SkillId[];
-  basicAttackFallback:boolean;
-  radiusPercent:number;
-}
 type PendingSave={value:AfkPreferences;sentAt:number};
 const rarityLabels=['Белые','Зелёные','Синие'];
 const clone=(value:AfkPreferences):AfkPreferences=>JSON.parse(JSON.stringify(value)) as AfkPreferences;
 const same=(a:AfkPreferences|null,b:AfkPreferences|null)=>!!a&&!!b&&JSON.stringify(a)===JSON.stringify(b);
 const clamp=(value:number,min:number,max:number)=>Math.max(min,Math.min(max,Math.round(value)));
-const allSkills=(classId:ClassId)=>skillsForClass(classId).map(skill=>skill.id);
-const defaults=(classId:ClassId):AfkPreferences=>({pickupGold:true,pickupRarities:[0,1,2],hpPotion:{enabled:true,belowPercent:35},manaPotion:{enabled:true,belowPercent:25},skillOrder:allSkills(classId).slice(0,2),basicAttackFallback:true,radiusPercent:100});
-function validPreferences(value:unknown,classId:ClassId):AfkPreferences|null {
-  if(!value||typeof value!=='object')return null;
-  const source=value as Partial<AfkPreferences>,skills=allSkills(classId),hp=source.hpPotion,mp=source.manaPotion;
-  if(typeof source.pickupGold!=='boolean'||!Array.isArray(source.pickupRarities)||!hp||typeof hp.enabled!=='boolean'||!Number.isFinite(hp.belowPercent)||!mp||typeof mp.enabled!=='boolean'||!Number.isFinite(mp.belowPercent)||!Array.isArray(source.skillOrder)||typeof source.basicAttackFallback!=='boolean'||!Number.isFinite(source.radiusPercent))return null;
-  const rarities=[...new Set(source.pickupRarities.filter((value):value is number=>Number.isInteger(value)&&value>=0&&value<=2))].sort(),order=[...new Set(source.skillOrder.filter((value):value is SkillId=>skills.includes(value as SkillId)))];
-  return {pickupGold:source.pickupGold,pickupRarities:rarities,hpPotion:{enabled:hp.enabled,belowPercent:clamp(hp.belowPercent,5,95)},manaPotion:{enabled:mp.enabled,belowPercent:clamp(mp.belowPercent,5,95)},skillOrder:order,basicAttackFallback:source.basicAttackFallback,radiusPercent:clamp(source.radiusPercent as number,25,100)};
-}
+const defaults=defaultAfkPreferences;
+const validPreferences=parseAfkPreferences;
 
 export function bindAfkSettings(game:NetworkGame,toast:(message:string)=>void){
   const toggle=document.createElement('button');toggle.id='afk-settings-toggle';toggle.type='button';toggle.title='Настройки автоохоты';toggle.setAttribute('aria-label','Настройки автоохоты');toggle.setAttribute('aria-controls','afk-settings-panel');toggle.setAttribute('aria-expanded','false');toggle.textContent='⚙';
@@ -47,7 +31,6 @@ export function bindAfkSettings(game:NetworkGame,toast:(message:string)=>void){
   function setStatus(message:string){status=message;statusNode.textContent=message;}
   function close(){panel.hidden=true;toggle.setAttribute('aria-expanded','false');}
   function open(){
-    for(const id of ['character','inventory']){const other=document.getElementById(id+'-panel');if(other&&!other.hasAttribute('hidden'))document.getElementById(id+'-close')?.click();}
     update();panel.hidden=false;toggle.setAttribute('aria-expanded','true');render(true);
   }
   toggle.onclick=()=>{if(isOpen())close();else open();};
@@ -78,7 +61,8 @@ export function bindAfkSettings(game:NetworkGame,toast:(message:string)=>void){
     check('afk-pickup-gold').checked=draft.pickupGold;
     for(let rarity=0;rarity<rarityLabels.length;rarity++)check('afk-rarity-'+rarity).checked=draft.pickupRarities.includes(rarity);
     check('afk-hp-enabled').checked=draft.hpPotion.enabled;check('afk-mp-enabled').checked=draft.manaPotion.enabled;
-    check('afk-hp-threshold').value=String(draft.hpPotion.belowPercent);check('afk-mp-threshold').value=String(draft.manaPotion.belowPercent);
+    if(document.activeElement!==check('afk-hp-threshold'))check('afk-hp-threshold').value=String(draft.hpPotion.belowPercent);
+    if(document.activeElement!==check('afk-mp-threshold'))check('afk-mp-threshold').value=String(draft.manaPotion.belowPercent);
     check('afk-hp-threshold').disabled=!draft.hpPotion.enabled;check('afk-mp-threshold').disabled=!draft.manaPotion.enabled;
     check('afk-basic-attack').checked=draft.basicAttackFallback;
     check('afk-radius').value=String(draft.radiusPercent);field<HTMLOutputElement>('afk-radius-value').value=`${draft.radiusPercent}%`;
@@ -100,7 +84,15 @@ export function bindAfkSettings(game:NetworkGame,toast:(message:string)=>void){
     else return;
     setDirty();
   });
-  panel.addEventListener('input',event=>{const target=event.target;if(target instanceof HTMLInputElement&&target.id==='afk-radius')field<HTMLOutputElement>('afk-radius-value').value=`${target.value}%`;});
+  panel.addEventListener('input',event=>{
+    const target=event.target;if(!draft||!(target instanceof HTMLInputElement)||!target.value)return;
+    const value=Number(target.value);if(!Number.isInteger(value))return;
+    if(target.id==='afk-radius'){draft.radiusPercent=clamp(value,25,100);}
+    else if(value>=5&&value<=95&&target.id==='afk-hp-threshold')draft.hpPotion.belowPercent=value;
+    else if(value>=5&&value<=95&&target.id==='afk-mp-threshold')draft.manaPotion.belowPercent=value;
+    else return;
+    setDirty();
+  });
   orderNode.addEventListener('click',event=>{
     if(!draft)return;const target=event.target;if(!(target instanceof HTMLButtonElement)||!target.dataset.move)return;
     const index=draft.skillOrder.indexOf(target.dataset.move as SkillId),next=index+Number(target.dataset.direction);if(index<0||next<0||next>=draft.skillOrder.length)return;
@@ -109,15 +101,15 @@ export function bindAfkSettings(game:NetworkGame,toast:(message:string)=>void){
   saveButton.onclick=()=>{
     if(!draft||!game.connected||pending)return;
     const value=clone(draft);pending={value,sentAt:performance.now()};unconfirmed=false;setStatus('Ждём подтверждение сервера…');render();
-    game.send({type:'afkPreferences',preferences:value} as unknown as ClientMessage);
+    game.send({type:'afkPreferences',preferences:value});
   };
-  function snapshot():AfkPreferences|null{return validPreferences((game.player as typeof game.player & {afkPreferences?:unknown}).afkPreferences,game.player.classId);}
+  function snapshot():AfkPreferences|null{return validPreferences(game.player.afkPreferences,game.player.classId);}
   function update(){
     const identity=`${game.player.id}:${game.player.classId}`,server=snapshot();
     if(identity!==owner){owner=identity;baseline=server||defaults(game.player.classId);draft=clone(baseline);lastServer=server;pending=null;unconfirmed=false;setStatus(server?'':'Настройки загрузятся после подключения.');renderKey='';}
     else if(server&&!same(server,lastServer)){
       lastServer=server;
-      if(!pending&&same(draft,baseline)){baseline=server;draft=clone(server);if(!unconfirmed)setStatus('');}
+      if(!pending&&same(draft,baseline)){baseline=server;draft=clone(server);}
       else baseline=server;
       renderKey='';
     }
@@ -127,7 +119,6 @@ export function bindAfkSettings(game:NetworkGame,toast:(message:string)=>void){
       else setStatus('Ответ сервера не получен. Повторите сохранение.');
       renderKey='';
     }
-    if(isOpen()&&(document.getElementById('character-panel')?.hidden===false||document.getElementById('inventory-panel')?.hidden===false))close();
     if(isOpen())render();
   }
   function onEvent(event:WorldEvent){

@@ -5,17 +5,20 @@ import {itemArtwork} from './item-icons.js';
 import {SHOP} from './shop.js';
 import type {Portal} from './stadium.js';
 import {sameLocation} from './world-layout.js';
-type InteractionKind='loot'|'vendor'|'portal';
+import {PERSONAL_CHEST,insideHouse} from './camp-layout.js';
+import type {createCampHouse} from './camp-house.js';
+type InteractionKind='loot'|'vendor'|'portal'|'chest';
 import type {NetworkGame} from './network.js';
 import type {GroundDrop} from '../../shared/types.js';
 import type {WarriorPose} from './render-types.js';
 
-export async function createWorldInteractions(scene:T.Scene,game:NetworkGame,choose:(kind:InteractionKind,id:string)=>void,portals:readonly {portal:Portal;object:T.Group}[]=[]) {
+export async function createWorldInteractions(scene:T.Scene,game:NetworkGame,choose:(kind:InteractionKind,id:string)=>void,portals:readonly {portal:Portal;object:T.Group}[]=[],campHouse?:ReturnType<typeof createCampHouse>) {
   const layer=document.createElement('div');layer.className='world-interaction-layer';layer.setAttribute('aria-label','Добыча, торговец и порталы');document.body.append(layer);
   const vendor=await loadWarrior('mage');vendor.root.position.set(SHOP.x,0,SHOP.z);vendor.root.rotation.y=.4;scene.add(vendor.root);
   const idle:WarriorPose={classId:'mage',weapon:'sword',dead:0,attack:null,hurt:0,gait:0,moveBlend:0,runBlend:0,appearance:{weapon:null,armor:'acolyte-armor',helmet:null,boots:'acolyte-boots'}};
   const vendorMeshes:T.Object3D[]=[];vendor.root.traverse(object=>{if(object instanceof T.Mesh)vendorMeshes.push(object);});
   const vendorLabel=document.createElement('button');vendorLabel.type='button';vendorLabel.className='vendor-world-label';vendorLabel.innerHTML='<span>Торговец</span><small>Снаряжение · ЛКМ</small>';vendorLabel.onclick=()=>choose('vendor',SHOP.id);layer.append(vendorLabel);
+  const chestLabel=document.createElement('button');chestLabel.type='button';chestLabel.className='vendor-world-label chest-world-label';chestLabel.innerHTML='<span>Личный сундук</span><small>Хранилище · ЛКМ</small>';chestLabel.onclick=()=>choose('chest',PERSONAL_CHEST.id);layer.append(chestLabel);
   const portalLabels=portals.map(entry=>{
     const label=document.createElement('button');label.type='button';label.className='vendor-world-label portal-world-label';
     const title=document.createElement('span');title.textContent=entry.portal.name;
@@ -63,6 +66,7 @@ export async function createWorldInteractions(scene:T.Scene,game:NetworkGame,cho
     vendor.root.visible=Math.hypot(game.player.x-SHOP.x,game.player.z-SHOP.z)<25;
     vendor.animate(dt,idle,vendor.root.visible);positionLabel(vendorLabel,SHOP.x,2.2,SHOP.z,camera,width,height);
     for(const {portal,label} of portalLabels){positionLabel(label,portal.x,3.15,portal.z,camera,width,height);label.classList.toggle('targeted',game.player.interactionTarget?.id===portal.id);}
+    if(campHouse&&insideHouse(game.player,.38)){positionLabel(chestLabel,PERSONAL_CHEST.x,1.35,PERSONAL_CHEST.z,camera,width,height);chestLabel.classList.toggle('targeted',game.player.interactionTarget?.id===PERSONAL_CHEST.id);}else chestLabel.hidden=true;
     const active=new Set(game.groundLoot.map(drop=>drop.id));
     for(const [id,value] of drops)if(!active.has(id)){value.model.removeFromParent();value.label.remove();value.model.traverse(object=>{if(object instanceof T.Mesh){object.geometry.dispose();const materials=Array.isArray(object.material)?object.material:[object.material];for(const material of materials)if(material!==goldMaterial)material.dispose();}});drops.delete(id);}
     for(const drop of game.groundLoot){if(!drops.has(drop.id))add(drop);const value=drops.get(drop.id)!;value.model.visible=positionLabel(value.label,drop.x,.55,drop.z,camera,width,height);value.label.classList.toggle('targeted',game.player.interactionTarget?.id===drop.id);}
@@ -72,6 +76,7 @@ export async function createWorldInteractions(scene:T.Scene,game:NetworkGame,cho
     for(const [id,value] of drops){if(!value.model.visible)continue;const hit=raycaster.intersectObject(value.model,true)[0];if(hit&&hit.distance<closest){closest=hit.distance;result={kind:'loot',id};}}
     if(vendor.root.visible){const hit=raycaster.intersectObjects(vendorMeshes,false)[0];if(hit&&hit.distance<closest){closest=hit.distance;result={kind:'vendor',id:SHOP.id};}}
     for(const {portal,object} of portals){if(!sameLocation(portal,game.player))continue;const hit=raycaster.intersectObject(object,true)[0];if(hit&&hit.distance<closest){closest=hit.distance;result={kind:'portal',id:portal.id};}}
+    if(campHouse&&insideHouse(game.player,.38)){const hit=raycaster.intersectObjects(campHouse.pickMeshes,false)[0];if(hit&&hit.distance<closest)result={kind:'chest',id:PERSONAL_CHEST.id};}
     return result;
   }
   return {update,pick};

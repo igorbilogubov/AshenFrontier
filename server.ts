@@ -111,7 +111,7 @@ function publish(){
   for(const [ws,{p}] of connections)send(ws,{type:'state',...world.snapshot(p.id),save:{at:lastSavedAt,ok:saveHealthy}});
   world.events=[];
 }
-const mime: Record<string,string>={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.json':'application/json; charset=utf-8','.glb':'model/gltf-binary'};
+const mime: Record<string,string>={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.json':'application/json; charset=utf-8','.glb':'model/gltf-binary'};
 const server=http.createServer(async(req,res)=>{
   try{
     // The isolated stress controller joins bots through the live tick loop.

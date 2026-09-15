@@ -1,5 +1,5 @@
 /* Loaded after scene.css so the new selection treatment owns the central card. */
-#target-panel{width:min(242px,calc(100vw - 24px));padding:9px 12px 10px;background:linear-gradient(145deg,#26251deb,#14241fe8);border:1px solid #c3a57287;box-shadow:0 9px 26px #07100be0, inset 0 1px #f2dda720}
+#target-panel{z-index:4;width:min(242px,calc(100vw - 24px));padding:9px 12px 10px;background:linear-gradient(145deg,#26251deb,#14241fe8);border:1px solid #c3a57287;box-shadow:0 9px 26px #07100be0, inset 0 1px #f2dda720}
 #target-name{display:block;font:17px/1.2 Georgia,serif;color:#f3dbad;text-shadow:0 1px 5px #080d0a}
 #target-health{margin:3px 0 5px;color:#dccbab;font-size:10px;font-variant-numeric:tabular-nums}
 #target-panel .bar[hidden],#target-panel .target-loot[hidden]{display:none}

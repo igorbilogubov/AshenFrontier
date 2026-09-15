@@ -1,4 +1,4 @@
-import {defaultAfkPreferences,parseAfkPreferences} from './afk-preferences.js';
+import {afkCombatRadius,defaultAfkPreferences,parseAfkPreferences} from './afk-preferences.js';
 import {skillsForClass} from './skills.js';
 import type {NetworkGame} from './network.js';
 import type {AfkPreferences,ClassId,SkillId,WorldEvent} from '../../shared/types.js';
@@ -17,10 +17,10 @@ export function bindAfkSettings(game:NetworkGame,toast:(message:string)=>void){
   const panel=document.createElement('aside');panel.id='afk-settings-panel';panel.className='afk-settings-panel';panel.hidden=true;panel.setAttribute('aria-label','Настройки автоохоты');
   panel.innerHTML=`<div class="afk-settings-heading"><div><p class="eyebrow">НАСТРОЙКИ</p><h2>Автоохота</h2></div><button class="afk-settings-close" type="button" aria-label="Закрыть настройки автоохоты">×</button></div>
     <div class="afk-settings-scroll">
-      <section><h3>Добыча</h3><label class="afk-check"><input id="afk-pickup-gold" type="checkbox"> Подбирать своё золото</label><div class="afk-rarities" role="group" aria-label="Какие свои вещи подбирать"><label><input id="afk-rarity-0" type="checkbox"> Белые</label><label><input id="afk-rarity-1" type="checkbox"> Зелёные</label><label><input id="afk-rarity-2" type="checkbox"> Синие</label></div><small>Только своя добыча в радиусе охоты; при полном рюкзаке вещи остаются на земле.</small></section>
+      <section><h3>Добыча</h3><label class="afk-check"><input id="afk-pickup-gold" type="checkbox"> Подбирать своё золото</label><div class="afk-rarities" role="group" aria-label="Какие свои вещи подбирать"><label><input id="afk-rarity-0" type="checkbox"> Белые</label><label><input id="afk-rarity-1" type="checkbox"> Зелёные</label><label><input id="afk-rarity-2" type="checkbox"> Синие</label></div><small>Только своя добыча рядом с героем, без схода с места. При полном рюкзаке вещи остаются на земле.</small></section>
       <section><h3>Зелья</h3><div class="afk-threshold"><label><input id="afk-hp-enabled" type="checkbox"> HP ниже</label><input id="afk-hp-threshold" type="number" min="5" max="95" step="1" inputmode="numeric" aria-label="Порог здоровья в процентах"><span>%</span></div><div class="afk-threshold"><label><input id="afk-mp-enabled" type="checkbox"> MP ниже</label><input id="afk-mp-threshold" type="number" min="5" max="95" step="1" inputmode="numeric" aria-label="Порог маны в процентах"><span>%</span></div></section>
       <section><h3>Приоритет навыков</h3><p class="afk-help">Отметьте нужные навыки и поменяйте их порядок.</p><div id="afk-skill-order" class="afk-skill-order"></div><label class="afk-check"><input id="afk-basic-attack" type="checkbox"> Обычный удар, если навыки недоступны</label></section>
-      <section><h3>Радиус охоты</h3><div class="afk-radius"><input id="afk-radius" type="range" min="25" max="100" step="1" aria-label="Радиус охоты в процентах"><output id="afk-radius-value" for="afk-radius">100%</output></div><small>Доля разрешённого расстояния от спота. 100% — полный радиус.</small></section>
+      <section><h3>Радиус атак</h3><div class="afk-radius"><input id="afk-radius" type="range" min="25" max="100" step="1" aria-label="Радиус атак в процентах"><output id="afk-radius-value" for="afk-radius">100%</output></div><small id="afk-range-hint"></small></section>
     </div><div class="afk-settings-footer"><p id="afk-settings-status" role="status" aria-live="polite"></p><button id="afk-settings-save" type="button">Сохранить</button></div>`;
   document.body.append(panel);
   const field=<T extends HTMLElement>(id:string)=>panel.querySelector<T>('#'+id)!;
@@ -66,6 +66,7 @@ export function bindAfkSettings(game:NetworkGame,toast:(message:string)=>void){
     check('afk-hp-threshold').disabled=!draft.hpPotion.enabled;check('afk-mp-threshold').disabled=!draft.manaPotion.enabled;
     check('afk-basic-attack').checked=draft.basicAttackFallback;
     check('afk-radius').value=String(draft.radiusPercent);field<HTMLOutputElement>('afk-radius-value').value=`${draft.radiusPercent}%`;
+    field<HTMLElement>('afk-range-hint').textContent=`Выбор целей до ${afkCombatRadius(draft,game.player.range).toFixed(1)} м от места включения. Дальность зависит от выбранных атак; герой не преследует мобов.`;
     renderSkills(game.player.classId);
     saveButton.disabled=!game.connected||!!pending||same(draft,baseline)&&!unconfirmed;
     saveButton.textContent=pending?'Сохраняем…':'Сохранить';statusNode.textContent=status;

@@ -186,7 +186,8 @@ function mapPosition(p:Point){const BOUNDS=boundsForPosition(game.player);return
 function drawMap(){
   drawWorldMapBackdrop(map,mini.width,mini.height,game.player);
   const BOUNDS=boundsForPosition(game.player);
-  for(const spot of AFK_SPOTS){if(!sameLocation(spot,game.player))continue;const p=mapPosition(spot);map.strokeStyle=game.player.afk?.spotId===spot.id?'#dfc98a':'#82a497';map.lineWidth=1.2;map.beginPath();map.ellipse(p.x,p.y,spot.radius/(BOUNDS.maxX-BOUNDS.minX)*(mini.width-20),spot.radius/(BOUNDS.maxZ-BOUNDS.minZ)*(mini.height-16),0,0,Math.PI*2);map.stroke();}
+  for(const spot of AFK_SPOTS){if(!sameLocation(spot,game.player))continue;const p=mapPosition(spot);map.strokeStyle='#82a497';map.lineWidth=1.2;map.beginPath();map.ellipse(p.x,p.y,spot.radius/(BOUNDS.maxX-BOUNDS.minX)*(mini.width-20),spot.radius/(BOUNDS.maxZ-BOUNDS.minZ)*(mini.height-16),0,0,Math.PI*2);map.stroke();}
+  if(game.player.afk){const p=mapPosition(game.player.afk.anchor??game.player),radius=game.player.afkRadius??0;map.strokeStyle='#dfc98a';map.lineWidth=1.5;map.beginPath();map.ellipse(p.x,p.y,radius/(BOUNDS.maxX-BOUNDS.minX)*(mini.width-20),radius/(BOUNDS.maxZ-BOUNDS.minZ)*(mini.height-16),0,0,Math.PI*2);map.stroke();}
   for(const portal of PORTALS){if(!sameLocation(portal,game.player))continue;const p=mapPosition(portal);map.strokeStyle='#86dfe4';map.lineWidth=2;map.strokeRect(p.x-3,p.y-3,6,6);}
   for(const m of game.mobs){if(m.state==='dead')continue;const p=mapPosition(m);map.fillStyle=m.type==='alpha'?'#edba70':'#c27461';map.beginPath();map.arc(p.x,p.y,m.type==='alpha'?3:2.2,0,Math.PI*2);map.fill();}
   for(const other of game.players){if(other.id===game.id)continue;const p=mapPosition(other);map.fillStyle='#80cddd';map.beginPath();map.arc(p.x,p.y,2.8,0,Math.PI*2);map.fill();}
@@ -201,8 +202,8 @@ function updateUI(){
   const spot=afkSpotAt(hero);
   const clearing=WORLD_CLEARINGS.find(field=>Math.hypot(hero.x-field.x,hero.z-field.z)<field.radius);
   $('zone-state').textContent=camp?(inStadium?'Безопасная площадка':'Безопасный лагерь'):spot?spot.name:inStadium?'Стадиум · входы в загоны':Math.hypot(hero.x-25,hero.z+1.2)<6?'Старые руины · вожак':clearing?`${clearing.id==='camp'?'Окраина лагеря':clearing.name} · опасная зона`:'Пепельная опушка · опасная зона';
-  const afk=$('afk-toggle');afk.disabled=!game.connected||!!hero.dead||(!spot&&!hero.afk);afk.setAttribute('aria-pressed',String(!!hero.afk));afk.title=hero.afk?'Остановить автоохоту · F':'Встаньте внутри отмеченного спота · F. Опасная охота: нужны снаряжение и зелья.';
-  $('afk-status').textContent=hero.afk?'Автоохота включена':spot?'Автоохота доступна':'Автоохота на споте';$('zone-state').classList.toggle('safe',camp);
+  const afk=$('afk-toggle');afk.disabled=!game.connected||!!hero.dead;afk.setAttribute('aria-pressed',String(!!hero.afk));afk.title=hero.afk?`Остановить автоохоту · F. Радиус атак: ${(hero.afkRadius??0).toFixed(1)} м.`:'Включить автоохоту здесь · F. Герой остаётся на месте; в безопасной зоне ждёт.';
+  $('afk-status').textContent=hero.afk?(camp?'Автоохота · ожидание':'Автоохота включена'):'Автоохота';$('zone-state').classList.toggle('safe',camp);
   $('hp-text').textContent=`${Math.ceil(hero.hp)} / ${Math.ceil(hero.maxHp)}`;$('hp-fill').style.height=`${Math.max(0,Math.min(1,hero.hp/hero.maxHp||0))*100}%`;
   $('hp-orb').setAttribute('aria-valuemax',String(hero.maxHp));$('hp-orb').setAttribute('aria-valuenow',String(Math.ceil(hero.hp)));
   $('potions').textContent=String(hero.potions);$('mana-potions').textContent=String(hero.manaPotions);

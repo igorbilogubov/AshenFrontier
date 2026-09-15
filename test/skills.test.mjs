@@ -15,10 +15,10 @@ function fixture(classId,positions){
 const cast=(w,p,id,extra={})=>w.command(p,{type:'skill',skillId:id,yaw:east,...extra});
 const damage=m=>190-m.hp;
 
-test('six Q/E skills have fixed class ownership, private cooldowns and server costs',()=>{
-  assert.equal(Object.keys(SKILLS).length,6);
+test('twelve Q/E/Z/X skills have fixed class ownership, private cooldowns and server costs',()=>{
+  assert.equal(Object.keys(SKILLS).length,12);
   for(const classId of ['warrior','archer','mage']){
-    const skills=skillsForClass(classId);assert.deepEqual(skills.map(s=>s.slot),['Q','E']);
+    const skills=skillsForClass(classId);assert.deepEqual(skills.map(s=>s.slot),['Q','E','Z','X']);
     const {w,p}=fixture(classId,[[9.4,1.8]]);
     for(const other of Object.values(SKILLS).filter(s=>s.classId!==classId)){
       const before=persistentHero(p);cast(w,p,other.id,{damage:999999,manaCost:0,cooldown:0});
@@ -115,4 +115,67 @@ test('server misses and line of sight still govern all skills; malformed yaw nev
   const ranged=fixture('mage',[[10,1.8]]);ranged.w.random=()=>.999;
   cast(ranged.w,ranged.p,'mage-fireball');step(ranged.w,25);
   assert.equal(damage(ranged.mobs[0]),0);
+});
+
+
+test('new warrior skills separate a strong narrow thrust from a longer capped wave',()=>{
+  const thrust=fixture('warrior',[[9.5,1.8],[9.5,2.65],[10.7,1.8]]);
+  thrust.p.mana=stats(thrust.p).maxMana;cast(thrust.w,thrust.p,'warrior-thrust');step(thrust.w,20);
+  assert(damage(thrust.mobs[0])>0);assert.equal(damage(thrust.mobs[1]),0);assert.equal(damage(thrust.mobs[2]),0);
+  const wave=fixture('warrior',[[9.5,1.8],[10.7,1.8],[11.8,1.8],[12.1,2.8],[12.1,.8]]);
+  wave.p.mana=stats(wave.p).maxMana;cast(wave.w,wave.p,'warrior-shockwave');step(wave.w,25);
+  assert(wave.mobs.slice(0,3).every(m=>damage(m)>0));assert(wave.mobs.slice(3).every(m=>damage(m)===0));
+});
+
+test('frost arrow slows only a successful single hit; rain warns then damages at server center once',()=>{
+  const frost=fixture('archer',[[10,1.8],[11.5,1.8]]);
+  frost.p.mana=stats(frost.p).maxMana;cast(frost.w,frost.p,'archer-frost-shot');step(frost.w,25);
+  assert(damage(frost.mobs[0])>0&&frost.mobs[0].slowUntil>frost.w.t);assert.equal(damage(frost.mobs[1]),0);
+  const rain=fixture('archer',[[11.9,1.8],[12.3,2.7],[12.3,.9],[9.3,1.8]]);
+  rain.p.mana=stats(rain.p).maxMana;cast(rain.w,rain.p,'archer-rain');
+  step(rain.w,Math.ceil(rain.p.attack.duration*SKILLS['archer-rain'].hitFraction/.05));
+  const warning=rain.w.events.find(e=>e.type==='skillImpact'&&e.skillId==='archer-rain'&&e.phase==='warning');
+  assert(warning&&warning.radius===SKILLS['archer-rain'].radius);
+  assert(rain.mobs.every(m=>damage(m)===0));step(rain.w,12);
+  assert(rain.mobs.slice(0,3).every(m=>damage(m)>0));assert.equal(damage(rain.mobs[3]),0);
+  assert.equal(rain.w.events.filter(e=>e.type==='skillImpact'&&e.skillId==='archer-rain'&&e.phase==='impact').length,1);
+});
+
+test('chain lightning records actual unique jumps; meteor delays capped splash and preserves cooldown on save',()=>{
+  const chain=fixture('mage',[[10,1.8],[11.4,1.8],[12.8,1.8],[15.2,1.8]]);
+  chain.p.mana=stats(chain.p).maxMana;cast(chain.w,chain.p,'mage-lightning');step(chain.w,25);
+  assert(chain.mobs.slice(0,3).every(m=>damage(m)>0));assert.equal(damage(chain.mobs[3]),0);
+  const jumps=chain.w.events.filter(e=>e.type==='skillImpact'&&e.skillId==='mage-lightning');
+  assert.equal(jumps.length,3);assert(jumps.every(e=>e.from));
+  const meteor=fixture('mage',[[11.8,1.8],[12.2,2.8],[12.2,.8],[9.3,1.8]]);
+  meteor.p.mana=stats(meteor.p).maxMana;cast(meteor.w,meteor.p,'mage-meteor');
+  assert.equal(meteor.p.skillCooldowns['mage-meteor'],12);
+  const saved=safeHero(persistentHero(meteor.p));assert.equal(saved.skillCooldowns['mage-meteor'],12);
+  step(meteor.w,Math.ceil(meteor.p.attack.duration*SKILLS['mage-meteor'].hitFraction/.05));
+  assert(meteor.w.events.some(e=>e.type==='skillImpact'&&e.skillId==='mage-meteor'&&e.phase==='warning'));
+  assert(meteor.mobs.every(m=>damage(m)===0));step(meteor.w,16);
+  assert(meteor.mobs.slice(0,3).every(m=>damage(m)>0));assert.equal(damage(meteor.mobs[3]),0);
+  assert.equal(meteor.w.events.filter(e=>e.type==='skillImpact'&&e.skillId==='mage-meteor'&&e.phase==='impact').length,1);
+});
+
+
+test('every new Z/X cast ignores forged client cost, starts one private cooldown and respects mana',()=>{
+  for(const classId of ['warrior','archer','mage'])for(const skill of skillsForClass(classId).slice(2)){
+    const {w,p}=fixture(classId,[[9.5,1.8]]);p.mana=skill.manaCost-1;
+    cast(w,p,skill.id,{manaCost:0,cooldown:0,damage:100000});assert.equal(p.attack,null);
+    p.mana=stats(p).maxMana;const before=p.mana;
+    cast(w,p,skill.id,{manaCost:0,cooldown:0,damage:100000});
+    assert.equal(p.attack?.skillId,skill.id);assert.equal(p.mana,before-skill.manaCost);
+    assert.equal(p.skillCooldowns[skill.id],skill.cooldown);
+    p.attack=null;cast(w,p,skill.id);assert.equal(p.attack,null);
+    assert.equal(p.mana,before-skill.manaCost);
+  }
+});
+
+test('cancelled automatic delayed area has no impact damage or quest credit',()=>{
+  const {w,p,mobs}=fixture('archer',[[11.9,1.8]]);p.mana=stats(p).maxMana;
+  assert(w.castSkill(p,'archer-rain',east));p.attack.automatic=true;
+  step(w,Math.ceil(p.attack.duration*SKILLS['archer-rain'].hitFraction/.05));
+  assert.equal(w.pendingAreas.length,1);p.afk=null;step(w,12);
+  assert.equal(damage(mobs[0]),0);assert.equal(p.questKills,0);assert.equal(w.pendingAreas.length,0);
 });

@@ -38,5 +38,16 @@ test('real skill packets expose only public cast/impact, and private mana/cooldo
     server=await startTestServer(database);const restored=await connect(server,{token});clients.push(restored);
     assert.equal(restored.state.self.classId,'mage');assert(restored.state.self.mana>=saved.mana&&restored.state.self.mana<originalMana);
     assert(restored.state.self.skillCooldowns['mage-fireball']>0);
+    await until(()=>restored.state.self.attack===null);
+    restored.ws.send(JSON.stringify({type:'skill',skillId:'mage-meteor',yaw:Math.PI/2,damage:999999}));
+    await until(()=>restored.states.some(state=>state.self?.attack?.skillId==='mage-meteor'));
+    await until(()=>restored.events.some(event=>event.type==='skillImpact'&&event.skillId==='mage-meteor'&&event.phase==='warning'));
+    await until(()=>restored.events.some(event=>event.type==='skillImpact'&&event.skillId==='mage-meteor'&&event.phase==='impact'));
+    const warning=restored.events.find(event=>event.type==='skillImpact'&&event.skillId==='mage-meteor'&&event.phase==='warning');
+    const impact=restored.events.find(event=>event.type==='skillImpact'&&event.skillId==='mage-meteor'&&event.phase==='impact');
+    assert.deepEqual([warning.x,warning.z],[impact.x,impact.z]);
+    assert.equal(restored.state.self.skillCooldowns['mage-meteor']>0,true);
+    await close(restored);await stopTestServer(server);server=null;
+    const meteorSaved=(await database.load(token)).hero;assert(meteorSaved.skillCooldowns['mage-meteor']>0);
   }finally{for(const client of clients)await close(client);await stopTestServer(server);await database.close();}
 });

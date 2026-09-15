@@ -1,0 +1,179 @@
+{
+  "archer": {
+    "bones": 67,
+    "glbBytes": 3996340,
+    "meshes": [
+      {
+        "name": "Weapon_Sword",
+        "triangles": 504,
+        "unweighted": 0
+      },
+      {
+        "name": "Weapon_Axe",
+        "triangles": 304,
+        "unweighted": 0
+      },
+      {
+        "name": "Weapon_Buckler",
+        "triangles": 168,
+        "unweighted": 0
+      },
+      {
+        "name": "Class_Base_Body",
+        "triangles": 4412,
+        "unweighted": 0
+      },
+      {
+        "name": "Class_Base_Head",
+        "triangles": 14196,
+        "unweighted": 0
+      },
+      {
+        "name": "Class_Base_Boots",
+        "triangles": 840,
+        "unweighted": 0
+      },
+      {
+        "name": "ranger-hood",
+        "triangles": 1078,
+        "unweighted": 0
+      },
+      {
+        "name": "ranger-armor",
+        "triangles": 4412,
+        "unweighted": 0
+      },
+      {
+        "name": "ranger-boots",
+        "triangles": 840,
+        "unweighted": 0
+      },
+      {
+        "name": "ranger-bow",
+        "triangles": 444,
+        "unweighted": 0
+      },
+      {
+        "name": "sentinel-armor",
+        "triangles": 5384,
+        "unweighted": 0
+      },
+      {
+        "name": "sentinel-boots",
+        "triangles": 2448,
+        "unweighted": 0
+      },
+      {
+        "name": "sentinel-bow",
+        "triangles": 556,
+        "unweighted": 0
+      },
+      {
+        "name": "sentinel-hood",
+        "triangles": 1942,
+        "unweighted": 0
+      },
+      {
+        "name": "hawk-ring",
+        "triangles": 396,
+        "unweighted": 0
+      },
+      {
+        "name": "leaf-amulet",
+        "triangles": 408,
+        "unweighted": 0
+      }
+    ]
+  },
+  "mage": {
+    "bones": 67,
+    "glbBytes": 3982476,
+    "meshes": [
+      {
+        "name": "Weapon_Sword",
+        "triangles": 504,
+        "unweighted": 0
+      },
+      {
+        "name": "Weapon_Axe",
+        "triangles": 304,
+        "unweighted": 0
+      },
+      {
+        "name": "Weapon_Buckler",
+        "triangles": 168,
+        "unweighted": 0
+      },
+      {
+        "name": "Class_Base_Body",
+        "triangles": 8333,
+        "unweighted": 0
+      },
+      {
+        "name": "Class_Base_Boots",
+        "triangles": 1866,
+        "unweighted": 0
+      },
+      {
+        "name": "Class_Base_Hair",
+        "triangles": 971,
+        "unweighted": 0
+      },
+      {
+        "name": "Class_Base_Head",
+        "triangles": 3065,
+        "unweighted": 0
+      },
+      {
+        "name": "acolyte-hood",
+        "triangles": 982,
+        "unweighted": 0
+      },
+      {
+        "name": "acolyte-armor",
+        "triangles": 9181,
+        "unweighted": 0
+      },
+      {
+        "name": "acolyte-boots",
+        "triangles": 1866,
+        "unweighted": 0
+      },
+      {
+        "name": "acolyte-staff",
+        "triangles": 480,
+        "unweighted": 0
+      },
+      {
+        "name": "runekeeper-armor",
+        "triangles": 10153,
+        "unweighted": 0
+      },
+      {
+        "name": "runekeeper-boots",
+        "triangles": 3474,
+        "unweighted": 0
+      },
+      {
+        "name": "runekeeper-staff",
+        "triangles": 520,
+        "unweighted": 0
+      },
+      {
+        "name": "runekeeper-crown",
+        "triangles": 864,
+        "unweighted": 0
+      },
+      {
+        "name": "rune-ring",
+        "triangles": 396,
+        "unweighted": 0
+      },
+      {
+        "name": "moon-amulet",
+        "triangles": 408,
+        "unweighted": 0
+      }
+    ]
+  }
+}

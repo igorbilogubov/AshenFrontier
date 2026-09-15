@@ -1,0 +1,146 @@
+{
+  "generator": "Blender 5.2.1 LTS",
+  "size": 256,
+  "icons": [
+    {
+      "id": "ranger-bow",
+      "parts": [
+        "ranger-bow"
+      ],
+      "bytes": 33940
+    },
+    {
+      "id": "ranger-armor",
+      "parts": [
+        "IconTorso_ranger-armor"
+      ],
+      "bytes": 63696
+    },
+    {
+      "id": "ranger-hood",
+      "parts": [
+        "ranger-hood"
+      ],
+      "bytes": 56733
+    },
+    {
+      "id": "ranger-boots",
+      "parts": [
+        "ranger-boots"
+      ],
+      "bytes": 59901
+    },
+    {
+      "id": "sentinel-bow",
+      "parts": [
+        "sentinel-bow"
+      ],
+      "bytes": 35951
+    },
+    {
+      "id": "sentinel-armor",
+      "parts": [
+        "IconTorso_sentinel-armor"
+      ],
+      "bytes": 63805
+    },
+    {
+      "id": "sentinel-hood",
+      "parts": [
+        "sentinel-hood"
+      ],
+      "bytes": 57418
+    },
+    {
+      "id": "sentinel-boots",
+      "parts": [
+        "sentinel-boots"
+      ],
+      "bytes": 62440
+    },
+    {
+      "id": "hawk-ring",
+      "parts": [
+        "hawk-ring"
+      ],
+      "bytes": 58702
+    },
+    {
+      "id": "leaf-amulet",
+      "parts": [
+        "leaf-amulet"
+      ],
+      "bytes": 37090
+    },
+    {
+      "id": "acolyte-staff",
+      "parts": [
+        "acolyte-staff"
+      ],
+      "bytes": 30690
+    },
+    {
+      "id": "acolyte-armor",
+      "parts": [
+        "IconTorso_acolyte-armor"
+      ],
+      "bytes": 65813
+    },
+    {
+      "id": "acolyte-hood",
+      "parts": [
+        "acolyte-hood"
+      ],
+      "bytes": 53200
+    },
+    {
+      "id": "acolyte-boots",
+      "parts": [
+        "acolyte-boots"
+      ],
+      "bytes": 61887
+    },
+    {
+      "id": "runekeeper-staff",
+      "parts": [
+        "runekeeper-staff"
+      ],
+      "bytes": 31788
+    },
+    {
+      "id": "runekeeper-armor",
+      "parts": [
+        "IconTorso_runekeeper-armor"
+      ],
+      "bytes": 65365
+    },
+    {
+      "id": "runekeeper-crown",
+      "parts": [
+        "runekeeper-crown"
+      ],
+      "bytes": 40899
+    },
+    {
+      "id": "runekeeper-boots",
+      "parts": [
+        "runekeeper-boots"
+      ],
+      "bytes": 62525
+    },
+    {
+      "id": "rune-ring",
+      "parts": [
+        "rune-ring"
+      ],
+      "bytes": 58600
+    },
+    {
+      "id": "moon-amulet",
+      "parts": [
+        "moon-amulet"
+      ],
+      "bytes": 37357
+    }
+  ]
+}

@@ -1,4 +1,7 @@
 import {skillsForClass} from './skills.js';
+import {actionIcon} from './action-icons.js';
+import {bindInventoryInteractions} from './inventory-interactions.js';
+import {sellPrice} from './shop.js';
 import {renderItemRolls} from './item-details.js';
 import {CLASSES,EQUIPMENT_SLOTS,BAG_CAPACITY,backpackItems,canEquip,itemBonus,STAT_KEYS,STAT_DEFINITIONS,CLASS_PROGRESSION,characterStats} from '../rules.js';
 import {safe} from './location.js';
@@ -39,7 +42,7 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
     lastPanel=name;if(compact.matches)Object.values(panels).forEach(panel=>{panel.hidden=true;});
     panels[name].hidden=false;syncPanels();update();$(name+'-close').focus({preventScroll:true});
   }
-  function closePanel(name:PanelName){panels[name].hidden=true;syncPanels();if(!isPanelOpen())$('scene').focus({preventScroll:true});}
+  function closePanel(name:PanelName){panels[name].hidden=true;interactions.hideTooltip();syncPanels();if(!isPanelOpen())$('scene').focus({preventScroll:true});}
   function togglePanel(name:PanelName){if(panels[name].hidden)openPanel(name);else closePanel(name);}
   for(const name of panelNames){
     $(name+'-toggle').onclick=()=>togglePanel(name);$(name+'-close').onclick=()=>closePanel(name);
@@ -102,7 +105,8 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
   }
   const selectedItem=()=>game.player.items.find(item=>item.id===selectedItemId);
   $('item-equip').onclick=()=>{const item=selectedItem();if(item&&canEdit()&&canEquip(game.player,item))game.send({type:game.player.equipment[item.slot]===item.id?'unequip':'equip',id:item.id});};
-  $('item-sell').onclick=()=>{const item=selectedItem();if(item&&canEdit()&&!item.bound&&!Object.values(game.player.equipment).includes(item.id))game.send({type:'sell',id:item.id});};
+  const interactions=bindInventoryInteractions(game,toast,()=>{panels.character.hidden=true;openPanel('inventory');});
+  $('item-sell').onclick=()=>{const item=selectedItem();if(item)interactions.sell(item);};
   function setIcon(element:HTMLElement,slot:EquipmentSlot,classId:ClassId,item?:Item,weapon:WeaponId='sword'){const key=item?'art:'+itemArtKey(item,classId,weapon):slot+':'+classId;if(element.dataset.icon!==key){element.innerHTML=item?itemArtwork(item,classId,weapon):itemIcon(slot,classId);element.dataset.icon=key;}}
   game.onStatus=(status,message)=>{
     write($('connection'),status==='online'?`${game.players.filter(p=>p.connected).length} в мире`:message);
@@ -170,32 +174,33 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
   function updateInventory(){
     if(panels.inventory.hidden)return;
     const p=game.player,c=CLASSES[p.classId];if(!c)return;
-    const editable=canEdit(),wornIds=Object.values(p.equipment),bag=backpackItems(p),key=JSON.stringify([p.items,p.pendingItems,p.equipment,p.weapon,p.classId,p.level,p.gold,editable,selectedItemId]);if(key===inventoryKey)return;inventoryKey=key;
+    const editable=canEdit(),wornIds=Object.values(p.equipment),bag=backpackItems(p),key=JSON.stringify([p.items,p.pendingItems,p.equipment,p.weapon,p.classId,p.level,p.gold,editable,interactions.canTrade(),selectedItemId]);if(key===inventoryKey)return;inventoryKey=key;
     if(!p.items.some(item=>item.id===selectedItemId))selectedItemId=p.equipment.weapon||p.items[0]?.id||null;
     write($('hero-details'),`${c.name} · уровень ${p.level} · 6 слотов снаряжения`);write($('inventory-gold'),`${p.gold} золота`);write($('inventory-status'),editable?'Можно менять снаряжение':!game.connected?'Нет соединения':'Изменение у костра, вне боя');
     for(const [slot,nodes] of slotNodes){
       const item=p.items.find(value=>value.id===p.equipment[slot]);nodes.button.className=`equipment-slot${item?' rarity-'+(item.rarity||0):' empty'}${item?.id===selectedItemId?' selected':''}`;
-      nodes.button.title=`${EQUIPMENT_SLOTS[slot].name}: ${item?item.name+' · '+itemBonus(item):'Пусто'}`;nodes.button.setAttribute('aria-label',nodes.button.title);nodes.button.setAttribute('aria-pressed',String(!!item&&item.id===selectedItemId));setIcon(nodes.icon,slot,item?.classId||p.classId,item,p.weapon);
+      nodes.button.dataset.itemId=item?.id||'';nodes.button.setAttribute('aria-label',`${EQUIPMENT_SLOTS[slot].name}: ${item?item.name+' · '+itemBonus(item):'Пусто'}`);nodes.button.setAttribute('aria-pressed',String(!!item&&item.id===selectedItemId));setIcon(nodes.icon,slot,item?.classId||p.classId,item,p.weapon);
     }
     write($('bag-count'),`${bag.length} / ${BAG_CAPACITY}`);
     bagNodes.forEach((nodes,index)=>{
       const item=bag[index];nodes.button.dataset.itemId=item?.id||'';nodes.button.className=`bag-cell${item?' rarity-'+(item.rarity||0):' empty'}${item?.id===selectedItemId?' selected':''}`;
-      nodes.button.setAttribute('aria-label',item?`${item.name}, ${itemBonus(item)}`:`Пустая ячейка ${index+1}`);nodes.button.title=nodes.button.getAttribute('aria-label')||'';nodes.button.setAttribute('aria-pressed',String(!!item&&item.id===selectedItemId));nodes.button.disabled=!item;
+      nodes.button.setAttribute('aria-label',item?`${item.name}, ${itemBonus(item)}`:`Пустая ячейка ${index+1}`);nodes.button.setAttribute('aria-pressed',String(!!item&&item.id===selectedItemId));nodes.button.disabled=false;
       if(item){nodes.icon.hidden=false;setIcon(nodes.icon,item.slot,item.classId||p.classId,item);}else nodes.icon.hidden=true;
     });
     const item=selectedItem(),worn=item&&wornIds.includes(item.id);
     if(item){
       setIcon($('item-detail-icon'),item.slot,item.classId||p.classId,item,worn?p.weapon:'sword');$('item-detail-icon').className='item-detail-icon rarity-'+(item.rarity||0);$('item-detail-icon').hidden=false;
-      write($('item-rarity'),`${rarityNames[item.rarity]||rarityNames[0]} · ${EQUIPMENT_SLOTS[item.slot].name}`);write($('item-name'),item.name);write($('item-bonus'),item.rolls?'Значения этого экземпляра':itemBonus(item));write($('item-restriction'),item.classId||item.slot==='weapon'?`Класс: ${CLASSES[item.classId||'warrior'].name}`:'Для всех классов');write($('item-worn'),worn?'◆ Надето':item.bound?'Привязано к герою':'Можно продать у костра');
+      write($('item-rarity'),`${rarityNames[item.rarity]||rarityNames[0]} · ${EQUIPMENT_SLOTS[item.slot].name}`);write($('item-name'),item.name);write($('item-bonus'),item.rolls?'Значения этого экземпляра':itemBonus(item));write($('item-restriction'),item.classId||item.slot==='weapon'?`Класс: ${CLASSES[item.classId||'warrior'].name}`:'Для всех классов');write($('item-worn'),worn?'◆ Надето':item.bound?'Привязано к герою':'Можно продать торговцу');
     }else{
       $('item-detail-icon').hidden=true;write($('item-rarity'),'РЮКЗАК ПУСТ');write($('item-name'),'Впереди первая добыча');write($('item-bonus'),'Предметы можно найти в опушке.');write($('item-restriction'),'');write($('item-worn'),'');
     }
     renderItemRolls($('item-rolls'),item,p.items.find(other=>other.id===p.equipment[item?.slot??'weapon']));
     $('item-equip').disabled=!item||!editable||!canEquip(p,item)||!!worn&&bag.length>=BAG_CAPACITY;$('item-equip').title=worn&&bag.length>=BAG_CAPACITY?'Освободите ячейку рюкзака, чтобы снять вещь.':'';write($('item-equip'),worn?'Снять':'Надеть');
-    $('item-sell').disabled=!item||!!worn||!editable||!!item.bound;write($('item-sell'),item&&!item.bound?`Продать · ${Math.max(1,Math.round(item.power*3+5))} зол.`:'Продать');
+    $('item-sell').disabled=!item||!!worn||!interactions.canTrade()||!!item.bound;write($('item-sell'),item&&!item.bound?`Продать · ${sellPrice(item)} зол.`:'Продать');
     $('claim-items').hidden=!p.pendingItems?.length;write($('claim-items'),`Забрать ожидающие вещи · ${p.pendingItems?.length||0}`);$('claim-items').disabled=!editable||bag.length>=BAG_CAPACITY;
   }
   function onEvent(event:WorldEvent){
+    interactions.onEvent(event);
     if(event.type!=='statResult')return;
     const message=event.message||(event.ok?'Характеристики сохранены.':'Не удалось применить статы.');clearDraft(message);toast(message);updateStats();
   }
@@ -206,15 +211,18 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
     $('mana-orb').setAttribute('aria-valuemax',String(p.maxMana||0));$('mana-orb').setAttribute('aria-valuenow',String(Math.floor(p.mana||0)));$('hud-xp-fill').style.transform=`scaleX(${clampRatio(p.xp,p.xpNeeded)})`;
     for(const [index,skill] of skillsForClass(p.classId).entries()){
       const button=$(index===0?'special':'skill-secondary'),remaining=p.skillCooldowns?.[skill.id]||0;
+      if(button.dataset.skill!==skill.id)button.querySelector('.skill-sigil')!.innerHTML=actionIcon(skill.id);
       button.dataset.skill=skill.id;button.style.setProperty('--cooldown',`${Math.min(1,remaining/skill.cooldown)*100}%`);
       write(button.querySelector('.skill-name')!,skill.name);write(button.querySelector('.skill-meta')!,remaining>0?`${remaining.toFixed(1)}с`:`${skill.manaCost} маны`);
       button.disabled=!game.connected||!!p.dead||!!p.attack||safe(p)||remaining>0||p.mana<skill.manaCost;
       button.title=`${skill.name} · ${skill.slot} · ${skill.manaCost} маны · ${skill.cooldown}с\n${skill.description}`;
       button.setAttribute('aria-label',button.title);
     }
-    document.querySelector<HTMLElement>('.weapon-controls')!.hidden=p.classId!=='warrior';write($('unspent-badge'),p.unspentPoints||0);$('unspent-badge').hidden=!p.unspentPoints;$('character-toggle').title=`Характеристики · C${p.unspentPoints?` · ${p.unspentPoints} свободных очков`:''}`;
+    if($('attack').dataset.classId!==p.classId){$('attack').dataset.classId=p.classId;$('attack').querySelector('.attack-icon')!.innerHTML=actionIcon(p.classId);}
+    for(const [id,selector,key] of [['potion','.potion-icon','potion'],['character-toggle','.shortcut-icon','character'],['inventory-toggle','.shortcut-icon','inventory']]){const icon=$(id).querySelector(selector)!;if(!icon.childElementCount)icon.innerHTML=actionIcon(key);}
+    document.querySelector<HTMLElement>('.weapon-controls')!.hidden=p.classId!=='warrior'||p.items.some(item=>item.id===p.equipment.weapon&&item.definitionId);write($('unspent-badge'),p.unspentPoints||0);$('unspent-badge').hidden=!p.unspentPoints;$('character-toggle').title=`Характеристики · C${p.unspentPoints?` · ${p.unspentPoints} свободных очков`:''}`;
     write($('save-status'),!game.connected?'Восстанавливаем соединение…':!game.save?.ok?'Ошибка сохранения — оставьте игру открытой':game.save?.at?'Общий мир · прогресс сохранён на сервере':'Общий мир · сохраняем героя…');
-    updateStats();updateInventory();
+    updateStats();updateInventory();interactions.update();
   }
   return {join,update,isPanelOpen,onEvent};
 }

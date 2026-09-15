@@ -3,6 +3,9 @@ import {mesh} from './models.js';
 import {loadWarrior} from './character.js';
 import {createMob,loadMobAssets} from './mobs.js';
 import {createEnvironment} from './environment.js';
+import {createWorldInteractions} from './world-interactions.js';
+import {drawWorldMapBackdrop} from './minimap-world.js';
+import {WORLD_CLEARINGS} from './world-layout.js';
 import {angleDelta,gaitProfile} from './motion.js';
 import {CAMERA,BOUNDS,CAMP,WEAPONS,MOB_TYPES,safe,AFK_SPOTS,afkSpotAt} from './location.js';
 
@@ -21,9 +24,9 @@ type RemoteWarrior=Warrior & {label:HTMLDivElement};
 type VisualHero=Pick<PublicPlayer,'id'|'x'|'z'|'yaw'|'gait'|'runBlend'|'moveBlend'|'dead'|'weapon'|'classId'|'hurt'|'attack'|'appearance'>;
 interface FloatingNumber {element:HTMLSpanElement;x:number;z:number;y:number;life:number}
 interface Particle {mesh:T.Mesh<T.IcosahedronGeometry,T.MeshBasicMaterial>;v:T.Vector3;life:number}
-interface HeldMouse {x:number;y:number;active:boolean;point:T.Vector3|null;held:boolean;pointerId:number|null;pickPending:boolean}
+interface HeldMouse {x:number;y:number;active:boolean;point:T.Vector3|null;held:boolean;attacking:boolean;pointerId:number|null;pickPending:boolean}
 
-let benchmark:Benchmark|undefined,skillEffects:ReturnType<typeof createSkillEffects>|undefined;
+let benchmark:Benchmark|undefined,skillEffects:ReturnType<typeof createSkillEffects>|undefined,worldInteractions:Awaited<ReturnType<typeof createWorldInteractions>>|undefined;
 const canvas=$('scene');
 let renderer:T.WebGLRenderer,scene:T.Scene,camera:T.OrthographicCamera,sun:T.DirectionalLight,world:ReturnType<typeof createEnvironment>,warrior:Warrior,game:NetworkGame,ready=false,last=0,time=0,accumulator=0;
 let width=innerWidth,height=innerHeight,selected:number|null=null,pendingWeapon:WeaponId|null=null;
@@ -31,9 +34,9 @@ let noticeTimer:ReturnType<typeof setTimeout>|undefined=undefined,lastSafeToast=
 let targetZoom=1,interfaceUI:ReturnType<typeof bindInterface>;
 const remoteModels=new Map<string,RemoteWarrior>(),loadingPlayers=new Set<string>(),visualHeroes=new Map<string,VisualHero>(),visualMobs=new Map<number,PublicMob>(),shots=new Map<string,T.Mesh<T.BufferGeometry,T.MeshBasicMaterial>>();
 const ZOOM={min:.7,max:1.9,sensitivity:.0015};
-const keys=new Set<string>(),models=new Map<number,MobModel>(),drops=new Map<number,T.Group>(),particles:Particle[]=[],floats:FloatingNumber[]=[];
+const keys=new Set<string>(),models=new Map<number,MobModel>(),particles:Particle[]=[],floats:FloatingNumber[]=[];
 const raycaster=new T.Raycaster(),ndc=new T.Vector2(),groundPlane=new T.Plane(new T.Vector3(0,1,0),0),cameraTarget=new T.Vector3(.5,.3,2);
-const mouse:HeldMouse={x:0,y:0,active:false,point:null,held:false,pointerId:null,pickPending:false};
+const mouse:HeldMouse={x:0,y:0,active:false,point:null,held:false,attacking:false,pointerId:null,pickPending:false};
 // Five metres cover the full animated actor and its shadow beyond the viewport.
 // Keep pose bookkeeping current, but sample/draw only groups near the camera.
 const actorFrustum=new T.Frustum(),actorProjection=new T.Matrix4(),actorBounds=new T.Sphere(new T.Vector3(),5);
@@ -99,12 +102,16 @@ function castSkill(slot:number){
   if(skill)game.skill(skill.id,point?Math.atan2(point.x-hero.x,point.z-hero.z):hero.yaw);
 }
 function releaseMovement(){
-  const id=mouse.pointerId,wasHeld=mouse.held;
-  mouse.held=false;mouse.pointerId=null;mouse.pickPending=false;
+  const id=mouse.pointerId,wasHeld=mouse.held||mouse.attacking;
+  mouse.held=false;mouse.attacking=false;mouse.pointerId=null;mouse.pickPending=false;
   if(id!==null&&canvas.hasPointerCapture(id))canvas.releasePointerCapture(id);
   if(wasHeld)game?.stopInput();
 }
-function clearInput(){keys.clear();releaseMovement();mouse.active=false;mouse.point=null;game?.stopInput();}
+function clearInput(){keys.clear();releaseMovement();mouse.active=false;mouse.point=null;game?.stopInput();if(game?.connected&&game.player.interactionTarget)game.send({type:'cancelInteraction'});}
+function chooseInteraction(kind:'loot'|'vendor',id:string){
+  if(!ready||!game.connected||game.player.dead||interfaceUI?.isPanelOpen())return;
+  releaseMovement();keys.clear();cancelAfk();game.send(kind==='loot'?{type:'pickup',id}:{type:'interact',npcId:id});
+}
 function returnToCamp(){
   if(!ready)return;
   if(!safe(game.player)&&game.mobs.some(m=>['chase','windup','recover'].includes(m.state)&&distance(m,game.player)<8)){toast('Сначала оторвитесь от врагов');return;}
@@ -125,7 +132,7 @@ function processEvents(){
     }
     if(event.type==='hurt')number(event,'hurt');
     if(event.type==='heal')number(event,'heal');
-    if(event.type==='loot'){number(event,'loot');const model=drops.get(event.id);if(model){model.removeFromParent();drops.delete(event.id);}}
+    if(event.type==='loot')number(event,'loot');
     if(event.type==='kill'){toast(`${event.name} повержен · +${event.xp} опыта`);}
     if(event.type==='safe'&&time-lastSafeToast>1.5){lastSafeToast=time;toast('Лагерь безопасен. Выйдите на лесную тропу');}
     if(event.type==='death'){clearInput();pendingWeapon=null;selected=null;}
@@ -141,18 +148,15 @@ function tick(dt:number){
   const hero=game.player;
   if(hero.afk){game.update(dt,{x:0,z:0,aim:null});processEvents();return;}
   const input=heldMouseInput(hero,mouse.point,{held:mouse.held});
-  if(keys.has('Space')&&!safe(hero)){input.x=input.z=0;attackAt();}
+  if((keys.has('Space')||mouse.attacking)&&!safe(hero)){input.x=input.z=0;attackAt();}
   game.update(dt,input);
   if(pendingWeapon&&!hero.attack)chooseWeapon(pendingWeapon);
   processEvents();
 }
 function mapPosition(p:Point){return {x:10+(p.x-BOUNDS.minX)/(BOUNDS.maxX-BOUNDS.minX)*(mini.width-20),y:8+(p.z-BOUNDS.minZ)/(BOUNDS.maxZ-BOUNDS.minZ)*(mini.height-16)};}
 function drawMap(){
-  map.clearRect(0,0,mini.width,mini.height);map.fillStyle='#1c3027';map.fillRect(0,0,mini.width,mini.height);
-  const camp=mapPosition(CAMP);map.fillStyle='#304b37';map.beginPath();map.ellipse(camp.x,camp.y,27,21,0,0,Math.PI*2);map.fill();
-  map.strokeStyle='#948368';map.lineWidth=3;map.beginPath();for(let x=-1;x<27;x+=.3){const p=mapPosition({x,z:1+Math.sin(x*.25)*.9});if(x===-1)map.moveTo(p.x,p.y);else map.lineTo(p.x,p.y);}map.stroke();
+  drawWorldMapBackdrop(map,mini.width,mini.height);
   for(const spot of AFK_SPOTS){const p=mapPosition(spot);map.strokeStyle=game.player.afk?.spotId===spot.id?'#dfc98a':'#82a497';map.lineWidth=1.2;map.beginPath();map.ellipse(p.x,p.y,spot.radius/(BOUNDS.maxX-BOUNDS.minX)*(mini.width-20),spot.radius/(BOUNDS.maxZ-BOUNDS.minZ)*(mini.height-16),0,0,Math.PI*2);map.stroke();}
-  const ruin=mapPosition({x:25,z:-1.2});map.strokeStyle='#81745a';map.lineWidth=1.5;map.strokeRect(ruin.x-10,ruin.y-10,20,20);
   for(const m of game.mobs){if(m.state==='dead')continue;const p=mapPosition(m);map.fillStyle=m.type==='alpha'?'#edba70':'#c27461';map.beginPath();map.arc(p.x,p.y,m.type==='alpha'?3:2.2,0,Math.PI*2);map.fill();}
   for(const other of game.players){if(other.id===game.id)continue;const p=mapPosition(other);map.fillStyle='#80cddd';map.beginPath();map.arc(p.x,p.y,2.8,0,Math.PI*2);map.fill();}
   const p=mapPosition(game.player);map.fillStyle='#f4e5bb';map.beginPath();map.arc(p.x,p.y,3,0,Math.PI*2);map.fill();map.strokeStyle='#eff3d0';map.beginPath();map.moveTo(p.x,p.y);map.lineTo(p.x+Math.sin(game.player.yaw)*7,p.y+Math.cos(game.player.yaw)*7);map.stroke();
@@ -160,7 +164,8 @@ function drawMap(){
 function updateUI(){
   const hero=game.player,camp=safe(hero),mob=selectedMob();
   const spot=afkSpotAt(hero);
-  $('zone-state').textContent=camp?'Безопасный лагерь':spot?spot.name:hero.x>21?'Старые руины · вожак':'Пепельная опушка · опасная зона';
+  const clearing=WORLD_CLEARINGS.find(field=>Math.hypot(hero.x-field.x,hero.z-field.z)<field.radius);
+  $('zone-state').textContent=camp?'Безопасный лагерь':spot?spot.name:Math.hypot(hero.x-25,hero.z+1.2)<6?'Старые руины · вожак':clearing?`${clearing.id==='camp'?'Окраина лагеря':clearing.name} · опасная зона`:'Пепельная опушка · опасная зона';
   const afk=$('afk-toggle');afk.disabled=!game.connected||!!hero.dead||(!spot&&!hero.afk);afk.setAttribute('aria-pressed',String(!!hero.afk));afk.title=hero.afk?'Остановить автоохоту · F':'Встаньте внутри отмеченного спота · F. Опасная охота: нужны снаряжение и зелья.';
   $('afk-status').textContent=hero.afk?'Автоохота включена':spot?'Автоохота доступна':'Автоохота на споте';$('zone-state').classList.toggle('safe',camp);
   $('hp-text').textContent=`${Math.ceil(hero.hp)} / ${hero.maxHp}`;$('hp-fill').style.height=`${Math.max(0,Math.min(1,hero.hp/hero.maxHp||0))*100}%`;
@@ -240,7 +245,7 @@ function render(dt:number){
     const model=models.get(mob.id);if(model){model.root.visible=actorVisible(v);model.animate(v,time,selected===mob.id,camera,model.root.visible&&!benchmark?.freezeAnimations);}
   }
   benchmark?.mark('actors');
-  for(const drop of game.loot){let model=drops.get(drop.id);if(!model){model=new T.Group();for(let i=0;i<3;i++)mesh(model,lootGeometry,lootMaterial,(i-1)*.12,.1,Math.sin(i*2)*.1);scene.add(model);drops.set(drop.id,model);}model.position.set(drop.x,.05+Math.sin(time*3+drop.id)*.04,drop.z);model.rotation.y=time*.7;}
+  worldInteractions?.update(dt,camera,width,height,ready&&game.connected&&!game.player.dead&&!interfaceUI.isPanelOpen());
   for(let i=particles.length-1;i>=0;i--){const p=particles[i];p.life-=dt;p.v.y-=8*dt;p.mesh.position.addScaledVector(p.v,dt);if(p.life<=0){p.mesh.removeFromParent();p.mesh.material.dispose();particles.splice(i,1);}}
   for(let i=floats.length-1;i>=0;i--){const f=floats[i];f.life-=dt;f.y+=dt*.6;const p=new T.Vector3(f.x,f.y,f.z).project(camera);f.element.style.transform=`translate(${(p.x*.5+.5)*width}px,${(-p.y*.5+.5)*height}px)`;f.element.style.opacity=String(Math.min(1,f.life*4));if(f.life<=0){f.element.remove();floats.splice(i,1);}}
   uiTimer+=dt;if(uiTimer>.1){uiTimer=0;updateUI();}
@@ -275,6 +280,7 @@ async function start(){
     const mobAssets=await loadMobAssets();
     $('load-progress').textContent='Подключаем героя к общему миру…';const stressMode=await stressEnabled();if(stressMode){game.storage.removeItem(game.tokenKey);await game.connect({name:'Наблюдатель FPS',classId:'warrior'});}else await interfaceUI.join();
     warrior=await loadWarrior(game.player.classId);scene.add(warrior.root);
+    worldInteractions=await createWorldInteractions(scene,game,chooseInteraction);
     for(const mob of game.mobs){const model=Object.assign(createMob(mob.type,mobAssets),{pickMeshes:[] as T.Mesh[]});model.pickRoot.traverse(o=>{if(o instanceof T.Mesh){o.userData.mob=mob.id;model.pickMeshes.push(o);}});models.set(mob.id,model);scene.add(model.root);}
     const ring=mesh(marker,new T.RingGeometry(.43,.451,40),new T.MeshBasicMaterial({color:'#dac593',transparent:true,opacity:.62,side:T.DoubleSide,depthWrite:false}));ring.rotation.x=-Math.PI/2;ring.castShadow=false;ring.receiveShadow=false;scene.add(marker);
     $('load-progress').textContent='Загружаем материалы леса…';await world.ready;ready=true;if(stressMode){const link=document.createElement('link');link.rel='stylesheet';link.href='/game/benchmark.css';document.head.append(link);benchmark=new Benchmark({renderer,scene,camera,game,modelsReady:()=>remoteModels.size===game.players.length-1&&loadingPlayers.size===0,setVariant:variant=>{renderer.shadowMap.enabled=variant!=='no-shadows';fitCamera();world.setTreesVisible?.(variant!=='no-trees');}});}
@@ -284,10 +290,10 @@ async function start(){
 canvas.addEventListener('pointermove',event=>{
   if(mouse.pointerId!==null&&event.pointerId!==mouse.pointerId)return;
   mouse.x=event.clientX;mouse.y=event.clientY;mouse.active=true;
-  if(mouse.held){
+  if(mouse.held||mouse.attacking){
     // Capture guarantees release outside the canvas, but UI is never a steering surface.
-    if(!(event.buttons&1)||document.elementFromPoint(event.clientX,event.clientY)!==canvas){releaseMovement();mouse.active=false;mouse.point=null;return;}
-    mouse.pickPending=true;
+    if(!(event.buttons&(mouse.attacking?2:1))||document.elementFromPoint(event.clientX,event.clientY)!==canvas){releaseMovement();mouse.active=false;mouse.point=null;return;}
+    if(mouse.held)mouse.pickPending=true;
   }
 });
 canvas.addEventListener('pointerleave',()=>{releaseMovement();mouse.active=false;mouse.point=null;});
@@ -295,11 +301,13 @@ canvas.addEventListener('pointerdown',event=>{
   if(!ready||!game.connected||game.player.dead||interfaceUI?.isPanelOpen?.()||event.isPrimary===false)return;
   if(event.button!==0&&event.button!==2)return;
   event.preventDefault();cancelAfk();canvas.focus({preventScroll:true});mouse.x=event.clientX;mouse.y=event.clientY;mouse.active=true;mouse.point=pickGround();
-  if(event.button===2){attackAt();return;}
-  mouse.held=true;mouse.pointerId=event.pointerId;canvas.setPointerCapture(event.pointerId);
+  if(event.button===2){mouse.held=false;mouse.attacking=true;mouse.pointerId=event.pointerId;canvas.setPointerCapture(event.pointerId);game.stopInput();attackAt();return;}
+  const interaction=worldInteractions?.pick(raycaster);if(interaction){chooseInteraction(interaction.kind,interaction.id);return;}
+  if(game.player.interactionTarget)game.send({type:'cancelInteraction'});
+  mouse.held=true;mouse.attacking=false;mouse.pointerId=event.pointerId;canvas.setPointerCapture(event.pointerId);
   selected=mouse.point?pickMob():null;mouse.pickPending=false;
 });
-addEventListener('pointerup',event=>{if(event.pointerId===mouse.pointerId&&!(event.buttons&1))releaseMovement();});
+addEventListener('pointerup',event=>{if(event.pointerId===mouse.pointerId&&!(event.buttons&(mouse.attacking?2:1)))releaseMovement();});
 addEventListener('pointercancel',event=>{if(event.pointerId===mouse.pointerId)clearInput();});
 canvas.addEventListener('lostpointercapture',event=>{if(event.pointerId===mouse.pointerId)clearInput();});
 // Inventory, HUD and overlays belong to the game as much as the canvas.

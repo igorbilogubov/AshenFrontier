@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="game/scene.css">
   <link rel="stylesheet" href="game/panels.css">
   <link rel="stylesheet" href="game/hud.css">
+  <link rel="stylesheet" href="game/inventory-interactions.css">
 </head>
 <body>
   <canvas id="scene" tabindex="0" aria-label="Пепельная опушка. Камера с постоянным углом, колёсико мыши — приближение и отдаление. Удерживайте левую кнопку мыши — идти за курсором; отпустите — остановиться. Shift — переключить ходьбу и бег, пробел или правая кнопка — удар к курсору, Q и E — навыки, R — зелье, F — автоохота на споте, 1 и 2 — оружие."></canvas>
@@ -36,26 +37,15 @@
         <div class="orb-frame"><div class="orb-glass"><i id="hp-fill" class="orb-liquid"></i></div><div class="orb-readout"><span class="orb-label">Здоровье</span><span id="hp-text">100 / 100</span></div></div>
       </div>
       <div class="hud-core">
-        <div class="hero-status">
-          <b id="hero-name">Воин</b>
-          <div class="resources"><span id="gold">0 золота</span><span id="xp">0 опыта</span></div>
-          <button id="afk-toggle" type="button" aria-pressed="false" disabled><span id="afk-status">Автоохота на споте</span><kbd>F</kbd></button>
-          <button id="movement" type="button" aria-pressed="false" aria-label="Бег" title="Перейти на бег · Shift"><span id="movement-label">Ходьба</span><kbd>Shift</kbd></button>
-        </div>
-        <div class="dock">
-          <div class="weapon-controls" role="group" aria-label="Оружие воина">
-            <button type="button" class="weapon selected" data-weapon="sword" aria-pressed="true"><kbd>1</kbd><span class="weapon-icon" aria-hidden="true">⚔</span><span>Меч</span></button>
-            <button type="button" class="weapon" data-weapon="axe" aria-pressed="false"><kbd>2</kbd><span class="weapon-icon" aria-hidden="true">⛏</span><span>Топор</span></button>
-          </div>
-          <button id="attack" type="button"><span class="attack-icon" aria-hidden="true">↗</span><span>Ударить<small>Пробел / ПКМ</small></span><i id="cooldown"></i></button>
-          <button id="special" class="skill-button" type="button"><kbd>Q</kbd><span class="skill-sigil" aria-hidden="true">✧</span><span class="skill-name">Навык</span><small class="skill-meta">Мана</small></button>
-          <button id="skill-secondary" class="skill-button" type="button"><kbd>E</kbd><span class="skill-sigil" aria-hidden="true">❖</span><span class="skill-name">Навык</span><small class="skill-meta">Мана</small></button>
-          <button id="character-toggle" type="button" title="Характеристики · C" aria-controls="character-panel" aria-expanded="false">Герой <kbd>C</kbd><b id="unspent-badge" hidden>0</b></button>
-          <button id="inventory-toggle" type="button" title="Снаряжение · I" aria-controls="inventory-panel" aria-expanded="false">Вещи <kbd>I</kbd></button>
-          <button id="potion" type="button"><span aria-hidden="true">✚</span><span>Зелье <b id="potions">3</b><small>R · +45 здоровья</small></span></button>
-          <button id="reset" type="button" title="Вернуться в безопасный лагерь">К костру</button>
+        <div class="hero-status"><b id="hero-name">Воин</b><div class="resources"><span id="gold">0 золота</span><span id="xp">0 опыта</span></div></div>
+        <div class="dock" role="group" aria-label="Атака, навыки и зелье">
+          <button id="attack" class="action-cell" type="button"><kbd>ПКМ</kbd><span class="attack-icon action-art" aria-hidden="true"></span><span class="action-name">Атака</span><small>Пробел</small><i id="cooldown"></i></button>
+          <button id="special" class="skill-button action-cell" type="button"><kbd>Q</kbd><span class="skill-sigil action-art" aria-hidden="true"></span><span class="skill-name">Навык</span><small class="skill-meta">Мана</small></button>
+          <button id="skill-secondary" class="skill-button action-cell" type="button"><kbd>E</kbd><span class="skill-sigil action-art" aria-hidden="true"></span><span class="skill-name">Навык</span><small class="skill-meta">Мана</small></button>
+          <button id="potion" class="action-cell" type="button"><kbd>R</kbd><span class="potion-icon action-art" aria-hidden="true"></span><span class="action-name">Зелье <b id="potions">3</b></span><small>+45 здоровья</small></button>
         </div>
         <div class="hud-experience" aria-label="Опыт до следующего уровня"><i id="hud-xp-fill"></i></div>
+        <div class="auxiliary-controls"><button id="afk-toggle" type="button" aria-pressed="false" disabled><span id="afk-status">Автоохота</span><kbd>F</kbd></button><button id="movement" type="button" aria-pressed="false"><span id="movement-label">Ходьба</span><kbd>Shift</kbd></button><button id="reset" type="button" title="Вернуться в безопасный лагерь">К костру</button></div>
       </div>
       <div id="mana-orb" class="resource-orb mana-orb" role="progressbar" aria-label="Мана" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
         <div class="orb-frame"><div class="orb-glass"><i id="mana-fill" class="orb-liquid" style="height:0%"></i></div><div class="orb-readout"><span class="orb-label">Мана</span><span id="mana-text">0 / 0</span></div></div>
@@ -64,6 +54,7 @@
     <div class="controls-hint"><span>ЛКМ — идти · ПКМ / пробел — удар · Q / E — навыки · колесо — зум</span><span id="performance" aria-label="Частота кадров">— FPS</span></div>
     <p id="save-status" class="prototype-note">Общий мир · прогресс сохраняется на сервере</p>
   </footer>
+  <nav class="hero-shortcuts" aria-label="Окна героя"><button id="character-toggle" type="button" title="Характеристики · C" aria-controls="character-panel" aria-expanded="false"><span class="shortcut-icon" aria-hidden="true"></span><span>Герой</span><kbd>C</kbd><b id="unspent-badge" hidden>0</b></button><button id="inventory-toggle" type="button" title="Снаряжение · I" aria-controls="inventory-panel" aria-expanded="false"><span class="shortcut-icon" aria-hidden="true"></span><span>Вещи</span><kbd>I</kbd></button></nav>
   <div id="death-screen" hidden><p class="eyebrow">ВЫ ПАЛИ В БОЮ</p><h2>Костёр ещё горит</h2><p>Возвращаемся в лагерь…</p><small>Опыт и золото этой вылазки сохраняются.</small></div>
   <div id="loading" role="status"><span class="mark">✦</span><h2>Открываем лесную тропу…</h2><p id="load-progress">Готовим локацию и её обитателей</p><button id="retry" type="button" hidden>Повторить</button></div>
   <section id="join-panel" class="panel-overlay" hidden aria-label="Вход в мир">
@@ -100,10 +91,10 @@
     <div class="panel-body">
       <p id="hero-details" class="equipment-caption"></p><div id="equipment-slots" class="equipment-grid"><div id="equipment-figure" class="equipment-figure" aria-hidden="true"></div></div>
       <div class="section-heading"><h3>Рюкзак</h3><span id="bag-count">0 / 16</span></div><div id="bag-items" class="bag-grid" role="group" aria-label="Предметы в рюкзаке"></div>
-      <p class="bag-hint">Надетые вещи находятся в слотах героя и не занимают рюкзак. Чтобы снять вещь, выберите её в экипировке.</p>
+      <p class="bag-hint" id="inventory-hint">Наведите для описания · ПКМ — надеть / снять · перетащите в слот</p>
       <section id="item-detail" class="item-detail" aria-label="Выбранный предмет"><div id="item-detail-icon" class="item-detail-icon" aria-hidden="true"></div><div class="item-description"><span id="item-rarity" class="eyebrow">ВАШЕ СНАРЯЖЕНИЕ</span><h3 id="item-name">Выберите предмет</h3><p id="item-bonus">Вещи усиливают характеристики героя.</p><div id="item-rolls" class="item-rolls"></div><p id="item-restriction"></p><span id="item-worn"></span></div><div class="item-actions"><button id="item-equip" class="primary-button" type="button" disabled>Надеть</button><button id="item-sell" class="subtle-button" type="button" disabled>Продать</button></div></section>
       <button id="claim-items" class="subtle-button" type="button" hidden>Забрать ожидающие вещи</button>
-      <details class="camp-services key-services"><summary>Доступ с другого устройства</summary><button id="copy-key" class="subtle-button" type="button">Скопировать ключ героя</button><small>Ключ открывает вашего героя на этом сервере. Храните его как пароль.</small></details>
+      <div class="weapon-controls" role="group" aria-label="Прежнее оружие"><button type="button" class="weapon selected" data-weapon="sword" aria-pressed="true">Меч <kbd>1</kbd></button><button type="button" class="weapon" data-weapon="axe" aria-pressed="false">Топор <kbd>2</kbd></button></div><details class="camp-services key-services"><summary>Доступ с другого устройства</summary><button id="copy-key" class="subtle-button" type="button">Скопировать ключ героя</button><small>Ключ открывает вашего героя на этом сервере. Храните его как пароль.</small></details>
     </div><div class="panel-bottom inventory-bottom"><span id="inventory-gold">0 золота</span><a class="workshop-link" href="/game/equipment-preview.html" target="_blank" rel="noopener">Примерка классов ↗</a><span id="inventory-status">Снаряжение меняется у костра</span></div>
   </aside>
   <aside id="chat-panel" aria-label="Чат мира"><div id="chat-lines" aria-live="polite"></div><form id="chat-form"><input id="chat-input" placeholder="Чат мира · Enter" maxlength="180" aria-label="Сообщение в чат"><button type="submit" aria-label="Отправить сообщение">↗</button></form></aside>

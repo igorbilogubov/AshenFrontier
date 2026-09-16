@@ -5,10 +5,19 @@ import * as T from '../dist/public/game/vendor/three.module.js';
 import {GLTFLoader} from '../dist/public/game/vendor/GLTFLoader.js';
 import {clone} from '../dist/public/game/vendor/SkeletonUtils.js';
 import {createAnimatedWarrior,CLIP_NAMES} from '../dist/public/game/character.js';
-import {CLASS_ITEMS,EQUIPMENT_ITEMS,rollEquipment,validateEquipment,equipmentAppearance} from '../dist/public/game/equipment-items.js';
+import {CLASS_ITEMS,RARE_CLASS_ITEMS,EQUIPMENT_ITEMS,rollEquipment,validateEquipment,equipmentAppearance} from '../dist/public/game/equipment-items.js';
 import {itemArtKey} from '../dist/public/game/item-icons.js';
 import {canEquip,characterStats} from '../dist/public/rules.js';
 const slots=['weapon','armor','helmet','boots','ring','amulet'];
+
+test('rare equipment uses the existing image for its actual appearance in every class and slot',async()=>{
+  for(const classId of ['warrior','archer','mage'])for(const definition of RARE_CLASS_ITEMS[classId]){
+    const item=rollEquipment(definition.id,'rare-icon',()=>.5),base=CLASS_ITEMS[classId].find(candidate=>candidate.appearance===definition.appearance&&candidate.slot===definition.slot);
+    assert.equal(item.rarity,2);assert.equal(itemArtKey(item,classId),base.id);
+    const png=await fs.readFile(new URL('../public/game/item-icons/'+itemArtKey(item,classId)+'.png',import.meta.url));
+    assert.equal(png.readUInt32BE(16),256);assert.equal(png.readUInt32BE(20),256);
+  }
+});
 
 test('each class has ten unique definitions and six slots, with stable validated rolls and art',async()=>{
   assert.equal(EQUIPMENT_ITEMS.length,60);assert.equal(new Set(EQUIPMENT_ITEMS.map(i=>i.id)).size,60);

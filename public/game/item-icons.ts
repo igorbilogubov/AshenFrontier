@@ -1,4 +1,4 @@
-import {EQUIPMENT_ITEMS} from './equipment-items.js';
+import {CLASS_ITEMS,EQUIPMENT_ITEMS} from './equipment-items.js';
 import type {ClassId,EquipmentSlot,StatKey,Item,WeaponId} from '../../shared/types.js';
 // Quiet vector guides are only for empty slots and attribute labels.
 const shapes={
@@ -22,9 +22,10 @@ export function itemIcon(slot:EquipmentSlot|StatKey,classId:ClassId='warrior'){
 export const heroSilhouette='<svg viewBox="0 0 120 210" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true" focusable="false"><path d="m60 8 13 7 3 18-8 12H52l-8-12 3-18Z M48 46 12 61 8 91l15 14 8-28 5 49-5 20 17 7 12-18 12 18 17-7-5-20 5-49 8 28 15-14-4-30-36-15M48 153l-6 41-10 9v4h22l6-54 6 54h22v-4l-10-9-6-41M38 61l22 12 22-12M60 73v62M36 126h48M47 23l13 4 13-4M55 32h10"/><path d="M20 11h80M11 106h98M20 204h80" stroke-dasharray="2 6" opacity=".5"/></svg>';
 
 // Explicit asset keys: item names, ids and server strings never become HTML/URLs.
-const definitionIcons=new Set(EQUIPMENT_ITEMS.map(item=>item.id));
+const baseArtwork=Object.values(CLASS_ITEMS).flat();
+const definitionIcons=new Map(EQUIPMENT_ITEMS.map(item=>[item.id,baseArtwork.find(base=>base.classId===item.classId&&base.slot===item.slot&&base.appearance===item.appearance)?.id??item.id]));
 export function itemArtKey(item:Item,ownerClass:ClassId='warrior',weapon:WeaponId='sword'){
-  if(item.definitionId&&definitionIcons.has(item.definitionId))return item.definitionId;
+  if(item.definitionId&&definitionIcons.has(item.definitionId))return definitionIcons.get(item.definitionId)!;
   const classId=item.classId??ownerClass;
   if(item.slot==='weapon')return classId==='archer'?'ranger-bow':classId==='mage'?'acolyte-staff':weapon==='axe'?'legacy-axe':'wanderer-blade';
   if(item.slot==='armor')return classId==='archer'?'ranger-armor':classId==='mage'?'acolyte-armor':'watch-armor';

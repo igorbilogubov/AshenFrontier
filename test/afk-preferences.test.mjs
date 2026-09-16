@@ -10,7 +10,7 @@ import pg from 'pg';
 import {World,newHero,makeLoot,persistentHero,stats} from '../dist/world.js';
 import {rollEquipment} from '../dist/public/game/equipment-items.js';
 import {AFK_SPOTS} from '../dist/public/game/location.js';
-import {defaultAfkPreferences,parseAfkPreferences,afkCombatRadius} from '../dist/public/game/afk-preferences.js';
+import {AFK_PICKUP_RARITIES,defaultAfkPreferences,parseAfkPreferences,afkCombatRadius} from '../dist/public/game/afk-preferences.js';
 import {createTestDatabase,hasTestDatabase} from './helpers/postgres.mjs';
 import {openHeroStore} from '../dist/storage/postgres.js';
 import {testPlayer} from './helpers/network.mjs';
@@ -25,6 +25,14 @@ function fixture(classId='warrior'){
   return {w,p,spot};
 }
 const step=(w,n=1)=>{for(let i=0;i<n;i++)w.tick(.05,w.t+50);};
+
+test('AFK pickup preferences expose every supported rarity',()=>{
+  assert.deepEqual(AFK_PICKUP_RARITIES,[0,1,2,3,4]);
+  assert.deepEqual(defaultAfkPreferences('warrior').pickupRarities,[0,1,2,3,4]);
+  const valid={...defaultAfkPreferences('warrior'),pickupRarities:[3,4]};
+  assert.deepEqual(parseAfkPreferences(valid,'warrior'),valid);
+  assert.equal(parseAfkPreferences({...valid,pickupRarities:[5]},'warrior'),null);
+});
 
 test('settings reject malformed or foreign class skills while a valid update keeps AFK running',()=>{
   const {w,p}=fixture(),before=structuredClone(p.afkPreferences);

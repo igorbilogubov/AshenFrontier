@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from '../dist/public/game/vendor/three.module.js';
 import {bindTargetPresentation} from '../dist/public/game/target-presentation.js';
-import {possibleLoot} from '../dist/public/game/possible-loot.js';
-import {CLASS_ITEMS,rollEquipment} from '../dist/public/game/equipment-items.js';
-import {GEAR_CHANCE} from '../dist/public/game/loot-rules.js';
+import {lootRegionForType,possibleLoot} from '../dist/public/game/possible-loot.js';
+import {regionalEquipment} from '../dist/public/game/equipment-items.js';
+import {BOSS_GEAR_CHANCE,BOSS_RARITY_CHANCES,GEAR_CHANCE} from '../dist/public/game/loot-rules.js';
 import {MOB_TYPES} from '../dist/public/game/location.js';
 
 class ElementStub{
@@ -32,12 +32,24 @@ test('possible loot uses live mob coins, real one-item chance and only currently
     assert.deepEqual(view.categories.map(category=>category.id),['gold','weapon','armor','accessory']);
     assert.equal(view.categories[0].rarity,'gold');
     for(const category of view.categories.slice(1)){
-      const matching=Object.values(CLASS_ITEMS).flat().filter(item=>category.slots.includes(item.slot));
+      const matching=['warrior','archer','mage'].flatMap(classId=>regionalEquipment(classId,lootRegionForType(type),category.rarity)).filter(item=>category.slots.includes(item.slot));
       assert(matching.length>0);
-      assert(matching.every(item=>rollEquipment(item.id,'test-only',()=>0).rarity===category.rarity));
+      assert(matching.every(item=>item.rarity===category.rarity));
     }
     assert(!view.categories.some(category=>category.rarity===2),'no unimplemented rare drop is advertised');
   }
+});
+
+test('late regions keep their own catalog and a dungeon boss advertises all four mutually exclusive tiers',()=>{
+  assert.equal(lootRegionForType('swamp-frog'),'swamp');
+  assert.equal(lootRegionForType('stone-guardian'),'mines');
+  assert.equal(lootRegionForType('lava-elemental'),'rift');
+  assert.equal(lootRegionForType('iron-warden'),'citadel');
+  const view=possibleLoot('iron-warden',undefined,'citadel-dungeon');
+  assert.equal(view.itemChance,BOSS_GEAR_CHANCE);
+  assert.equal(view.categories.length,13);
+  assert.deepEqual([...new Set(view.categories.slice(1).map(category=>category.rarity))],[1,2,3,4]);
+  for(const category of view.categories.slice(1))assert.equal(category.chance,BOSS_RARITY_CHANCES[category.rarity]);
 });
 
 test('selected mob gets center name/HP/real loot and ring; vendor/player remove loot, null clears all',()=>{
@@ -65,6 +77,11 @@ test('selected mob gets center name/HP/real loot and ring; vendor/player remove 
     update({kind:'player',id:'other',name:'Рунный странник',x:5,z:4,hp:40,maxHp:90});
     assert.equal(names['target-health'].textContent,'40 / 90');assert.equal(names['target-panel'].bar.hidden,false);
     assert.equal(loot.hidden,true);assert.equal(ring.visible,true);
+    update({kind:'mob',type:'iron-warden',bossId:'citadel-dungeon',dungeonId:'citadel-dungeon',name:'Железный страж',x:8,z:9,hp:900,maxHp:1000});
+    assert(names['target-panel'].className.includes('boss-target'));
+    assert.equal(row.children.length,13);
+    assert(row.children.some(badge=>badge.className.includes('rarity-3')));
+    assert(row.children.some(badge=>badge.className.includes('rarity-4')));
     update(null);assert.equal(names['target-panel'].hidden,true);assert.equal(ring.visible,false);
   }finally{globalThis.document=prior;}
 });

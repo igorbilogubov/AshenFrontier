@@ -8,6 +8,7 @@ import {backpackUsage,consumableDefinition} from './consumables.js';
 import {safe} from './location.js';
 import {itemIcon,itemArtwork,itemArtKey,heroSilhouette} from './item-icons.js';
 import {element as $} from './ui-types.js';
+import {MAX_LEVEL} from './progression-curve.js';
 import type {NetworkGame} from './network.js';
 import type {Attributes,ClassId,EquipmentSlot,StatKey,WorldEvent,Item,WeaponId} from '../../shared/types.js';
 type PanelName='character'|'inventory';
@@ -136,8 +137,9 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
     const current=characterStats(p),proposed:Attributes={...p.allocatedStats};
     for(const stat of STAT_KEYS)proposed[stat]+=draft[stat];
     const preview=characterStats({...p,allocatedStats:proposed}),spent=total(draft),progression=CLASS_PROGRESSION[p.classId];
+    const maxed=p.level>=MAX_LEVEL;
     write($('character-name'),p.name);write($('character-class'),c.name);write($('character-level'),p.level);setIcon($('class-emblem'),'weapon',p.classId);
-    write($('character-xp'),p.xpNeeded>0?`${p.xp} / ${p.xpNeeded} опыта`:'Максимальный уровень');$('character-xp-fill').style.transform=`scaleX(${clampRatio(p.xp,p.xpNeeded)})`;
+    write($('character-xp'),maxed?'Максимальный уровень':`${p.xp} / ${p.xpNeeded} опыта`);$('character-xp-fill').style.transform=`scaleX(${maxed?1:clampRatio(p.xp,p.xpNeeded)})`;
     write($('class-role'),progression.description);write($('stat-points'),Math.max(0,(p.unspentPoints||0)-spent));
     for(const stat of STAT_KEYS){
       const nodes=statNodes.get(stat)!;write(nodes.description,progression.statDescriptions[stat]);write(nodes.number,preview.attributes[stat]);write(nodes.gain,`+${draft[stat]}`);nodes.gain.hidden=!draft[stat];nodes.value.classList.toggle('changed',draft[stat]>0);
@@ -181,10 +183,11 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
   }
   function update(){
     const p=game.player,c=CLASSES[p.classId];if(!c)return;
-    write($('hero-name'),`${p.name} · ${c.name} ${p.level}`);write($('hud-xp-text'),p.xpNeeded>0?`${p.xp} / ${p.xpNeeded} XP`:'Макс. уровень');
-    $('hud-experience').setAttribute('aria-valuemax',String(p.xpNeeded||0));$('hud-experience').setAttribute('aria-valuenow',String(p.xp||0));
+    const maxed=p.level>=MAX_LEVEL;
+    write($('hero-name'),`${p.name} · ${c.name} ${p.level}`);write($('hud-xp-text'),maxed?'Макс. уровень':`${p.xp} / ${p.xpNeeded} XP`);
+    $('hud-experience').setAttribute('aria-valuemax',String(maxed?1:p.xpNeeded));$('hud-experience').setAttribute('aria-valuenow',String(maxed?1:p.xp));
     write($('mana-text'),`${Math.floor(p.mana||0)} / ${p.maxMana||0}`);$('mana-fill').style.height=`${clampRatio(p.mana,p.maxMana)*100}%`;
-    $('mana-orb').setAttribute('aria-valuemax',String(p.maxMana||0));$('mana-orb').setAttribute('aria-valuenow',String(Math.floor(p.mana||0)));$('hud-xp-fill').style.transform=`scaleX(${clampRatio(p.xp,p.xpNeeded)})`;
+    $('mana-orb').setAttribute('aria-valuemax',String(p.maxMana||0));$('mana-orb').setAttribute('aria-valuenow',String(Math.floor(p.mana||0)));$('hud-xp-fill').style.transform=`scaleX(${maxed?1:clampRatio(p.xp,p.xpNeeded)})`;
     for(const [index,buttonId] of (['special','skill-secondary','skill-tertiary','skill-quaternary'] as const).entries()){
       const button=$(buttonId),skillId=p.skillBuild?.slots[index]??null,base=skillId?SKILLS[skillId]:undefined,skill=base?effectiveSkill(p,base.id):undefined,rawRemaining=skill?p.skillCooldowns?.[skill.id]??0:0,remaining=Number.isFinite(rawRemaining)?Math.max(0,rawRemaining):0;
       if(button.dataset.skill!==(skill?.id||'')){button.querySelector('.skill-sigil')!.innerHTML=skill?actionIcon(skill.id):'';button.dataset.skill=skill?.id||'';}

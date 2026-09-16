@@ -4,13 +4,14 @@ import {BAG_CAPACITY,backpackItems,canEquip,CLASSES,EQUIPMENT_SLOTS,itemBonus} f
 import {safe,distance} from './location.js';
 import {renderItemRolls} from './item-details.js';
 import {itemArtwork} from './item-icons.js';
-import {rollEquipment} from './equipment-items.js';
+import {ITEM_STAT_LABELS,rollEquipment,rollUnit} from './equipment-items.js';
 import {SHOP,shopItems,sellPrice} from './shop.js';
 import {CONSUMABLES,CONSUMABLE_LIMIT,backpackUsage,consumableDefinition,consumableQuantity} from './consumables.js';
 import {PERSONAL_CHEST} from './personal-stash.js';
 import {actionIcon} from './action-icons.js';
+import {equippedSetCounts,itemSet} from './equipment-sets.js';
 
-const rarities=['Обычный','Необычный','Редкий'];
+export const RARITY_LABELS=['Обычный','Необычный','Редкий','Возвышенный','Сетовый'] as const;
 const node=<K extends keyof HTMLElementTagNameMap>(tag:K,className='',text='')=>{const value=document.createElement(tag);value.className=className;value.textContent=text;return value;};
 export function tooltipPosition(anchor:Pick<DOMRect,'left'|'right'|'top'|'bottom'>,width:number,height:number,viewportWidth:number,viewportHeight:number){
   const margin=12;
@@ -90,10 +91,21 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
     if(hover===element&&hoverSignature===key&&!tooltip.hidden)return;
     hideTooltip();hover=element;hoverSignature=key;element.setAttribute('aria-describedby',tooltip.id);tooltip.replaceChildren();
     const head=node('div','tooltip-heading'),art=node('div','tooltip-art');art.innerHTML=itemArtwork(item,item.classId||game.player.classId);
-    const text=node('div');text.append(node('p',`eyebrow rarity-text-${item.rarity}`,`${rarities[item.rarity]||rarities[0]} · ${EQUIPMENT_SLOTS[item.slot].name}`),node('h3','',item.name));head.append(art,text);
+    const text=node('div');text.append(node('p',`eyebrow rarity-text-${item.rarity}`,`${RARITY_LABELS[item.rarity]||RARITY_LABELS[0]} · ${EQUIPMENT_SLOTS[item.slot].name}`),node('h3','',item.name));head.append(art,text);
     tooltip.append(head,node('p','tooltip-requirements',`${item.classId?CLASSES[item.classId].name:'Все классы'} · уровень предмета ${item.itemLevel||1}`));
     const values=node('div','item-rolls');renderItemRolls(values,item,game.player.items.find(other=>other.id===game.player.equipment[item.slot]));
     if(!item.rolls)values.append(node('p','',itemBonus(item)));tooltip.append(values);
+    const set=itemSet(item);
+    if(set){
+      const count=equippedSetCounts(game.player).get(set.id)??0,section=node('section','tooltip-set');
+      section.append(node('p','tooltip-set-name',`${set.name} · надето ${count} / 6`));
+      for(const bonus of set.bonuses){
+        const line=node('p',count>=bonus.pieces?'active':'');
+        line.textContent=`${bonus.pieces} предмета: ${bonus.stats.map(stat=>`${ITEM_STAT_LABELS[stat.key]} +${stat.value}${rollUnit(stat.key)}`).join(' · ')}`;
+        section.append(line);
+      }
+      tooltip.append(section);
+    }
     if(!canEquip(game.player,item))tooltip.append(node('p','tooltip-warning','Этот предмет предназначен другому классу'));
     const worn=Object.values(game.player.equipment).includes(item.id);
     const listing=shopItems().find(value=>value.definitionId===element.dataset.definitionId);

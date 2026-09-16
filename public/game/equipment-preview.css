@@ -5,4 +5,4 @@
 
 .catalog button .item-artwork{width:100%;height:52px;min-height:0}.detail-heading #sample-icon .item-artwork{width:100%;height:100%}
 
-.collection-filters{display:flex;gap:12px;flex-wrap:wrap;margin:0 0 18px}.collection-filters label{display:grid;gap:6px;font-size:11px;color:#b7b99f}.collection-filters select{padding:9px;border:1px solid #4e594a;background:#17271f;color:#e0d7b4;font:inherit}.presets button[hidden]{display:none}
+.collection-filters{display:flex;gap:12px;flex-wrap:wrap;margin:0 0 18px}.collection-filters label{display:grid;gap:6px;font-size:11px;color:#b7b99f}.collection-filters select{padding:9px;border:1px solid #4e594a;background:#17271f;color:#e0d7b4;font:inherit}.collection-filters .enhancement-control{flex:1 0 100%}.enhancement-control span{display:flex;align-items:center;gap:9px}.enhancement-control input{flex:1;accent-color:#58d4c0}.enhancement-control output{width:24px;color:#70decb;font-variant-numeric:tabular-nums}.enhancement-control small{color:#7d9384;font-size:9px}.presets button[hidden]{display:none}

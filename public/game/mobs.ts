@@ -5,14 +5,14 @@ export type MobAssets=Partial<Record<MobType,GLTF>>;
 import {clone} from './vendor/SkeletonUtils.js';
 import {mesh,box,joint} from './models.js';
 import {contactShadow} from './forms.js';
-import {MOB_TYPES} from './location.js';
+import {MOB_TYPES,mobConfig} from './location.js';
 import {angleDelta} from './motion.js';
 
 export const CREATURE_CLIPS=['Idle','Walk','Run','Attack','Hit','Death'] as const;
 export const WOLF_CLIPS=[...CREATURE_CLIPS,'Turn_Left','Turn_Right'] as const;
 export const BEAR_CLIPS=[...CREATURE_CLIPS,'Turn_Left','Turn_Right'] as const;
 export const ATTACK_CONTACT=.68;
-export const STRIDES={wolf:{walk:.72,run:1.12},boar:{walk:.52,run:.82},alpha:{walk:.70,run:1.12},bear:{walk:.72,run:1.00}};
+export const STRIDES={wolf:{walk:.72,run:1.12},boar:{walk:.52,run:.82},alpha:{walk:.70,run:1.12},bear:{walk:.72,run:1.00},lynx:{walk:.72,run:1.00},yak:{walk:.72,run:1.00},'frost-spider':{walk:.62,run:.90},'ice-golem':{walk:.64,run:.92}};
 // Mesh-local bind-space bounds, sampled from the shipped GLBs throughout every
 // exported clip (including lunge and death), with at least .12 m clearance.
 // Three.js transforms these fixed boxes/spheres with each skinned mesh; no
@@ -21,7 +21,11 @@ const CULLING_BOUNDS:Readonly<Record<MobType,Readonly<{min:readonly [number,numb
   wolf:{min:[-1.5,-.2,-1.45],max:[.6,1.65,1.5]},
   boar:{min:[-1.5,-.2,-1.1],max:[.6,1.5,1.4]},
   alpha:{min:[-1.65,-.2,-1.45],max:[.5,1.75,1.5]},
-  bear:{min:[-1.75,-.2,-1.2],max:[.75,1.8,1.65]}
+  bear:{min:[-1.75,-.2,-1.2],max:[.75,1.8,1.65]},
+  lynx:{min:[-1.81,-0.14,-1.18],max:[0.72,1.94,1.4]},
+  yak:{min:[-1.92,-0.14,-1.18],max:[0.86,2.18,1.56]},
+  'frost-spider':{min:[-1.48,-0.13,-1.21],max:[1.48,1.15,1.36]},
+  'ice-golem':{min:[-1.28,-0.16,-0.72],max:[1.28,2.46,2.36]}
 });
 let assetPromise:Promise<MobAssets>|undefined;
 export function loadMobAssets(){
@@ -32,13 +36,22 @@ export function loadMobAssets(){
   })).then(entries=>Object.fromEntries(entries));
 }
 
-export function createMob(type:MobType,assets:MobAssets){
-  const cfg=MOB_TYPES[type],asset=assets?.[type];
+export function createMob(type:MobType,assets:MobAssets,eliteId?:string){
+  const cfg=mobConfig({type,eliteId}),asset=assets?.[type];
   if(!cfg||!asset)throw new Error(`Модель ${type} не загружена`);
   const root=new T.Group(),body=clone(asset.scene);root.name=`Creature_${type}`;body.scale.setScalar(cfg.scale);root.add(body);
-  const contact=contactShadow(root,(type==='bear'?1.55:1.25)*cfg.scale,2.45*cfg.scale);
+  const contact=contactShadow(root,(type==='frost-spider'?2.3:type==='bear'||type==='yak'?1.55:1.25)*cfg.scale,(type==='ice-golem'?1.5:2.45)*cfg.scale);
+  const eliteMaterials=new Map<T.Material,T.Material>();
   body.traverse(o=>{if(o instanceof T.Mesh){
     o.castShadow=true;o.receiveShadow=true;o.frustumCulled=true;
+    if(eliteId){
+      const accent=(source:T.Material)=>{
+        let material=eliteMaterials.get(source);
+        if(!material){material=source.clone();if(material instanceof T.MeshStandardMaterial){material.emissive.set(type==='yak'||type==='ice-golem'?'#65bfe7':'#b8772c');material.emissiveIntensity=.12;}eliteMaterials.set(source,material);}
+        return material;
+      };
+      o.material=Array.isArray(o.material)?o.material.map(accent):accent(o.material);
+    }
     if(o instanceof T.SkinnedMesh){
       const {min,max}=CULLING_BOUNDS[type];
       o.boundingBox=new T.Box3(new T.Vector3(...min),new T.Vector3(...max));
@@ -47,7 +60,7 @@ export function createMob(type:MobType,assets:MobAssets){
     for(const mat of Array.isArray(o.material)?o.material:[o.material])if(mat instanceof T.MeshStandardMaterial&&mat.map)mat.map.anisotropy=4;
   }});
   const clips=Object.fromEntries(asset.animations.map(c=>[c.name,c]));
-  const clipNames=Object.keys(clips),refined=(type==='wolf'||type==='bear')&&!!clips.Turn_Left&&!!clips.Turn_Right;
+  const clipNames=Object.keys(clips),refined=!!clips.Turn_Left&&!!clips.Turn_Right;
   const mixer=new T.AnimationMixer(body),actions:Record<string,T.AnimationAction>={},weights:Record<string,number>={};
   for(const name of clipNames){const a=mixer.clipAction(clips[name]).play();a.paused=true;a.setEffectiveWeight(name==='Idle'?1:0);actions[name]=a;weights[name]=name==='Idle'?1:0;}
   const additive=clips.Hit.clone();additive.name='Hit_UpperBody';
@@ -55,9 +68,9 @@ export function createMob(type:MobType,assets:MobAssets){
   T.AnimationUtils.makeClipAdditive(additive,0,clips.Idle,30);
   const reaction=mixer.clipAction(additive).play();reaction.paused=true;reaction.weight=0;
 
-  const health=joint(root,0,(type==='boar'?1.45:type==='bear'?1.84:1.78)*cfg.scale,0);
+  const health=joint(root,0,(type==='frost-spider'?1.22:type==='ice-golem'?2.42:type==='yak'?2.0:type==='boar'?1.45:type==='bear'?1.84:type==='lynx'?1.92:1.78)*cfg.scale,0);
   box(health,1.12,.08,.018,new T.MeshBasicMaterial({color:'#1c2420'}));
-  const fill=box(health,1.06,.045,.022,new T.MeshBasicMaterial({color:type==='alpha'?'#dfaf69':'#be705b'}),0,0,.015);
+  const fill=box(health,1.06,.045,.022,new T.MeshBasicMaterial({color:eliteId||type==='alpha'?'#dfaf69':'#be705b'}),0,0,.015);
   health.traverse(o=>{o.castShadow=false;o.receiveShadow=false;});
   const warning=mesh(root,new T.RingGeometry(.05,cfg.range+.2,40,1,Math.PI/2-.72,1.44),new T.MeshBasicMaterial({color:'#ff8a36',transparent:true,opacity:.3,side:T.DoubleSide,depthWrite:false}));
   warning.rotation.x=Math.PI/2;warning.position.y=.025;warning.castShadow=false;warning.receiveShadow=false;warning.visible=false;

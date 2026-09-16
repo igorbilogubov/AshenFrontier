@@ -1,0 +1,23 @@
+{
+  "type": "frost-spider",
+  "bones": 28,
+  "vertices": 1998,
+  "triangles": 3840,
+  "materials": 4,
+  "unweighted": 0,
+  "clips": {
+    "Idle": 2.8,
+    "Walk": 1.6,
+    "Run": 0.9,
+    "Attack": 1.2,
+    "Hit": 0.5,
+    "Death": 1.6,
+    "Turn_Left": 1.6,
+    "Turn_Right": 1.6
+  },
+  "strides": {
+    "walk": 0.62,
+    "run": 0.9
+  },
+  "bytes": 432392
+}

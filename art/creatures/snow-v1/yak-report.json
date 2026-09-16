@@ -1,0 +1,23 @@
+{
+  "type": "yak",
+  "bones": 24,
+  "vertices": 7734,
+  "triangles": 15256,
+  "materials": 4,
+  "unweighted": 0,
+  "clips": {
+    "Idle": 2.8,
+    "Walk": 1.6,
+    "Run": 0.9,
+    "Attack": 1.2,
+    "Hit": 0.5,
+    "Death": 1.6,
+    "Turn_Left": 1.6,
+    "Turn_Right": 1.6
+  },
+  "strides": {
+    "walk": 0.72,
+    "run": 1.0
+  },
+  "bytes": 772548
+}

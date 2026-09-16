@@ -170,13 +170,59 @@ UPDATE heroes h SET consumable_overflow=GREATEST(0,
   (SELECT count(*) FROM consumable_stacks c WHERE c.hero_id=h.id) - 16);
 `;
 
+// Legacy guest heroes remain intact but cannot be claimed by an OAuth account.
+const accountsSchema=`
+CREATE TABLE accounts (
+  id uuid PRIMARY KEY,
+  google_sub text NOT NULL UNIQUE CHECK (length(google_sub) BETWEEN 1 AND 255),
+  email text NOT NULL CHECK (length(email) BETWEEN 1 AND 320),
+  name text NOT NULL CHECK (length(name) BETWEEN 1 AND 256),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE heroes DROP COLUMN token_hash;
+ALTER TABLE heroes ADD COLUMN account_id uuid REFERENCES accounts(id);
+ALTER TABLE heroes ADD COLUMN account_slot integer CHECK (account_slot BETWEEN 1 AND 5);
+ALTER TABLE heroes ADD CONSTRAINT hero_account_slot CHECK ((account_id IS NULL) = (account_slot IS NULL));
+ALTER TABLE heroes ADD CONSTRAINT account_character_slots UNIQUE (account_id,account_slot);
+CREATE FUNCTION assign_character_slot() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF TG_OP='UPDATE' THEN
+    IF NEW.account_id IS DISTINCT FROM OLD.account_id OR NEW.account_slot IS DISTINCT FROM OLD.account_slot THEN
+      RAISE EXCEPTION 'Hero ownership cannot change' USING ERRCODE='23514';
+    END IF;
+    RETURN NEW;
+  END IF;
+  IF NEW.account_id IS NULL THEN
+    RAISE EXCEPTION 'Account required for new heroes' USING ERRCODE='23514';
+  END IF;
+  PERFORM 1 FROM accounts WHERE id=NEW.account_id FOR UPDATE;
+  SELECT slot INTO NEW.account_slot FROM generate_series(1,5) slot
+    WHERE NOT EXISTS (SELECT 1 FROM heroes WHERE account_id=NEW.account_id AND account_slot=slot)
+    ORDER BY slot LIMIT 1;
+  IF NEW.account_slot IS NULL THEN
+    RAISE EXCEPTION 'Account character limit reached' USING ERRCODE='23514';
+  END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER character_account_guard BEFORE INSERT OR UPDATE OF account_id,account_slot ON heroes
+  FOR EACH ROW EXECUTE FUNCTION assign_character_slot();
+CREATE TABLE account_sessions (
+  token_hash text PRIMARY KEY CHECK (token_hash ~ '^[0-9a-f]{64}$'),
+  account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  expires_at timestamptz NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX account_session_expiry ON account_sessions(expires_at);
+`;
+
 export async function migrate(client:PoolClient):Promise<void>{
   await client.query('BEGIN');
   try{
     await client.query('SELECT pg_advisory_xact_lock(8675309, 4733)');
     await client.query('CREATE TABLE IF NOT EXISTS schema_migrations (version integer PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())');
     const applied=await client.query<{version:number}>('SELECT version FROM schema_migrations');
-    if([1,2,3,4].some(version=>!applied.rows.some(row=>row.version===version))){
+    if([1,2,3,4,5].some(version=>!applied.rows.some(row=>row.version===version))){
       // Data migrations must never copy counters while an older process can
       // still buy or consume them. Read-only opens of a current schema stay free.
       const world=await client.query<{locked:boolean}>('SELECT pg_try_advisory_xact_lock(8675309, 4732) AS locked');
@@ -190,6 +236,8 @@ export async function migrate(client:PoolClient):Promise<void>{
     if(!third.rowCount){await client.query(afkPreferencesSchema);await client.query('INSERT INTO schema_migrations(version) VALUES (3)');}
     const fourth=await client.query<{version:number}>('SELECT version FROM schema_migrations WHERE version=4');
     if(!fourth.rowCount){await client.query(consumableInventorySchema);await client.query('INSERT INTO schema_migrations(version) VALUES (4)');}
+    const fifth=await client.query<{version:number}>('SELECT version FROM schema_migrations WHERE version=5');
+    if(!fifth.rowCount){await client.query(accountsSchema);await client.query('INSERT INTO schema_migrations(version) VALUES (5)');}
     await client.query('COMMIT');
   }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}
 }

@@ -1,7 +1,8 @@
-import {createHash} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
 import pg from 'pg';
 import type {PoolClient} from 'pg';
 import type {EquipmentSlot,Item,PersistentHero,ConsumableStack} from '../shared/types.js';
+import {MAX_CHARACTERS,type Account,type CharacterSummary,type GoogleIdentity} from '../shared/accounts.js';
 import {migrate} from './schema.js';
 import {BAG_CAPACITY,STASH_CAPACITY,backpackItems} from '../public/rules.js';
 import {CONSUMABLE_LIMIT,validateConsumables,backpackUsage,consumableKindQuantity} from '../public/game/consumables.js';
@@ -19,23 +20,27 @@ function canonical(value:unknown):string{
   if(value&&typeof value==='object')return `{${Object.entries(value).filter(([,v])=>v!==undefined).sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>`${JSON.stringify(k)}:${canonical(v)}`).join(',')}}`;
   return JSON.stringify(value);
 }
-function tokenHash(token:string):string{
-  if(typeof token!=='string'||!token.length)throw new Error('Hero token is required');
-  return digest(token);
-}
 const numeric=(value:unknown)=>Number(value);
 const optional=<T>(value:T|null|undefined)=>value===null||value===undefined?undefined:value;
 
 export class StoreConflictError extends Error{
   constructor(message='Hero storage revision or identity conflict'){super(message);this.name='StoreConflictError';}
 }
+export class CharacterLimitError extends StoreConflictError{
+  constructor(){super('Account character limit reached');this.name='CharacterLimitError';}
+}
 export class StoreUnavailableError extends Error{
   constructor(message='Hero storage unavailable'){super(message);this.name='StoreUnavailableError';}
 }
-export interface CommitEntry {token:string;hero:PersistentHero;expectedRevision:number}
+export interface CommitEntry {accountId:string;hero:PersistentHero;expectedRevision:number}
 export interface CommitReceipt {id:string;revision:number}
 export interface HeroStore{
-  load(token:string):Promise<{hero:PersistentHero;revision:number}|null>;
+  load(heroId:string,accountId:string):Promise<{hero:PersistentHero;revision:number}|null>;
+  upsertGoogleAccount(identity:GoogleIdentity):Promise<Account>;
+  listHeroes(accountId:string):Promise<CharacterSummary[]>;
+  createSession(accountId:string,tokenHash:string,expiresAt:Date):Promise<void>;
+  findSession(tokenHash:string):Promise<{account:Account;expiresAt:number}|null>;
+  deleteSession(tokenHash:string):Promise<void>;
   commit(entries:CommitEntry[],operationId:string,reason?:string):Promise<CommitReceipt[]>;
   schemaVersion():Promise<number>;
   health():Promise<boolean>;
@@ -44,6 +49,7 @@ export interface HeroStore{
 
 function checkEntry(entry:CommitEntry):void{
   const {hero,expectedRevision}=entry;
+  if(typeof entry.accountId!=='string'||!entry.accountId)throw new Error('Account is required');
   if(!hero||typeof hero.id!=='string'||!hero.id||!Number.isSafeInteger(expectedRevision)||expectedRevision<0)throw new Error('Invalid hero commit entry');
   if(!Array.isArray(hero.items)||!Array.isArray(hero.pendingItems)||!Array.isArray(hero.stash))throw new Error('Invalid hero inventory');
   const all=[...hero.items,...hero.pendingItems],ids=new Set<string>();
@@ -61,17 +67,17 @@ function checkEntry(entry:CommitEntry):void{
   if(!Number.isSafeInteger(hero.consumableOverflow)||hero.consumableOverflow<0||hero.consumableOverflow>2||backpackUsage(hero)>BAG_CAPACITY+hero.consumableOverflow)throw new Error('Backpack capacity exceeded');
   if(!parseAfkPreferences(hero.afkPreferences,hero.classId))throw new Error('Invalid AFK preferences');
 }
-function heroValues(hero:PersistentHero,hash:string):unknown[]{
+function heroValues(hero:PersistentHero,accountId:string):unknown[]{
   const a=hero.allocatedStats;
-  return [hero.id,hash,hero.schemaVersion,hero.name,hero.classId,hero.level,hero.xp,hero.gold,hero.kills,hero.statRevision,
+  return [hero.id,accountId,hero.schemaVersion,hero.name,hero.classId,hero.level,hero.xp,hero.gold,hero.kills,hero.statRevision,
     a.strength,a.dexterity,a.vitality,a.energy,hero.x,hero.z,hero.yaw,hero.weapon,hero.hp,hero.mana,hero.potions,
     hero.potionCooldown,hero.manaPotions,hero.manaPotionCooldown,hero.specialCooldown,hero.dead,hero.combatUntil,hero.attackSerial,hero.running,hero.questKills,
     hero.boss,hero.questClaimed,JSON.stringify(hero.skillCooldowns??{}),hero.attack===null?null:JSON.stringify(hero.attack),JSON.stringify(hero.afkPreferences),hero.quickSlots.q,hero.quickSlots.w,Math.min(hero.consumableOverflow,Math.max(0,backpackUsage(hero)-BAG_CAPACITY))];
 }
-const heroColumns=`id,token_hash,schema_version,name,class_id,level,xp,gold,kills,stat_revision,
+const heroColumns=`id,account_id,schema_version,name,class_id,level,xp,gold,kills,stat_revision,
   strength,dexterity,vitality,energy,x,z,yaw,weapon,hp,mana,potions,potion_cooldown,mana_potions,mana_potion_cooldown,special_cooldown,dead,
   combat_until,attack_serial,running,quest_kills,boss,quest_claimed,skill_cooldowns,attack,afk_preferences,quick_slot_q,quick_slot_w,consumable_overflow`;
-const updateColumns=heroColumns.split(',').map(s=>s.trim()).filter(s=>s!=='id'&&s!=='token_hash');
+const updateColumns=heroColumns.split(',').map(s=>s.trim()).filter(s=>s!=='id'&&s!=='account_id');
 
 async function writeInventory(client:PoolClient,hero:PersistentHero):Promise<{gained:string[];lost:string[]}>{
   const all=[...hero.items,...hero.pendingItems];
@@ -137,8 +143,8 @@ async function writeConsumables(client:PoolClient,hero:PersistentHero):Promise<v
   }
 }
 
-async function readHero(client:PoolClient,hash:string):Promise<{hero:PersistentHero;revision:number}|null>{
-  const result=await client.query('SELECT * FROM heroes WHERE token_hash=$1',[hash]);
+async function readHero(client:PoolClient,heroId:string,accountId:string):Promise<{hero:PersistentHero;revision:number}|null>{
+  const result=await client.query('SELECT * FROM heroes WHERE id=$1 AND account_id=$2',[heroId,accountId]);
   const row=result.rows[0];if(!row)return null;
   const inventory=await client.query(`SELECT i.*,l.kind,l.position,l.equipped_slot FROM item_instances i
     JOIN inventory_locations l ON l.item_id=i.id AND l.hero_id=i.hero_id WHERE i.hero_id=$1 ORDER BY i.item_index`,[row.id]);
@@ -210,16 +216,42 @@ class PostgresHeroStore implements HeroStore{
     if(error instanceof Error&&/connection error|not queryable|Connection terminated|Query read timeout/i.test(error.message))return new StoreUnavailableError();
     return error instanceof Error?error:new Error('Hero storage error');
   }
-  async load(token:string){const hash=tokenHash(token);return this.withClient(client=>readHero(client,hash));}
+  async load(heroId:string,accountId:string){return this.withClient(client=>readHero(client,heroId,accountId));}
+  async upsertGoogleAccount(identity:GoogleIdentity):Promise<Account>{
+    if(!identity||typeof identity.sub!=='string'||!identity.sub||identity.sub.length>255||typeof identity.email!=='string'||!identity.email||identity.email.length>320||typeof identity.name!=='string'||!identity.name||identity.name.length>256)throw new Error('Invalid Google identity');
+    return this.withClient(async client=>{
+      const result=await client.query<Account>(`INSERT INTO accounts(id,google_sub,email,name) VALUES ($1,$2,$3,$4)
+        ON CONFLICT(google_sub) DO UPDATE SET email=EXCLUDED.email,name=EXCLUDED.name,updated_at=now()
+        RETURNING id,email,name`,[randomUUID(),identity.sub,identity.email,identity.name]);
+      return result.rows[0];
+    });
+  }
+  async listHeroes(accountId:string):Promise<CharacterSummary[]>{
+    return this.withClient(async client=>(await client.query<CharacterSummary>('SELECT id,name,class_id AS "classId",level FROM heroes WHERE account_id=$1 ORDER BY account_slot',[accountId])).rows);
+  }
+  async createSession(accountId:string,tokenHash:string,expiresAt:Date):Promise<void>{
+    if(!/^[0-9a-f]{64}$/.test(tokenHash)||!Number.isFinite(expiresAt.getTime())||expiresAt.getTime()<=Date.now())throw new Error('Invalid account session');
+    await this.withClient(async client=>{await client.query('INSERT INTO account_sessions(token_hash,account_id,expires_at) VALUES ($1,$2,$3)',[tokenHash,accountId,expiresAt]);});
+  }
+  async findSession(tokenHash:string):Promise<{account:Account;expiresAt:number}|null>{
+    if(!/^[0-9a-f]{64}$/.test(tokenHash))return null;
+    return this.withClient(async client=>{
+      const result=await client.query<Account&{expires_at:Date}>(`SELECT a.id,a.email,a.name,s.expires_at FROM account_sessions s
+        JOIN accounts a ON a.id=s.account_id WHERE s.token_hash=$1 AND s.expires_at>now()`,[tokenHash]);
+      const row=result.rows[0];return row?{account:{id:row.id,email:row.email,name:row.name},expiresAt:row.expires_at.getTime()}:null;
+    });
+  }
+  async deleteSession(tokenHash:string):Promise<void>{
+    await this.withClient(async client=>{await client.query('DELETE FROM account_sessions WHERE token_hash=$1',[tokenHash]);});
+  }
   async commit(entries:CommitEntry[],operationId:string,reason?:string):Promise<CommitReceipt[]>{
     if(!Array.isArray(entries)||!entries.length||typeof operationId!=='string'||!operationId.length||operationId.length>256)throw new Error('Invalid hero operation');
     entries.forEach(checkEntry);
-    if(/(?:https?|wss?):\/\//i.test(operationId)||reason&&/(?:https?|wss?):\/\//i.test(reason)||
-      entries.some(entry=>operationId.includes(entry.token)||reason?.includes(entry.token)))
-      throw new Error('Operation metadata cannot contain tokens or URLs');
-    const hashes=entries.map(entry=>tokenHash(entry.token)),idSet=new Set(entries.map(entry=>entry.hero.id)),hashSet=new Set(hashes);
-    if(idSet.size!==entries.length||hashSet.size!==entries.length)throw new Error('Duplicate hero in operation');
-    const payloadHash=digest(canonical({entries:entries.map((entry,i)=>({tokenHash:hashes[i],hero:entry.hero,expectedRevision:entry.expectedRevision})).sort((a,b)=>a.hero.id.localeCompare(b.hero.id)),reason:reason??null}));
+    if(/(?:https?|wss?):\/\//i.test(operationId)||reason&&/(?:https?|wss?):\/\//i.test(reason))
+      throw new Error('Operation metadata cannot contain URLs');
+    const idSet=new Set(entries.map(entry=>entry.hero.id));
+    if(idSet.size!==entries.length)throw new Error('Duplicate hero in operation');
+    const payloadHash=digest(canonical({entries:entries.map(entry=>({accountId:entry.accountId,hero:entry.hero,expectedRevision:entry.expectedRevision})).sort((a,b)=>a.hero.id.localeCompare(b.hero.id)),reason:reason??null}));
     return this.withClient(async client=>{
       await client.query('BEGIN');
       try{
@@ -235,26 +267,34 @@ class PostgresHeroStore implements HeroStore{
           if(receipt.some(item=>!Number.isSafeInteger(item.revision)))throw new Error('Incomplete operation receipt');
           await client.query('COMMIT');return receipt;
         }
+        // Stable account lock order prevents concurrent sixth characters and batch deadlocks.
+        for(const accountId of [...new Set(entries.map(entry=>entry.accountId))].sort()){
+          const owner=await client.query('SELECT id FROM accounts WHERE id=$1 FOR UPDATE',[accountId]);
+          if(!owner.rowCount)throw new StoreConflictError('Account does not exist');
+        }
         const receipt:CommitReceipt[]=[],changes:unknown[]=[];
         for(let i=0;i<entries.length;i++){
-          const {hero,expectedRevision}=entries[i],hash=hashes[i],values=heroValues(hero,hash);
-          const before=await client.query<{gold:string;revision:string;class_id:string;consumable_overflow:number}>(
-            'SELECT gold,revision,class_id,consumable_overflow FROM heroes WHERE id=$1 FOR UPDATE',[hero.id]);
+          const {hero,expectedRevision,accountId}=entries[i],values=heroValues(hero,accountId);
+          const before=await client.query<{gold:string;revision:string;class_id:string;account_id:string|null;consumable_overflow:number}>(
+            'SELECT gold,revision,class_id,account_id,consumable_overflow FROM heroes WHERE id=$1 FOR UPDATE',[hero.id]);
           if(hero.consumableOverflow>(before.rows[0]?.consumable_overflow??0))throw new StoreConflictError('Consumable overflow cannot increase');
           if(expectedRevision===0){
             if(before.rowCount)throw new StoreConflictError('Hero already exists');
+            const count=await client.query<{count:string}>('SELECT count(*) FROM heroes WHERE account_id=$1',[accountId]);
+            if(Number(count.rows[0].count)>=MAX_CHARACTERS)throw new CharacterLimitError();
             const placeholders=values.map((_,n)=>`$${n+1}`).join(',');
             await client.query(`INSERT INTO heroes(${heroColumns}) VALUES (${placeholders})`,values);
             receipt.push({id:hero.id,revision:1});
           }else{
             if(!before.rowCount||numeric(before.rows[0].revision)!==expectedRevision)throw new StoreConflictError('Stale hero revision');
+            if(before.rows[0].account_id!==accountId)throw new StoreConflictError('Hero belongs to another account');
             if(before.rows[0].class_id!==hero.classId)throw new StoreConflictError('Hero class cannot change');
             const columns=updateColumns.map((column,n)=>`${column}=$${n+1}`).join(',');
             const params=values.slice(2);
             const updated=await client.query(`UPDATE heroes SET ${columns},revision=revision+1,updated_at=now()
-              WHERE id=$${params.length+1} AND token_hash=$${params.length+2} AND revision=$${params.length+3}
-              RETURNING revision`,[...params,hero.id,hash,expectedRevision]);
-            if(!updated.rowCount)throw new StoreConflictError('Hero token or revision conflict');
+              WHERE id=$${params.length+1} AND account_id=$${params.length+2} AND revision=$${params.length+3}
+              RETURNING revision`,[...params,hero.id,accountId,expectedRevision]);
+            if(!updated.rowCount)throw new StoreConflictError('Hero ownership or revision conflict');
             receipt.push({id:hero.id,revision:numeric(updated.rows[0].revision)});
           }
           const inventory=await writeInventory(client,hero);
@@ -273,7 +313,7 @@ class PostgresHeroStore implements HeroStore{
       const result=await client.query<{locked?:boolean}> (this.writer?lockHealthSql:'SELECT 1 AS ok');
       if(this.writer&&!result.rows[0]?.locked){this.lost=true;return false;}
       const schema=await client.query<{version:number}>('SELECT max(version)::integer AS version FROM schema_migrations');
-      return !!result.rowCount&&schema.rows[0]?.version===4;
+      return !!result.rowCount&&schema.rows[0]?.version===5;
     });}catch{if(this.writer)this.lost=true;return false;}
   }
   async schemaVersion():Promise<number>{

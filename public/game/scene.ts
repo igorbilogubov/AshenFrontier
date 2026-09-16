@@ -39,7 +39,7 @@ import {createPersistentSkillEffects} from './persistent-skill-effects.js';
 import {createSkillProjectile,updateSkillProjectile,disposeSkillProjectile} from './skill-projectiles.js';
 import {classFor} from '../rules.js';
 import {Benchmark,stressEnabled} from './benchmark.js';
-import {heldMouseInput} from './mouse-input.js';
+import {bindTravelPanel,createTravelPortals} from './travel-ui.js';
 import {element as $,errorMessage} from './ui-types.js';
 import type {Point,PublicPlayer,PublicMob,WeaponId} from '../../shared/types.js';
 type Warrior=Awaited<ReturnType<typeof loadWarrior>>;
@@ -48,7 +48,7 @@ type RemoteWarrior=Warrior & {label:HTMLDivElement};
 type VisualHero=Pick<PublicPlayer,'id'|'x'|'z'|'yaw'|'gait'|'runBlend'|'moveBlend'|'dead'|'weapon'|'classId'|'hurt'|'attack'|'appearance'>;
 interface FloatingNumber {element:HTMLSpanElement;x:number;z:number;y:number;life:number}
 interface Particle {mesh:T.Mesh<T.IcosahedronGeometry,T.MeshBasicMaterial>;v:T.Vector3;life:number}
-interface HeldMouse {x:number;y:number;active:boolean;point:T.Vector3|null;held:boolean;attacking:boolean;pointerId:number|null;pickPending:boolean}
+interface HeldMouse {x:number;y:number;active:boolean;point:T.Vector3|null;attacking:boolean;casting:boolean;pointerId:number|null;}
 
 let benchmark:Benchmark|undefined,skillEffects:ReturnType<typeof createSkillEffects>|undefined,persistentSkillEffects:ReturnType<typeof createPersistentSkillEffects>|undefined,worldInteractions:Awaited<ReturnType<typeof createWorldInteractions>>|undefined;
 const canvas=$('scene');
@@ -60,13 +60,14 @@ let noticeTimer:ReturnType<typeof setTimeout>|undefined=undefined,lastSafeToast=
 let snow:ReturnType<typeof createSnowEnvironment>,wasteland:ReturnType<typeof createWastelandEnvironment>,forestRegion:T.Scene,stadiumRegion:T.Scene;
 let lateWorld:ReturnType<typeof createLateWorldEnvironment>,dungeonWorld:ReturnType<typeof createDungeonEnvironment>,bossEffects:ReturnType<typeof createBossEffects>;
 let mobAssets:MobAssets,stadium:ReturnType<typeof createStadiumEnvironment>;
+let travelPanel:ReturnType<typeof bindTravelPanel>,travelWorld:ReturnType<typeof createTravelPortals>;
 let targetZoom=1,interfaceUI:ReturnType<typeof bindInterface>,onlineRoster:ReturnType<typeof bindOnlineRoster>;
 const remoteModels=new Map<string,RemoteWarrior>(),loadingPlayers=new Set<string>(),visualHeroes=new Map<string,VisualHero>(),visualMobs=new Map<number,PublicMob>(),shots=new Map<string,T.Group>();
 const ZOOM={min:.7,max:1.9,sensitivity:.0015};
 const keys=new Set<string>(),models=new Map<number,MobModel>(),particles:Particle[]=[],floats:FloatingNumber[]=[];
 let heldHudSkill:number|null=null,channelSlot:number|null=null,lastChannelPulse=0;
 const raycaster=new T.Raycaster(),ndc=new T.Vector2(),groundPlane=new T.Plane(new T.Vector3(0,1,0),0),cameraTarget=new T.Vector3(.5,.3,2),skillOrigin=new T.Vector3();
-const mouse:HeldMouse={x:0,y:0,active:false,point:null,held:false,attacking:false,pointerId:null,pickPending:false};
+const mouse:HeldMouse={x:0,y:0,active:false,point:null,attacking:false,casting:false,pointerId:null,};
 // Five metres cover the full animated actor and its shadow beyond the viewport.
 // Keep pose bookkeeping current, but sample/draw only groups near the camera.
 const actorFrustum=new T.Frustum(),actorProjection=new T.Matrix4(),actorBounds=new T.Sphere(new T.Vector3(),5);
@@ -145,8 +146,11 @@ function combatAim(point:Point|null=null){
   const target=mob&&mob.state!=='dead'?{x:mob.x,z:mob.z}:point||mouse.point;
   return {targetId:mob?.id,target:target?{x:target.x,z:target.z}:undefined,yaw:target?Math.atan2(target.x-game.player.x,target.z-game.player.z):game.player.yaw};
 }
-function attackAt(point:Point|null=null){
-  if(!ready)return;const aim=combatAim(point);game.attack(aim.yaw,false,aim.targetId);
+function attackAt(point:Point|null=null,approach=false){
+  if(!ready)return;const aim=combatAim(point),mob=game.mobs.find(value=>value.id===aim.targetId);
+  const range=game.player.classId==='warrior'?WEAPONS[game.player.weapon].range:game.player.range;
+  const targetId=!approach&&mob&&distance(game.player,mob)>range+mobConfig(mob).radius?undefined:aim.targetId;
+  game.attack(aim.yaw,false,targetId,approach);
 }
 function toggleAfk(){if(!ready)return;releaseMovement();game.setAfk(!game.player.afk);}
 function cancelAfk(){if(game?.player.afk)game.setAfk(false);}
@@ -164,16 +168,17 @@ function castSkill(slot:number,held=false){
   if((game.player.skillCooldowns?.[skill.id]||0)<=0&&game.player.mana>=skill.manaCost)game.skill(skill.id,aim.yaw,{targetId:aim.targetId,target:aim.target});
 }
 function releaseMovement(){
-  const id=mouse.pointerId,wasHeld=mouse.held||mouse.attacking;
-  mouse.held=false;mouse.attacking=false;mouse.pointerId=null;mouse.pickPending=false;
+  const id=mouse.pointerId;
+  if(mouse.casting&&channelSlot===4)stopChannel();
+  mouse.attacking=false;mouse.casting=false;mouse.pointerId=null;
   if(id!==null&&canvas.hasPointerCapture(id))canvas.releasePointerCapture(id);
-  if(wasHeld)game?.stopInput();
+
 }
-function clearInput(){keys.clear();heldHudSkill=null;stopChannel();releaseMovement();mouse.active=false;mouse.point=null;game?.stopInput();if(game?.connected&&game.player.interactionTarget)game.send({type:'cancelInteraction'});}
-function chooseInteraction(kind:'loot'|'vendor'|'portal'|'chest',id:string){
+function clearInput(){keys.clear();heldHudSkill=null;stopChannel();releaseMovement();mouse.active=false;mouse.point=null;game?.stopInput();if(game?.connected)game.send({type:'cancelInteraction'});}
+function chooseInteraction(kind:'loot'|'vendor'|'portal'|'chest'|'travel',id:string){
   if(!ready||!game.connected||game.player.dead)return;
   if(kind==='vendor'){selected=null;selectedEntity={kind:'vendor',id};}
-  releaseMovement();keys.clear();cancelAfk();game.send(kind==='loot'?{type:'pickup',id}:kind==='portal'?{type:'portal',portalId:id}:{type:'interact',npcId:id});
+  releaseMovement();keys.clear();cancelAfk();game.send(kind==='loot'?{type:'pickup',id}:kind==='travel'?{type:'travelOpen',portalId:id}:kind==='portal'?{type:'portal',portalId:id}:{type:'interact',npcId:id});
 }
 function returnToCamp(){
   if(!ready)return;
@@ -190,7 +195,7 @@ function resetLocationView(){
 function processEvents(){
   let gainedLevel=null;
   for(const event of game.events.splice(0)){
-    interfaceUI.onEvent?.(event);afkSettings?.onEvent(event);skillbook?.onEvent(event);
+    interfaceUI.onEvent?.(event);afkSettings?.onEvent(event);skillbook?.onEvent(event);travelPanel?.onEvent(event);
     if(event.type==='skillImpact'&&event.phase!=='end')skillEffects?.impact(event);
     if(event.type==='notice')toast(event.text);
     if(event.type==='item')toast(`Получено: ${event.name}${event.pending?' · ожидает в рюкзаке':''}`);
@@ -217,10 +222,10 @@ function tick(dt:number){
   if(!game.connected){processEvents();return;}
   const hero=game.player;
   if(hero.afk){game.update(dt,{x:0,z:0,aim:null});processEvents();return;}
-  const input=heldMouseInput(hero,mouse.point,{held:mouse.held});
-  const keyboardSkill=['Digit1','Digit2','Digit3','Digit4'].findIndex(code=>keys.has(code)),heldSkill=keyboardSkill>=0?keyboardSkill:heldHudSkill;
+  const input={x:0,z:0,aim:null};
+  const keyboardSkill=['Digit1','Digit2','Digit3','Digit4'].findIndex(code=>keys.has(code)),heldSkill=keyboardSkill>=0?keyboardSkill:mouse.casting?4:heldHudSkill;
   if(heldSkill!==null&&heldSkill>=0&&!safe(hero)){input.x=input.z=0;castSkill(heldSkill,true);}
-  else if((keys.has('Space')||mouse.attacking)&&!safe(hero)){input.x=input.z=0;attackAt();}
+  else if(mouse.attacking&&!safe(hero)){input.x=input.z=0;attackAt();}
   game.update(dt,input);
   if(pendingWeapon&&!hero.attack)chooseWeapon(pendingWeapon);
   processEvents();
@@ -262,7 +267,7 @@ function updateUI(){
     button.title+=` · ${status.label}`;button.setAttribute('aria-label',button.title);
   }
   $('movement-label').textContent=hero.running?'Бег':'Ходьба';$('movement').setAttribute('aria-pressed',String(hero.running));$('movement').disabled=!!hero.dead;
-  $('movement').title=hero.running?'Перейти на ходьбу · Shift':'Перейти на бег · Shift';
+  $('movement').title=hero.running?'Перейти на ходьбу · R':'Перейти на бег · R';
   $('attack').disabled=!!hero.dead;
   const returning=(hero.campReturnRemaining??0)>0,inCombat=!!hero.attack||hero.combatUntil>game.serverTime;
   $('reset').disabled=!game.connected||!!hero.dead||(!returning&&inCombat);
@@ -280,7 +285,7 @@ function updateUI(){
   }else updateTarget?.(mob&&mob.state!=='dead'&&distance(mob,hero)<23?{kind:'mob',type:mob.type,eliteId:mob.eliteId,...{bossId:mob.bossId,dungeonId:mob.dungeonId},name:mobConfig(mob).name,x:mob.x,z:mob.z,hp:mob.hp,maxHp:mobConfig(mob).hp}:null);
   for(const button of document.querySelectorAll<HTMLButtonElement>('[data-weapon]')){const active=button.dataset.weapon===hero.weapon;button.classList.toggle('selected',active);button.setAttribute('aria-pressed',String(active));button.disabled=!!hero.dead||!!hero.items.find(item=>item.id===hero.equipment.weapon&&item.definitionId);}
   $('cooldown').style.transform=`scaleX(${hero.attack?1-hero.attack.age/hero.attack.duration:0})`;
-  interfaceUI.update();onlineRoster?.update();afkSettings?.update();skillbook?.update();drawMap();
+  interfaceUI.update();onlineRoster?.update();afkSettings?.update();skillbook?.update();travelPanel?.update();drawMap();
 }
 function visualActor(source:VisualHero,dt:number){
   let v=visualHeroes.get(source.id);
@@ -337,13 +342,12 @@ function render(dt:number){
   if(!sameLocation(cameraTarget,game.player))resetLocationView();
   const hero=visualActor(game.player,dt);time+=dt;updateCamera(dt);mouse.point=pickGround();
   if(benchmark?.variant==='picking'){mouse.active=true;mouse.x=width*.5+Math.sin(time*2)*width*.18;mouse.y=height*.5;mouse.point=pickGround();pickMob();}
-  if(mouse.held&&mouse.pickPending&&mouse.point){const picked=pickMob();if(picked!==null){selected=picked;selectedEntity=null;}mouse.pickPending=false;}
   warrior.root.position.set(hero.x,0,hero.z);warrior.root.rotation.set(0,hero.yaw,0);
   benchmark?.mark('camera-picking');
   warrior.animate(dt,hero,!benchmark?.freezeAnimations);
   marker.position.set(hero.x,.03,hero.z);marker.rotation.y=hero.yaw;marker.visible=!hero.dead;
   const region=locationAt(hero);document.body.classList.toggle('snow-region',region==='snow');document.body.classList.toggle('wasteland-region',region==='wasteland');forestRegion.visible=region==='forest';stadiumRegion.visible=region==='stadium';
-  world.marker.visible=false;if(forestRegion.visible)world.animate(time);if(stadiumRegion.visible)stadium.animate(time);snow.animate(time,hero,region==='snow');wasteland.animate(time,hero,region==='wasteland');lateWorld.updateRegion(region);lateWorld.update(dt);dungeonWorld.update(region,time,game.dungeon?.guardsRemaining??0);bossEffects.sync(game.mobs);
+  world.marker.visible=false;if(forestRegion.visible)world.animate(time);if(stadiumRegion.visible)stadium.animate(time);snow.animate(time,hero,region==='snow');wasteland.animate(time,hero,region==='wasteland');lateWorld.updateRegion(region);lateWorld.update(dt);dungeonWorld.update(region,time,game.dungeon?.guardsRemaining??0);bossEffects.sync(game.mobs);travelWorld?.update(region,time);
   const sky=dungeonAt(hero)?'#1e252b':lateRegionAt(hero)?'#455052':region==='snow'?'#859eac':region==='wasteland'?'#9a775e':'#485b58';(scene.background as T.Color).set(sky);if(scene.fog instanceof T.FogExp2){scene.fog.color.set(sky);scene.fog.density=region==='snow'?.009:region==='wasteland'?.012:.014;}sun.intensity=dungeonAt(hero)?1.0:2.8;sun.color.set(region==='snow'?'#e2f0ff':region==='wasteland'?'#ffe0b0':'#ffe4bc');
   world.campHouse.update(game.player);renderPlayers(dt);renderShots();skillEffects?.update(dt);skillEffects?.slowMobs(game.mobs);persistentSkillEffects?.sync(game.players,game.mobs,game.skillZones,time);
   const presentMobIds=new Set(game.mobs.map(mob=>mob.id));
@@ -387,12 +391,12 @@ async function start(){
     }
     const pmrem=new T.PMREMGenerator(renderer);scene.environment=pmrem.fromScene(lightRoom,.08).texture;scene.environmentIntensity=.38;pmrem.dispose();for(const p of lightPanels){p.geometry.dispose();p.material.dispose();}
 
-    forestRegion=new T.Scene();stadiumRegion=new T.Scene();scene.add(forestRegion,stadiumRegion);world=createEnvironment(forestRegion);stadium=createStadiumEnvironment(stadiumRegion);snow=createSnowEnvironment(scene);wasteland=createWastelandEnvironment(scene);lateWorld=createLateWorldEnvironment(scene);dungeonWorld=createDungeonEnvironment(scene);bossEffects=createBossEffects(scene);updateTarget=bindTargetPresentation(scene);skillEffects=createSkillEffects(scene);persistentSkillEffects=createPersistentSkillEffects(scene,skillOriginFor);game=new NetworkGame();interfaceUI=bindInterface(game,toast,clearInput);onlineRoster=bindOnlineRoster(game);afkSettings=bindAfkSettings(game,toast);skillbook=bindSkillbook(game,toast);bindResponsiveChat();
+    forestRegion=new T.Scene();stadiumRegion=new T.Scene();scene.add(forestRegion,stadiumRegion);world=createEnvironment(forestRegion);stadium=createStadiumEnvironment(stadiumRegion);snow=createSnowEnvironment(scene);wasteland=createWastelandEnvironment(scene);lateWorld=createLateWorldEnvironment(scene);dungeonWorld=createDungeonEnvironment(scene);bossEffects=createBossEffects(scene);updateTarget=bindTargetPresentation(scene);skillEffects=createSkillEffects(scene);persistentSkillEffects=createPersistentSkillEffects(scene,skillOriginFor);game=new NetworkGame();interfaceUI=bindInterface(game,toast,clearInput);onlineRoster=bindOnlineRoster(game);afkSettings=bindAfkSettings(game,toast);skillbook=bindSkillbook(game,toast);bindResponsiveChat();travelPanel=bindTravelPanel(game);travelWorld=createTravelPortals(scene);
     $('load-progress').textContent='Загружаем персонажа и обитателей леса…';
     mobAssets=await loadMobAssets();
     $('load-progress').textContent='Подключаем героя к общему миру…';const stressMode=await stressEnabled();if(stressMode){const response=await fetch('/api/stress-session',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});if(!response.ok)throw new Error('Не удалось открыть изолированную FPS-сессию');const data=await response.json() as {character:{id:string}};await game.connect({heroId:data.character.id});}else await interfaceUI.join();
     warrior=await loadWarrior(game.player.classId);scene.add(warrior.root);
-    worldInteractions=await createWorldInteractions(scene,game,chooseInteraction,[...stadium.portals,...snow.passages,...wasteland.passages,...dungeonWorld.portals],world.campHouse);
+    worldInteractions=await createWorldInteractions(scene,game,chooseInteraction,[...stadium.portals,...snow.passages,...wasteland.passages,...dungeonWorld.portals,...travelWorld.portals],world.campHouse);
     for(const mob of game.mobs)ensureMobModel(mob);
     const ring=mesh(marker,new T.RingGeometry(.43,.451,40),new T.MeshBasicMaterial({color:'#dac593',transparent:true,opacity:.62,side:T.DoubleSide,depthWrite:false}));ring.rotation.x=-Math.PI/2;ring.castShadow=false;ring.receiveShadow=false;scene.add(marker);
     $('load-progress').textContent='Загружаем материалы леса…';await world.ready;ready=true;if(stressMode){const link=document.createElement('link');link.rel='stylesheet';link.href='/game/benchmark.css';document.head.append(link);benchmark=new Benchmark({renderer,scene,camera,game,modelsReady:()=>remoteModels.size===game.players.length-1&&loadingPlayers.size===0,setVariant:variant=>{renderer.shadowMap.enabled=variant!=='no-shadows';fitCamera();world.setTreesVisible?.(variant!=='no-trees');}});}
@@ -402,29 +406,26 @@ async function start(){
 canvas.addEventListener('pointermove',event=>{
   if(mouse.pointerId!==null&&event.pointerId!==mouse.pointerId)return;
   mouse.x=event.clientX;mouse.y=event.clientY;mouse.active=true;
-  if(mouse.held||mouse.attacking){
-    // Capture guarantees release outside the canvas, but UI is never a steering surface.
-    if(!(event.buttons&(mouse.attacking?2:1))||document.elementFromPoint(event.clientX,event.clientY)!==canvas){releaseMovement();mouse.active=false;mouse.point=null;return;}
-    if(mouse.held)mouse.pickPending=true;
-  }
+  if((mouse.attacking||mouse.casting)&&(!(event.buttons&(mouse.casting?2:1))||document.elementFromPoint(event.clientX,event.clientY)!==canvas))releaseMovement();
 });
 canvas.addEventListener('pointerleave',()=>{releaseMovement();mouse.active=false;mouse.point=null;});
 canvas.addEventListener('pointerdown',event=>{
-  if(!ready||!game.connected||game.player.dead||event.isPrimary===false)return;
-  if(event.button!==0&&event.button!==2)return;
-  event.preventDefault();cancelAfk();canvas.focus({preventScroll:true});mouse.x=event.clientX;mouse.y=event.clientY;mouse.active=true;mouse.point=pickGround();
-  if(event.button===2){mouse.held=false;mouse.attacking=true;mouse.pointerId=event.pointerId;canvas.setPointerCapture(event.pointerId);game.stopInput();attackAt();return;}
+  if(!ready||!game.connected||game.player.dead||event.isPrimary===false||![0,2].includes(event.button))return;
+  event.preventDefault();releaseMovement();cancelAfk();canvas.focus({preventScroll:true});mouse.x=event.clientX;mouse.y=event.clientY;mouse.active=true;mouse.point=pickGround();
+  game.send({type:'cancelInteraction'});
+  if(event.button===2){if(!slotSkill(4)){toast('Назначьте навык на ПКМ в книге навыков · K');return;}mouse.casting=true;mouse.pointerId=event.pointerId;canvas.setPointerCapture(event.pointerId);castSkill(4,true);return;}
+  if(event.shiftKey){mouse.attacking=true;mouse.pointerId=event.pointerId;canvas.setPointerCapture(event.pointerId);attackAt();return;}
   const interaction=worldInteractions?.pick(raycaster);if(interaction){chooseInteraction(interaction.kind,interaction.id);return;}
+  const picked=pickMob();if(picked!==null){selected=picked;selectedEntity=null;attackAt(null,true);return;}
   let pickedPlayer:string|null=null,nearest=Infinity;
   for(const [id,model] of remoteModels){if(!model.root.visible)continue;const hit=raycaster.intersectObject(model.root,true)[0];if(hit&&hit.distance<nearest){nearest=hit.distance;pickedPlayer=id;}}
-  if(pickedPlayer){selected=null;selectedEntity={kind:'player',id:pickedPlayer};releaseMovement();updateUI();return;}
-  if(game.player.interactionTarget)game.send({type:'cancelInteraction'});
-  mouse.held=true;mouse.attacking=false;mouse.pointerId=event.pointerId;canvas.setPointerCapture(event.pointerId);
-  selected=mouse.point?pickMob():null;selectedEntity=null;mouse.pickPending=false;
+  if(pickedPlayer){selected=null;selectedEntity={kind:'player',id:pickedPlayer};updateUI();return;}
+  selected=null;selectedEntity=null;
+  if(mouse.point)game.send({type:'moveTo',target:{x:mouse.point.x,z:mouse.point.z}});
 });
-addEventListener('pointerup',event=>{if(event.pointerId===mouse.pointerId&&!(event.buttons&(mouse.attacking?2:1)))releaseMovement();});
+addEventListener('pointerup',event=>{if(event.pointerId===mouse.pointerId)releaseMovement();});
 addEventListener('pointercancel',event=>{if(event.pointerId===mouse.pointerId)clearInput();});
-canvas.addEventListener('lostpointercapture',event=>{if(event.pointerId===mouse.pointerId)clearInput();});
+canvas.addEventListener('lostpointercapture',event=>{if(event.pointerId===mouse.pointerId)releaseMovement();});
 // Inventory, HUD and overlays belong to the game as much as the canvas.
 document.addEventListener('contextmenu',event=>event.preventDefault(),{capture:true});
 canvas.addEventListener('wheel',event=>{
@@ -438,8 +439,8 @@ addEventListener('keydown',event=>{
   if(event.defaultPrevented||!ready||event.metaKey||event.ctrlKey||event.altKey||['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName||''))return;
   if(document.activeElement?.tagName==='BUTTON'&&['Space','Enter'].includes(event.code))return;
   if(['Space','Digit1','Digit2','Digit3','Digit4'].includes(event.code)){event.preventDefault();keys.add(event.code);}if(event.repeat)return;
-  if(['ShiftLeft','ShiftRight'].includes(event.code)&&(document.activeElement===canvas||document.activeElement===document.body))toggleRun();
-  if(event.code==='Space')attackAt();
+  if(event.code==='KeyR')toggleRun();
+  if(event.code==='Space'){releaseMovement();cancelAfk();game.send({type:'pickupNearest'});}
   const skillIndex=['Digit1','Digit2','Digit3','Digit4'].indexOf(event.code);if(skillIndex>=0)castSkill(skillIndex,true);
   if(event.code==='KeyQ'){event.preventDefault();drink('q');}if(event.code==='KeyW'){event.preventDefault();drink('w');}
   if(event.code==='KeyZ'){event.preventDefault();toggleLootLabels();}
@@ -448,7 +449,7 @@ addEventListener('keydown',event=>{
 addEventListener('keyup',event=>{keys.delete(event.code);const slot=['Digit1','Digit2','Digit3','Digit4'].indexOf(event.code);if(slot>=0&&channelSlot===slot)stopChannel();});addEventListener('blur',clearInput);document.addEventListener('visibilitychange',()=>{paused=document.hidden;if(paused)clearInput();last=0;accumulator=0;});addEventListener('resize',fitCamera);
 canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();ready=false;clearInput();$('loading').hidden=false;$('loading').querySelector('h2')!.textContent='3D-изображение приостановлено';$('load-progress').textContent='Нажмите «Повторить», чтобы открыть локацию снова.';$('retry').hidden=false;});
 for(const b of document.querySelectorAll<HTMLButtonElement>('[data-weapon]'))b.addEventListener('click',()=>{chooseWeapon(b.dataset.weapon);canvas.focus({preventScroll:true});});
-for(const [index,id] of ['special','skill-secondary','skill-tertiary','skill-quaternary'].entries()){
+for(const [index,id] of ['special','skill-secondary','skill-tertiary','skill-quaternary','skill-mouse'].entries()){
   const button=$(id);button.addEventListener('click',()=>{if(slotSkill(index)?.kind!=='channel')castSkill(index);canvas.focus({preventScroll:true});});
   button.addEventListener('pointerdown',event=>{if(slotSkill(index)?.kind!=='channel'||event.button!==0)return;event.preventDefault();heldHudSkill=index;castSkill(index,true);button.setPointerCapture(event.pointerId);});
   const release=(event:PointerEvent)=>{if(heldHudSkill!==index)return;heldHudSkill=null;if(channelSlot===index)stopChannel();if(button.hasPointerCapture(event.pointerId))button.releasePointerCapture(event.pointerId);canvas.focus({preventScroll:true});};button.addEventListener('pointerup',release);button.addEventListener('pointercancel',release);button.addEventListener('lostpointercapture',()=>{if(heldHudSkill===index){heldHudSkill=null;if(channelSlot===index)stopChannel();}});

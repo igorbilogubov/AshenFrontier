@@ -30,7 +30,10 @@ test('real skill packets expose only public cast/impact, and private mana/cooldo
     const originalMana=owner.state.self.mana;
     owner.ws.send(JSON.stringify({type:'skill',skillId:'mage-fireball',yaw:Math.PI/2,damage:999999,manaCost:0,cooldown:0}));
     await until(()=>owner.states.some(state=>state.self?.attack?.skillId==='mage-fireball'));
-    assert(owner.state.self.mana>=originalMana-17&&owner.state.self.mana<originalMana-16.5);
+    const castState=owner.states.find(state=>state.self?.attack?.skillId==='mage-fireball').self;
+    // Read the observed cast snapshot, not a later snapshot received while this worker was busy.
+    const regenerated=castState.manaRegen*castState.attack.age;
+    assert(Math.abs(castState.mana-(originalMana-17+regenerated))<.01,'Server charges 17 MP, with only elapsed cast-time regeneration');
     await until(()=>observer.states.some(state=>state.players.some(p=>p.id===hero.id&&p.attack?.skillId==='mage-fireball')));
     assert(!('skillCooldowns' in observer.state.players.find(p=>p.id===hero.id)));
     await until(()=>observer.events.some(event=>event.type==='skillImpact'&&event.skillId==='mage-fireball'));

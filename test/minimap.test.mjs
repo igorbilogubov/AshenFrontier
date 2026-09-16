@@ -4,6 +4,7 @@ import {minimapMarkers} from '../dist/public/game/minimap.js';
 import {minimapProjection} from '../dist/public/game/minimap-world.js';
 import {DUNGEONS} from '../dist/public/game/dungeons.js';
 import {LATE_REGIONS} from '../dist/public/game/late-world.js';
+import {TRAVEL_PORTALS} from '../dist/public/game/travel.js';
 import {ALL_PORTALS} from '../dist/public/game/stadium.js';
 import {AFK_SPOTS} from '../dist/public/game/afk.js';
 import {boundsForPosition, sameLocation} from '../dist/public/game/world-layout.js';
@@ -32,6 +33,9 @@ test('all field, stadium and dungeon routes/spots come from the shared world def
       assert.ok(marker,`missing ${portal.id}`);
       assert.equal(marker.kind,portal.id.includes('dungeon')?'dungeon':portal.id.includes('stadium')?'stadium':'passage');
     }
+    const gates=TRAVEL_PORTALS.filter(p=>sameLocation(p,position));
+    assert.equal(gates.length,1);
+    assert.deepEqual(markers.filter(m=>m.kind==='travel').map(m=>m.id),gates.map(p=>p.id));
     assert.equal(markers.filter(m=>m.kind==='spot').length,AFK_SPOTS.filter(s=>sameLocation(s,position)).length);
   }
 });

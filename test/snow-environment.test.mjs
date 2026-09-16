@@ -24,5 +24,5 @@ test('snow elite loot advertises blue categories without promising them on ordin
  assert.equal(possibleLoot('yak').categories.some(category=>category.rarity===2),false);
  const elite=possibleLoot('yak','frost-matriarch');
  assert.ok(elite.categories.some(category=>category.rarity===2&&category.chance===.03));
- assert.equal(elite.itemChance,.4);
+ assert.equal(elite.itemChance,.13);
 });

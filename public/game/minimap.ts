@@ -1,3 +1,4 @@
+import {TRAVEL_PORTALS} from './travel.js';
 import {AFK_SPOTS} from './afk.js';
 import {ALL_PORTALS} from './stadium.js';
 import {sameLocation} from './world-layout.js';
@@ -11,6 +12,7 @@ export interface MinimapGame {
   id:string|null;
 }
 export const MINIMAP_LEGEND=Object.freeze([
+  {kind:'travel',symbol:'◎',label:'Телепорт',color:'#8cf6e1'},
   {kind:'spot',symbol:'①',label:'Споты',color:'#a3e9ac'},
   {kind:'dungeon',symbol:'▣',label:'Данж / выход',color:'#dab5ff'},
   {kind:'passage',symbol:'➜',label:'Переход',color:'#8de6ec'},
@@ -32,7 +34,8 @@ export function minimapMarkers(position:Point,mobs:MinimapGame['mobs']):MapMarke
     return {...portal,kind,label};
   });
   const enemies:MapMarker[]=mobs.filter(mob=>mob.state!=='dead'&&(mob.eliteId||mob.bossId)&&sameLocation(mob,position)).map((mob,i)=>({...mob,id:`enemy-${i}`,kind:mob.bossId?'boss':'elite',label:''}));
-  return [...spots,...portals,...enemies];
+  const travel:MapMarker[]=TRAVEL_PORTALS.filter(portal=>sameLocation(portal,position)).map(portal=>({...portal,kind:'travel',label:'Телепорт'}));
+  return [...spots,...portals,...travel,...enemies];
 }
 
 interface Box {x:number;y:number;w:number;h:number}
@@ -57,6 +60,8 @@ export function drawMinimap(ctx:CanvasRenderingContext2D,width:number,height:num
     ctx.fillStyle='#122022';ctx.strokeStyle=color;ctx.lineWidth=2;
     if(marker.kind==='spot'){
       ctx.beginPath();ctx.arc(p.x,p.y,6.5,0,Math.PI*2);ctx.fill();ctx.fillStyle=color;ctx.font='bold 10px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(String(marker.number),p.x,p.y+.5);
+    }else if(marker.kind==='travel'){
+      ctx.beginPath();ctx.arc(p.x,p.y,7,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.beginPath();ctx.arc(p.x,p.y,3,0,Math.PI*2);ctx.stroke();
     }else if(marker.kind==='dungeon'){
       ctx.fillRect(p.x-6,p.y-7,12,14);ctx.strokeRect(p.x-6,p.y-7,12,14);ctx.fillStyle=color;ctx.fillRect(p.x-2,p.y-3,4,10);
     }else if(marker.kind==='passage'){
@@ -69,7 +74,7 @@ export function drawMinimap(ctx:CanvasRenderingContext2D,width:number,height:num
   }
   // Place route names only in empty space; never cover an icon to fit a label.
   ctx.font='bold 10px sans-serif';ctx.textBaseline='middle';ctx.textAlign='left';
-  for(const marker of markers.filter(m=>m.kind==='dungeon'||m.kind==='passage'||m.kind==='stadium')){
+  for(const marker of markers.filter(m=>m.kind==='dungeon'||m.kind==='passage'||m.kind==='stadium'||m.kind==='travel')){
     const p=at(marker),w=ctx.measureText(marker.label).width+8,h=16;
     const candidates=[{x:p.x-w/2,y:p.y+11,w,h},{x:p.x-w/2,y:p.y-27,w,h},{x:p.x+12,y:p.y-8,w,h},{x:p.x-w-12,y:p.y-8,w,h}];
     const box=candidates.find(b=>b.x>=3&&b.y>=3&&b.x+b.w<=width-3&&b.y+b.h<=height-3&&!occupied.some(other=>overlaps(b,other)));

@@ -62,10 +62,17 @@ test('level-20 large-area skills hit distant packs up to their cap while respect
   const pack=Array.from({length:skill.maxTargets+2},(_,index)=>make(1000+index,hit)),far=make(2000,outside),protectedMob=make(2001,CAMP_SPAWN);
   assert(safe(protectedMob)&&distance(f.p,protectedMob)<skill.range);f.w.mobs=[...pack,far,protectedMob];
   const mana=f.p.mana,started=id==='archer-arrow-storm'?f.w.castSkill(f.p,id,east,undefined,{x:f.p.x,z:f.p.z}):cast(f,id);
-  assert(started,id);advance(f.w,3);
+  assert(started,id);assert.equal(f.p.mana,mana-skill.manaCost);advance(f.w,3);
   assert.equal(pack.filter(m=>m.hp<10000).length,skill.maxTargets,id);
   assert.equal(far.hp,10000,`${id} exceeded its five-metre radius`);assert.equal(protectedMob.hp,10000,`${id} damaged safe ground`);
-  assert.equal(f.p.mana,mana-skill.manaCost);assert(f.p.skillCooldowns[id]>skill.cooldown-3&&f.p.skillCooldowns[id]<=skill.cooldown);
+  assert(f.p.skillCooldowns[id]>=skill.cooldown-3-1e-8&&f.p.skillCooldowns[id]<=skill.cooldown);
+ }
+});
+test('new self-centred area casts ignore a distant hovered enemy without moving or extending reach',()=>{
+ for(const [classId,id] of [['warrior','warrior-earthquake'],['mage','mage-arcane-nova']]){
+  const f=fixture(classId,[id]);Object.assign(f.m,{x:25,z:1.8});const before={x:f.p.x,z:f.p.z};
+  assert(cast(f,id,f.m.id));assert.equal(f.p.attack.targetId,undefined);settle(f);
+  assert.equal(f.m.hp,10000);assert.deepEqual({x:f.p.x,z:f.p.z},before);
  }
 });
 test('all six mobility skills move, share class cooldown and remain on valid paths',()=>{

@@ -81,7 +81,7 @@ export class NetworkGame{
         this.pending=teleported?[]:this.pending.filter(input=>input.seq>self.ack);
         this.serverTime=m.t;
         const next:ClientPlayer={...self,coins:self.gold};
-        if(next.afk||next.interactionTarget)this.pending=[];else for(const input of this.pending)moveHero(next,.05,input);
+        if(next.afk||next.interactionTarget||next.navigationTarget||next.attackTargetId!=null)this.pending=[];else for(const input of this.pending)moveHero(next,.05,input);
         this.player=next;this.mobs=m.mobs;this.players=m.players;this.onlinePlayers=m.onlinePlayers??[];this.projectiles=m.projectiles;this.save=m.save;
         this.groundLoot=m.groundLoot||[];this.skillZones=m.skillZones||[];this.dungeon=m.dungeon;
         this.events.push(...m.events);this.onStatus('online',m.save.ok?'В общем мире':'Ошибка сохранения — не закрывайте игру');
@@ -109,13 +109,13 @@ export class NetworkGame{
     while(this.accumulator>=.05){
       this.accumulator-=.05;const frame:InputFrame={type:'input',x:input.x||0,z:input.z||0,aim:typeof input.aim==='number'&&Number.isFinite(input.aim)?input.aim:null,seq:++this.seq};
       this.send(frame);this.pending.push(frame);if(this.pending.length>40){this.socket?.close();this.pending=[];return;}
-      if(!this.player.afk&&!this.player.interactionTarget)moveHero(this.player,.05,frame);
+      if(!this.player.afk&&!this.player.interactionTarget&&!this.player.navigationTarget&&this.player.attackTargetId==null)moveHero(this.player,.05,frame);
     }
   }
-  attack(yaw:number,special=false,targetId?:number){if(this.connected&&performance.now()-this.lastAttack>100){this.lastAttack=performance.now();this.send({type:'attack',yaw,special,...(targetId!==undefined?{targetId}:{})});}}
+  attack(yaw:number,special=false,targetId?:number,approach=false){if(this.connected&&performance.now()-this.lastAttack>100){this.lastAttack=performance.now();this.send({type:'attack',yaw,special,approach,...(targetId!==undefined?{targetId}:{})});}}
   skill(skillId:SkillId,yaw:number,aim:{targetId?:number;target?:{x:number;z:number}}={}){
     if(!this.connected)return;
-    const positioned:(SkillId)[]=['archer-rain','mage-meteor','warrior-charge','warrior-leap','archer-retreat','archer-roll','archer-trap','mage-teleport','mage-ice-step'];
+    const positioned:(SkillId)[]=['archer-rain','archer-arrow-storm','mage-meteor','warrior-charge','warrior-leap','archer-retreat','archer-roll','archer-trap','mage-teleport','mage-ice-step'];
     this.send({type:'skill',skillId,yaw,...(aim.targetId!==undefined?{targetId:aim.targetId}:{}),...(positioned.includes(skillId)&&aim.target?{target:aim.target}:{})});
   }
   skillStop(){if(this.connected)this.send({type:'skillStop'});}

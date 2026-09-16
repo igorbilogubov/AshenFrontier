@@ -1,4 +1,4 @@
-/* Readable map and travel controls, without changing the seven combat actions. */
+/* Readable map, travel controls and potion cooldown presentation. */
 .map-panel{width:300px;padding:9px;background:#0d1918ed;border-color:#af996d80}
 #minimap{display:block;width:100%;height:auto;aspect-ratio:30/19}
 .map-legend{display:flex;flex-wrap:wrap;justify-content:center;gap:5px 10px;font:10px/1.4 system-ui;color:#e2dfc8;padding-top:7px}

@@ -734,7 +734,8 @@ export class World{
     const utility=['defense','support'].includes(skill.kind),mobility=skill.kind==='mobility';
     if(p.afk&&mobility)return false;
     if(safe(p)){this.emit('safe',{},p.id);return false;}
-    const aimed=utility||mobility?undefined:this.aimedMob(p,targetId,skill.range);
+    const selfCentered=skillId==='warrior-earthquake'||skillId==='mage-arcane-nova';
+    const aimed=utility||mobility||selfCentered?undefined:this.aimedMob(p,targetId,skill.range);
     if(aimed===null)return false;
     if(aimed)yaw=Math.atan2(aimed.x-p.x,aimed.z-p.z);
     const areaSkill=skillId==='archer-rain'||skillId==='archer-arrow-storm'||skillId==='mage-meteor'||mobility||skillId==='archer-trap';

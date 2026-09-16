@@ -59,7 +59,8 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
   const vendorSamples=new Map(shopItems().map(listing=>[listing.definitionId,rollEquipment(listing.definitionId,`shop-preview:${listing.definitionId}`,()=>0)]));
   const signature=()=>JSON.stringify([game.player.gold,game.player.items,game.player.equipment,game.player.stash,game.player.consumableInventory,game.player.quickSlots]);
   const canTrade=()=>opened&&game.player.shopActive===true&&game.connected&&!game.player.dead&&!game.player.attack&&safe(game.player)&&distance(game.player,SHOP)<=SHOP.range&&(game.player.combatUntil||0)<=game.serverTime;
-  const canEdit=()=>game.connected&&!game.player.dead&&!game.player.attack&&safe(game.player)&&(game.player.combatUntil||0)<=game.serverTime;
+  const canEdit=()=>game.connected&&!game.player.dead;
+  const canUseStash=()=>canEdit()&&!game.player.attack&&safe(game.player)&&(game.player.combatUntil||0)<=game.serverTime;
   function hideTooltip(){tooltip.hidden=true;if(hover)hover.removeAttribute('aria-describedby');hover=null;hoverSignature='';}
   function setOpen(value:boolean){if(value&&stashOpened)setStashOpen(false);opened=value;vendor.hidden=!value;document.body.classList.toggle('vendor-open',value);hideTooltip();if(value){tab=game.player.classId;openInventory();renderShop();}update();}
   close.onclick=()=>setOpen(false);
@@ -70,7 +71,7 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
   }
   stashClose.onclick=()=>setStashOpen(false);
   function transfer(item:Item,withdraw:boolean){
-    if(!stashOpened||!game.player.stashActive||!canEdit()){toast('Откройте личный сундук в доме');return;}
+    if(!stashOpened||!game.player.stashActive||!canUseStash()){toast('Откройте личный сундук в доме');return;}
     if(Object.values(game.player.equipment).includes(item.id)){toast('Сначала снимите предмет');return;}
     if(withdraw&&backpackUsage(game.player)>=BAG_CAPACITY){toast('В рюкзаке нет свободной ячейки');return;}
     if(!withdraw&&game.player.stash.length>=32){toast('Сундук заполнен');return;}
@@ -142,7 +143,7 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
       if(!canTrade()){toast('Продавать вещи можно у торговца');return;}
       if(Object.values(game.player.equipment).includes(item.id)){toast('Сначала снимите вещь');return;}
     }else{
-      if(!canEdit()){toast('Снаряжение меняется в лагере, вне боя');return;}
+      if(!canEdit()){toast('Снаряжение недоступно: герой погиб или нет соединения');return;}
       if(!canEquip(game.player,item)){toast('Предмет не подходит вашему классу');return;}
       if(mode==='unequip'&&backpackUsage(game.player)>=BAG_CAPACITY){toast('В рюкзаке нет свободной ячейки');return;}
     }

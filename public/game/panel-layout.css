@@ -1,0 +1,12 @@
+:root{--hud-clearance:210px}
+/* A higher z-index would just cover the combat bar. Keep both sets of controls usable. */
+.rpg-panel,.skillbook-panel{bottom:var(--hud-clearance);min-height:0}
+.afk-settings-panel{bottom:var(--hud-clearance);max-height:calc(100dvh - var(--hud-clearance) - 12px)}
+.rpg-panel .panel-body{flex:1 1 auto;min-height:0}
+.skillbook-panel .skillbook-content{min-height:0}
+@media(max-height:540px){
+  .rpg-panel,.skillbook-panel{top:8px;overflow:auto}
+  .rpg-panel .panel-title,.skillbook-heading{padding-top:7px;padding-bottom:7px}
+  .skillbook-tabs button{padding-top:6px;padding-bottom:6px}
+  .panel-bottom,.skillbook-footer{padding-top:6px;padding-bottom:6px}
+}

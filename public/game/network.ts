@@ -82,7 +82,7 @@ export class NetworkGame{
         this.serverTime=m.t;
         const next:ClientPlayer={...self,coins:self.gold};
         if(next.afk||next.interactionTarget)this.pending=[];else for(const input of this.pending)moveHero(next,.05,input);
-        this.player=next;this.mobs=m.mobs;this.players=m.players;this.onlinePlayers=m.onlinePlayers;this.projectiles=m.projectiles;this.save=m.save;
+        this.player=next;this.mobs=m.mobs;this.players=m.players;this.onlinePlayers=m.onlinePlayers??[];this.projectiles=m.projectiles;this.save=m.save;
         this.groundLoot=m.groundLoot||[];this.skillZones=m.skillZones||[];this.dungeon=m.dungeon;
         this.events.push(...m.events);this.onStatus('online',m.save.ok?'В общем мире':'Ошибка сохранения — не закрывайте игру');
         this.resolveJoin?.();this.resolveJoin=null;this.rejectJoin=null;return;

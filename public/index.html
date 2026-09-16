@@ -16,14 +16,17 @@
   <link rel="stylesheet" href="game/skillbook.css">
   <link rel="stylesheet" href="game/responsive-chat.css">
   <link rel="stylesheet" href="game/accounts.css">
+  <link rel="stylesheet" href="game/gameplay-hud.css">
+  <link rel="stylesheet" href="game/online-roster.css">
+  <link rel="stylesheet" href="game/panel-layout.css">
 </head>
 <body>
-  <canvas id="scene" tabindex="0" aria-label="Пепельная опушка. Камера с постоянным углом, колёсико мыши — приближение и отдаление. Удерживайте левую кнопку мыши — идти за курсором; отпустите — остановиться. Shift — ходьба и бег, пробел или правая кнопка — удар, 1, 2, 3, 4 — навыки, Q/W — назначенные зелья из рюкзака, F — автоохота с текущего места, K — книга навыков."></canvas>
+  <canvas id="scene" tabindex="0" aria-label="Пепельная опушка. Камера с постоянным углом, колёсико мыши — приближение и отдаление. Удерживайте левую кнопку мыши — идти за курсором; отпустите — остановиться. Shift — ходьба и бег, пробел или правая кнопка — удар, 1, 2, 3, 4 — навыки, Q/W — назначенные зелья из рюкзака, F — автоохота с текущего места, K — книга навыков, Z — названия добычи."></canvas>
   <div id="world-ui" aria-hidden="true"></div>
   <div id="hurt-vignette" aria-hidden="true"></div>
   <header>
     <div class="brand"><span class="mark" aria-hidden="true">✦</span><div><p>ПЕПЕЛЬНЫЙ РУБЕЖ</p><h1 id="location-name">Пепельная опушка</h1></div></div>
-    <span id="connection" class="badge">Подключение…</span><span id="performance" title="Частота кадров игры">— FPS</span><span id="zone-state" class="badge safe">Безопасный лагерь</span>
+    <button id="connection" class="badge" type="button" aria-controls="online-roster" aria-expanded="false" title="Игроки онлайн: уровень и локация">Подключение…</button><span id="performance" title="Частота кадров игры">— FPS</span><span id="zone-state" class="badge safe">Безопасный лагерь</span>
   </header>
   <aside id="forest-quest" class="quest" aria-label="Задание">
     <p class="eyebrow">ПЕРВАЯ ВЫЛАЗКА</p>
@@ -41,10 +44,10 @@
   </aside>
   <aside id="dungeon-progress" class="quest" aria-label="Поход в подземелье" hidden>
     <p class="eyebrow">ПОДЗЕМЕЛЬЕ</p><h2 id="dungeon-objective">Снимите печать</h2>
-    <p id="dungeon-hint"></p><p class="reward">Выход — у безопасного входа.</p>
+    <p id="dungeon-hint"></p><p class="reward">Выходы — у входа и за ареной босса.</p>
   </aside>
   <aside class="map-panel" aria-label="Карта локации">
-    <canvas id="minimap" width="240" height="126" aria-label="Карта: лагерь слева, опушка в центре, руины справа."></canvas>
+    <canvas id="minimap" width="600" height="380" aria-label="Карта: лагерь слева, опушка в центре, руины справа."></canvas>
     <div id="map-legend" class="map-legend"><span>ЛАГЕРЬ</span><span>◯ СПОТЫ</span><span>РУИНЫ</span></div>
   </aside>
   <div id="target-panel" hidden><span id="target-name"></span><small id="target-health"></small><div class="bar"><i id="target-fill"></i></div></div>
@@ -55,7 +58,7 @@
         <div class="orb-frame"><div class="orb-glass"><i id="hp-fill" class="orb-liquid"></i></div><div class="orb-readout"><span class="orb-label">Здоровье</span><span id="hp-text">100 / 100</span></div></div>
       </div>
       <div class="hud-core">
-        <div class="auxiliary-controls"><button id="afk-toggle" type="button" aria-pressed="false" disabled><span id="afk-status">Автоохота</span><kbd>F</kbd></button><button id="movement" type="button" aria-pressed="false"><span id="movement-label">Ходьба</span><kbd>Shift</kbd></button><button id="reset" type="button" title="Вернуться в безопасный лагерь">К костру</button></div>
+        <div class="auxiliary-controls"><button id="afk-toggle" type="button" aria-pressed="false" disabled><span id="afk-status">Автоохота</span><kbd>F</kbd></button><button id="movement" type="button" aria-pressed="false"><span id="movement-label">Ходьба</span><kbd>Shift</kbd></button><button id="reset" type="button" title="Вернуться в город к костру за 5 секунд вне боя"><span id="camp-return-label">В город · 5 с</span></button><button id="loot-labels-toggle" type="button" aria-pressed="true" title="Показать или скрыть названия добычи · Z"><span>Добыча</span><kbd>Z</kbd></button></div>
         <div class="hero-status"><b id="hero-name">Воин</b></div>
         <div id="hud-experience" class="hud-experience" role="progressbar" aria-label="Опыт до следующего уровня" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="hud-xp-fill"></i><span id="hud-xp-text">0 / 100 XP</span></div>
         <div class="dock" role="group" aria-label="Атака, четыре навыка и два зелья">
@@ -64,8 +67,8 @@
           <button id="skill-secondary" class="skill-button action-cell" type="button"><kbd>2</kbd><span class="skill-sigil action-art" aria-hidden="true"></span><span class="skill-name">Навык</span><small class="skill-meta">Мана</small></button>
           <button id="skill-tertiary" class="skill-button action-cell" type="button"><kbd>3</kbd><span class="skill-sigil action-art" aria-hidden="true"></span><span class="skill-name">Навык</span><small class="skill-meta">Мана</small></button>
           <button id="skill-quaternary" class="skill-button action-cell" type="button"><kbd>4</kbd><span class="skill-sigil action-art" aria-hidden="true"></span><span class="skill-name">Навык</span><small class="skill-meta">Мана</small></button>
-          <button id="potion" class="action-cell quick-consumable" data-quick-slot="q" type="button"><kbd>Q</kbd><b id="potions" class="quick-count" aria-hidden="true">0</b><span class="potion-icon action-art" aria-hidden="true"></span><span class="action-name">Пусто</span><small>Зелье</small></button>
-          <button id="mana-potion" class="action-cell quick-consumable" data-quick-slot="w" type="button"><kbd>W</kbd><b id="mana-potions" class="quick-count" aria-hidden="true">0</b><span class="potion-icon action-art" aria-hidden="true"></span><span class="action-name">Пусто</span><small>Зелье</small></button>
+          <button id="potion" class="action-cell quick-consumable" data-quick-slot="q" type="button"><kbd>Q</kbd><b id="potions" class="quick-count" aria-hidden="true">0</b><span class="potion-icon action-art" aria-hidden="true"></span><span class="potion-timer" aria-hidden="true" hidden></span><span class="action-name">Пусто</span><small>Зелье</small></button>
+          <button id="mana-potion" class="action-cell quick-consumable" data-quick-slot="w" type="button"><kbd>W</kbd><b id="mana-potions" class="quick-count" aria-hidden="true">0</b><span class="potion-icon action-art" aria-hidden="true"></span><span class="potion-timer" aria-hidden="true" hidden></span><span class="action-name">Пусто</span><small>Зелье</small></button>
         </div>
       </div>
       <div id="mana-orb" class="resource-orb mana-orb" role="progressbar" aria-label="Мана" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">

@@ -33,7 +33,8 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
   const compact=matchMedia('(max-width: 900px)'),panels={character:$('character-panel'),inventory:$('inventory-panel')};
   const statNodes=new Map<StatKey,StatNodes>(),derivedNodes=new Map<DerivedStat,DerivedNodes>(),slotNodes=new Map<EquipmentSlot,SlotNodes>(),bagNodes:BagNodes[]=[];
   const isPanelOpen=()=>!panels.character.hidden||!panels.inventory.hidden;
-  const canEdit=()=>game.connected&&safe(game.player)&&!game.player.dead&&!game.player.attack&&(game.player.combatUntil||0)<=(game.serverTime||0);
+  const canEdit=()=>game.connected&&!game.player.dead;
+  const canReset=()=>canEdit()&&safe(game.player)&&!game.player.attack&&(game.player.combatUntil||0)<=(game.serverTime||0);
   function syncPanels(){
     const open=isPanelOpen();document.body.classList.toggle('panel-open',open);
     $('character-toggle').setAttribute('aria-expanded',String(!panels.character.hidden));$('inventory-toggle').setAttribute('aria-expanded',String(!panels.inventory.hidden));
@@ -80,7 +81,7 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
   }
   $('stat-cancel').onclick=()=>{if(!pending){clearDraft();updateStats();}};
   function sendStatCommand(type:'allocateStats'|'resetStats',extra?:{points:Attributes}){
-    if(pending||!canEdit())return;
+    if(pending||!(type==='resetStats'?canReset():canEdit()))return;
     pending={revision:game.player.statRevision,classId:game.player.classId,sentAt:performance.now()};statusMessage='';
     if(type==='allocateStats'){if(!extra){pending=null;return;}game.send({type,revision:pending.revision,points:extra.points});}
     else game.send({type,revision:pending.revision});statsKey='';$('reset-confirm').hidden=true;updateStats();
@@ -89,7 +90,7 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
   $('reset-stats').onclick=()=>{$('reset-confirm').hidden=false;$('reset-confirm-yes').focus({preventScroll:true});};
   $('reset-confirm-no').onclick=()=>{$('reset-confirm').hidden=true;$('reset-stats').focus({preventScroll:true});};
   $('reset-confirm-yes').onclick=()=>sendStatCommand('resetStats');
-  $('claim-items').onclick=()=>{if(canEdit())game.send({type:'claim'});};
+  $('claim-items').onclick=()=>{if(canReset())game.send({type:'claim'});};
 
 
   $('equipment-figure').innerHTML=heroSilhouette;
@@ -106,7 +107,7 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
   const interactions=bindInventoryInteractions(game,toast,()=>{panels.character.hidden=true;openPanel('inventory');});
   function setIcon(element:HTMLElement,slot:EquipmentSlot,classId:ClassId,item?:Item,weapon:WeaponId='sword'){const key=item?'art:'+itemArtKey(item,classId,weapon):slot+':'+classId;if(element.dataset.icon!==key){element.innerHTML=item?itemArtwork(item,classId,weapon):itemIcon(slot,classId);element.dataset.icon=key;}}
   game.onStatus=(status,message)=>{
-    write($('connection'),status==='online'?`${game.players.filter(p=>p.connected).length} в локации`:message);
+    write($('connection'),status==='online'?`Онлайн · ${game.onlinePlayers.length}`:message);
     $('connection').classList.toggle('offline',status!=='online');
     if(status!=='online'){clearInput();if(pending||total(draft))clearDraft(status==='error'?message:'Соединение потеряно. Распределение не отправлялось повторно.');}
   };
@@ -133,8 +134,8 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
     if(owner!==draftOwner){clearDraft(draftOwner?'Характеристики обновлены.':'');draftOwner=owner;}
     if(pending&&performance.now()-pending.sentAt>8000)clearDraft('Ответ задержался. Проверьте значения перед повторным распределением.');
     if(panels.character.hidden)return;
-    const editable=canEdit();
-    const key=JSON.stringify([p.classId,p.name,p.level,p.xp,p.xpNeeded,p.allocatedStats,p.statRevision,p.equipment,p.items,p.unspentPoints,editable,draft,pending,statusMessage]);
+    const editable=canEdit(),resettable=canReset();
+    const key=JSON.stringify([p.classId,p.name,p.level,p.xp,p.xpNeeded,p.allocatedStats,p.statRevision,p.equipment,p.items,p.unspentPoints,editable,resettable,draft,pending,statusMessage]);
     if(key===statsKey)return;statsKey=key;
     const current=characterStats(p),proposed:Attributes={...p.allocatedStats};
     for(const stat of STAT_KEYS)proposed[stat]+=draft[stat];
@@ -154,15 +155,15 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
     }
     write($('preview-label'),spent?'После распределения':'С учётом вещей');
     $('stat-apply').disabled=!editable||!!pending||!spent;$('stat-cancel').disabled=!!pending||!spent;write($('stat-apply'),pending?'Применяем…':spent?`Применить · ${spent}`:'Применить');
-    const message=pending?'Ждём подтверждения сервера…':!game.connected?'Нет соединения. Ожидаем общий мир.':!editable?'Распределение доступно в безопасной зоне, вне боя.':statusMessage|| (spent?'Зелёным показаны будущие значения.':p.unspentPoints>0?'Выберите статы и примените очки.':'Следующий уровень принесёт 5 очков.');
+    const message=pending?'Ждём подтверждения сервера…':!game.connected?'Нет соединения. Ожидаем общий мир.':!editable?'Распределение недоступно, пока герой погиб.':statusMessage|| (spent?'Зелёным показаны будущие значения.':p.unspentPoints>0?'Выберите статы и примените очки.':'Следующий уровень принесёт 5 очков.');
     write($('stat-status'),message);$('stat-status').classList.toggle('pending',!!pending);
-    $('reset-stats').disabled=!editable||!!pending||!total(p.allocatedStats);$('reset-confirm-yes').disabled=!editable||!!pending;
+    $('reset-stats').disabled=!resettable||!!pending||!total(p.allocatedStats);$('reset-confirm-yes').disabled=!resettable||!!pending;
   }
   function updateInventory(){
     if(panels.inventory.hidden)return;
     const p=game.player,c=CLASSES[p.classId];if(!c)return;
-    const editable=canEdit(),bag=backpackItems(p),stacks=p.consumableInventory||[],usage=backpackUsage(p),key=JSON.stringify([p.items,p.pendingItems,p.equipment,p.stash,p.consumableInventory,p.weapon,p.classId,p.level,p.gold,editable]);if(key===inventoryKey)return;inventoryKey=key;
-    write($('hero-details'),`${c.name} · уровень ${p.level} · 6 слотов снаряжения`);write($('inventory-gold'),`${p.gold} золота`);write($('inventory-status'),editable?'Можно менять снаряжение':!game.connected?'Нет соединения':'Изменение в безопасной зоне, вне боя');
+    const editable=canEdit(),bag=backpackItems(p),stacks=p.consumableInventory||[],usage=backpackUsage(p),key=JSON.stringify([p.items,p.pendingItems,p.equipment,p.stash,p.consumableInventory,p.weapon,p.classId,p.level,p.gold,editable,canReset()]);if(key===inventoryKey)return;inventoryKey=key;
+    write($('hero-details'),`${c.name} · уровень ${p.level} · 6 слотов снаряжения`);write($('inventory-gold'),`${p.gold} золота`);write($('inventory-status'),editable?'Снаряжение можно менять и в бою':!game.connected?'Нет соединения':'Герой погиб');
     for(const [slot,nodes] of slotNodes){
       const item=p.items.find(value=>value.id===p.equipment[slot]);nodes.button.className=`equipment-slot${item?' rarity-'+(item.rarity||0):' empty'}`;
       nodes.button.dataset.itemId=item?.id||'';nodes.button.setAttribute('aria-label',`${EQUIPMENT_SLOTS[slot].name}: ${item?item.name+' · '+itemBonus(item):'Пусто'}`);setIcon(nodes.icon,slot,item?.classId||p.classId,item,p.weapon);
@@ -176,7 +177,7 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
       nodes.button.setAttribute('aria-label',item?`${item.name}, ${itemBonus(item)}`:stack?`${definition?.name||'Зелье'}, ${stack.quantity} шт. Перетащите на Q или W`:`Пустая ячейка ${index+1}`);nodes.button.disabled=false;
       if(item){nodes.icon.hidden=false;setIcon(nodes.icon,item.slot,item.classId||p.classId,item);}else if(stack&&definition){const tier=consumableTier(definition.id);nodes.icon.hidden=false;nodes.icon.dataset.icon='';nodes.icon.innerHTML=`<span class="potion-icon consumable-tier-${tier.rank}"></span><b class="stack-count"></b>`;nodes.icon.querySelector('.potion-icon')!.innerHTML=consumableArtwork(definition);nodes.icon.querySelector('.stack-count')!.textContent=String(stack.quantity);}else{nodes.icon.hidden=true;nodes.icon.dataset.icon='';}
     });
-    $('claim-items').hidden=!p.pendingItems?.length;write($('claim-items'),`Забрать ожидающие вещи · ${p.pendingItems?.length||0}`);$('claim-items').disabled=!editable||usage>=BAG_CAPACITY;
+    $('claim-items').hidden=!p.pendingItems?.length;write($('claim-items'),`Забрать ожидающие вещи · ${p.pendingItems?.length||0}`);$('claim-items').disabled=!canReset()||usage>=BAG_CAPACITY;
   }
   function onEvent(event:WorldEvent){
     interactions.onEvent(event);

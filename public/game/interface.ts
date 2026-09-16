@@ -1,3 +1,4 @@
+import {bindAccountInterface} from './account-interface.js';
 import {skillsForClass} from './skills.js';
 import {actionIcon} from './action-icons.js';
 import {bindInventoryInteractions} from './inventory-interactions.js';
@@ -5,7 +6,7 @@ import {CLASSES,EQUIPMENT_SLOTS,BAG_CAPACITY,backpackItems,itemBonus,STAT_KEYS,S
 import {backpackUsage,consumableDefinition} from './consumables.js';
 import {safe} from './location.js';
 import {itemIcon,itemArtwork,itemArtKey,heroSilhouette} from './item-icons.js';
-import {element as $,errorMessage} from './ui-types.js';
+import {element as $} from './ui-types.js';
 import type {NetworkGame} from './network.js';
 import type {Attributes,ClassId,EquipmentSlot,StatKey,WorldEvent,Item,WeaponId} from '../../shared/types.js';
 type PanelName='character'|'inventory';
@@ -15,7 +16,6 @@ type DerivedNodes={before:HTMLSpanElement;arrow:HTMLSpanElement;after:HTMLSpanEl
 type SlotNodes={button:HTMLButtonElement;icon:HTMLSpanElement};
 type BagNodes=SlotNodes;
 const panelNames:PanelName[]=['character','inventory'];
-const classId=(value:string):ClassId=>value==='archer'||value==='mage'?value:'warrior';
 const write=(node:HTMLElement,value:unknown)=>{const text=String(value);if(node.textContent!==text)node.textContent=text;};
 const emptyDraft=():Attributes=>({strength:0,dexterity:0,vitality:0,energy:0});
 const total=(points:Partial<Attributes>|undefined)=>STAT_KEYS.reduce((sum,key)=>sum+(points?.[key]||0),0);
@@ -86,7 +86,7 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
   $('reset-confirm-no').onclick=()=>{$('reset-confirm').hidden=true;$('reset-stats').focus({preventScroll:true});};
   $('reset-confirm-yes').onclick=()=>sendStatCommand('resetStats');
   $('claim-items').onclick=()=>{if(canEdit())game.send({type:'claim'});};
-  $('copy-key').onclick=async()=>{try{await navigator.clipboard.writeText(game.token);toast('Ключ героя скопирован. Храните его как пароль.');}catch{toast('Копирование требует localhost или HTTPS');}};
+
 
   $('equipment-figure').innerHTML=heroSilhouette;
   for(const [slot,info] of Object.entries(EQUIPMENT_SLOTS) as [EquipmentSlot,typeof EQUIPMENT_SLOTS[EquipmentSlot]][]){
@@ -114,26 +114,15 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
   $('chat-form').onsubmit=e=>{e.preventDefault();const text=$('chat-input').value.trim();if(text&&game.connected){game.send({type:'chat',text});$('chat-input').value='';$('scene').focus();}};
   $('chat-input').onfocus=clearInput;
   addEventListener('keydown',event=>{
-    if(event.metaKey||event.ctrlKey||event.altKey||event.repeat)return;
+    if(event.metaKey||event.ctrlKey||event.altKey||event.repeat||!game.connected)return;
     if(event.code==='Escape'&&isPanelOpen()){event.preventDefault();Object.values(panels).forEach(panel=>{panel.hidden=true;});syncPanels();$('scene').focus();return;}
     if(['INPUT','SELECT','TEXTAREA'].includes((document.activeElement?.tagName||'')))return;
     if(event.code==='KeyI'){event.preventDefault();togglePanel('inventory');}
     if(event.code==='KeyC'){event.preventDefault();togglePanel('character');}
     if(event.code==='Enter'&&!isPanelOpen()&&(document.activeElement?.tagName||'')!=='BUTTON'){event.preventDefault();$('chat-input').focus();}
   });
-  async function join(){
-    const stored=game.storage.getItem(game.tokenKey);
-    if(stored){try{await game.connect({token:stored});return;}catch(error){$('join-error').textContent=errorMessage(error);}}
-    $('join-panel').hidden=false;$('join-name').value=localStorage.getItem('frontier-name')||'Странник';
-    await new Promise<void>(resolve=>{
-      $('join-form').onsubmit=async event=>{
-        event.preventDefault();$('join-submit').disabled=true;$('join-error').textContent='';
-        try{await game.connect({name:$('join-name').value.trim(),classId:classId($('join-class').value),token:$('join-key').value.trim()});$('join-panel').hidden=true;resolve();}
-        catch(error){$('join-error').textContent=errorMessage(error);}
-        finally{$('join-submit').disabled=false;}
-      };
-    });
-  }
+  const accounts=bindAccountInterface(game,clearInput);
+  const join=accounts.join;
   function updateStats(){
     const p=game.player,c=CLASSES[p.classId];if(!c)return;
     const owner=`${game.id}:${p.classId}:${p.statRevision}`;

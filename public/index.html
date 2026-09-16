@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="game/target-presentation.css">
   <link rel="stylesheet" href="game/afk-settings.css">
   <link rel="stylesheet" href="game/responsive-chat.css">
+  <link rel="stylesheet" href="game/accounts.css">
 </head>
 <body>
   <canvas id="scene" tabindex="0" aria-label="Пепельная опушка. Камера с постоянным углом, колёсико мыши — приближение и отдаление. Удерживайте левую кнопку мыши — идти за курсором; отпустите — остановиться. Shift — ходьба и бег, пробел или правая кнопка — удар, 1, 2, 3, 4 — навыки, Q/W — назначенные зелья из рюкзака, F — автоохота с текущего места."></canvas>
@@ -68,18 +69,36 @@
   <nav class="hero-shortcuts" aria-label="Окна героя"><button id="character-toggle" type="button" title="Характеристики · C" aria-controls="character-panel" aria-expanded="false"><span class="shortcut-icon" aria-hidden="true"></span><span>Герой</span><kbd>C</kbd><b id="unspent-badge" hidden>0</b></button><button id="inventory-toggle" type="button" title="Снаряжение · I" aria-controls="inventory-panel" aria-expanded="false"><span class="shortcut-icon" aria-hidden="true"></span><span>Вещи</span><kbd>I</kbd></button></nav>
   <div id="death-screen" hidden><p class="eyebrow">ВЫ ПАЛИ В БОЮ</p><h2>Костёр ещё горит</h2><p>Возвращаемся в лагерь…</p><small>Опыт и золото этой вылазки сохраняются.</small></div>
   <div id="loading" role="status"><span class="mark">✦</span><h2>Открываем лесную тропу…</h2><p id="load-progress">Готовим локацию и её обитателей</p><button id="retry" type="button" hidden>Повторить</button></div>
-  <section id="join-panel" class="panel-overlay" hidden aria-label="Вход в мир">
-    <form id="join-form" class="join-card">
-      <span class="mark">✦</span><p class="eyebrow">ПЕПЕЛЬНЫЙ РУБЕЖ</p><h2>У каждого огня — своя история</h2>
-      <p>Общий мир, совместная охота и герой, который остаётся с вами.</p>
-      <label>Имя героя<input id="join-name" name="name" maxlength="18" required autocomplete="nickname" value="Странник"></label>
-      <label>Класс при создании героя<select id="join-class"><option value="warrior">Воин</option><option value="archer">Лучник</option><option value="mage">Маг</option></select></label>
-      <p>Класс выбирается один раз. У существующего героя он сохранится при входе по ключу.</p>
-      <details><summary>У меня уже есть герой</summary><label>Ключ героя<input id="join-key" type="password" autocomplete="off" spellcheck="false" placeholder="Вставьте ключ этого сервера"></label></details>
-      <p id="join-error" role="alert"></p><button id="join-submit" type="submit">Войти в мир</button>
-      <small>Герой сохраняется автоматически. Ключ для другого устройства доступен в окне вещей.</small>
-    </form>
+  <section id="join-panel" class="panel-overlay account-overlay" hidden aria-label="Аккаунт и персонажи">
+    <div class="account-shell">
+      <div class="account-heading"><div><p class="eyebrow">ПЕПЕЛЬНЫЙ РУБЕЖ</p><h2 id="account-title">Ваша история начинается здесь</h2></div><span class="account-sigil" aria-hidden="true">✦</span></div>
+      <p id="account-status" role="status">Проверяем вход…</p>
+      <div id="account-login" hidden>
+        <p class="account-intro">Один аккаунт. Ваши герои. Общий мир.</p>
+        <p class="account-copy">Войдите через Google, чтобы продолжить путь с любого устройства. Прогресс каждого героя сохраняется автоматически.</p>
+        <a id="google-signin" class="google-signin" href="/auth/google"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24"><path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.39-.18-2.05H12v3.88h5.38a4.6 4.6 0 0 1-1.99 3.02v2.51h3.22c1.88-1.73 2.99-4.27 2.99-7.36Z"/><path fill="#34A853" d="M12 22c2.7 0 4.96-.9 6.61-2.41l-3.22-2.51c-.9.6-2.05.96-3.39.96-2.61 0-4.82-1.76-5.61-4.12H3.07v2.59A10 10 0 0 0 12 22Z"/><path fill="#FBBC05" d="M6.39 13.92a6 6 0 0 1 0-3.84V7.49H3.07a10 10 0 0 0 0 9.02l3.32-2.59Z"/><path fill="#EA4335" d="M12 5.96c1.47 0 2.79.51 3.83 1.51l2.88-2.88A9.63 9.63 0 0 0 12 2a10 10 0 0 0-8.93 5.49l3.32 2.59C7.18 7.72 9.39 5.96 12 5.96Z"/></svg>Войти через Google</a>
+        <p id="account-unconfigured" hidden>Вход через Google ещё не настроен на этом сервере. Попробуйте позже.</p>
+      </div>
+      <div id="account-roster" hidden>
+        <div class="account-identity"><span id="account-identity"></span><button id="account-logout" type="button">Выйти из аккаунта</button></div>
+        <div class="roster-heading"><h3>Ваши герои</h3><span id="character-count">0 / 5</span></div>
+        <div id="character-roster" class="character-roster" role="group" aria-label="Выберите персонажа"></div>
+        <form id="join-form" class="create-character" hidden>
+          <div class="create-heading"><h3>Новый герой</h3><button id="create-cancel" type="button" aria-label="Отменить создание">×</button></div>
+          <label>Имя героя<input id="join-name" name="name" maxlength="18" required autocomplete="off" placeholder="Имя вашего героя"></label>
+          <label>Класс<select id="join-class"><option value="warrior">Воин</option><option value="archer">Лучник</option><option value="mage">Маг</option></select></label>
+          <p id="class-description">Меч и броня. Сражается в ближнем бою.</p>
+          <small>Класс выбирается навсегда. Можно создать до пяти героев.</small>
+          <button id="join-submit" type="submit">Создать героя</button>
+        </form>
+        <div id="character-enter" class="character-enter"><p id="selected-character">Выберите героя или создайте нового</p><button id="character-play" class="account-primary" type="button" disabled>Войти в мир</button></div>
+      </div>
+      <p id="join-error" role="alert" aria-live="polite"></p>
+      <button id="account-retry" class="account-retry" type="button" hidden>Повторить</button>
+      <p class="account-footnote">Одновременно играть можно одним героем на аккаунт.</p>
+    </div>
   </section>
+  <details id="account-menu" class="account-menu" hidden><summary>Аккаунт</summary><div><button id="account-characters" type="button">Выбор персонажа</button><button id="game-logout" type="button">Выйти из аккаунта</button><p id="account-menu-error" role="alert"></p></div></details>
   <aside id="character-panel" class="rpg-panel character-panel" hidden aria-labelledby="character-title">
     <div class="panel-title"><div><p class="eyebrow">КНИГА ГЕРОЯ</p><h2 id="character-title">Характеристики</h2></div><button id="character-close" class="panel-close" type="button" aria-label="Закрыть характеристики">×</button></div>
     <nav class="panel-tabs" aria-label="Окна героя"><button type="button" data-panel="character" aria-current="page">Характеристики <kbd>C</kbd></button><button type="button" data-panel="inventory">Снаряжение <kbd>I</kbd></button></nav>
@@ -104,7 +123,6 @@
       <div class="section-heading"><h3>Рюкзак</h3><span id="bag-count">0 / 16</span></div><div id="bag-items" class="bag-grid" role="group" aria-label="Предметы в рюкзаке"></div>
       <p class="bag-hint" id="inventory-hint">Наведите для описания · ПКМ — надеть / снять · перетащите в слот</p>
       <button id="claim-items" class="subtle-button" type="button" hidden>Забрать ожидающие вещи</button>
-      <details class="camp-services key-services"><summary>Доступ с другого устройства</summary><button id="copy-key" class="subtle-button" type="button">Скопировать ключ героя</button><small>Ключ открывает вашего героя на этом сервере. Храните его как пароль.</small></details>
     </div><div class="panel-bottom inventory-bottom"><span id="inventory-gold">0 золота</span><a class="workshop-link" href="/game/equipment-preview.html" target="_blank" rel="noopener">Примерка классов ↗</a><span id="inventory-status">Снаряжение меняется в безопасной зоне</span></div>
   </aside>
   <aside id="chat-panel" aria-label="Чат мира"><div id="chat-lines" aria-live="polite"></div><form id="chat-form"><input id="chat-input" placeholder="Чат мира · Enter" maxlength="180" aria-label="Сообщение в чат"><button type="submit" aria-label="Отправить сообщение">↗</button></form></aside>

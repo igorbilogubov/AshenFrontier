@@ -2,10 +2,11 @@ import {defaultAfkPreferences} from './afk-preferences.js';
 import {moveHero,stand} from './location.js';
 import {sameLocation} from './world-layout.js';
 import {characterStats} from '../rules.js';
-import type {SelfSnapshot,PublicPlayer,PublicMob,PublicProjectile,WorldEvent,ChatEntry,ClientMessage,ServerMessage,ClassId,WeaponId,HeroInput,SkillId,GroundDrop} from '../../shared/types.js';
+import type {SelfSnapshot,PublicPlayer,PublicMob,PublicProjectile,WorldEvent,ChatEntry,ClientMessage,ServerMessage,WeaponId,HeroInput,SkillId,GroundDrop} from '../../shared/types.js';
 
 export type ClientPlayer=SelfSnapshot & {coins:number};
-export interface ConnectionOptions {name?:string;classId?:ClassId;token?:string}
+export interface ConnectionOptions {heroId:string}
+export class ConnectionError extends Error {constructor(public code:string,message:string){super(message);}}
 export type NetworkStatus='connecting'|'online'|'error';
 type InputFrame=Extract<ClientMessage,{type:'input'}>;
 type SaveState=Extract<ServerMessage,{type:'state'}>['save'];
@@ -22,12 +23,13 @@ export class NetworkGame{
   player:ClientPlayer;
   mobs:PublicMob[];players:PublicPlayer[];projectiles:PublicProjectile[];loot:LegacyLoot[];events:WorldEvent[];pending:InputFrame[];
   connected:boolean;seq:number;accumulator:number;stand:typeof stand;receivedAt:number;lastAttack:number;retryDelay:number;closed:boolean;
-  storage:Storage;tokenKey:string;serverTime:number;
+  serverTime:number;
+  onTerminal:(code:string,message:string)=>void=()=>{};
   onStatus:(status:NetworkStatus,message:string)=>void;
   onChat:(entries:ChatEntry[],replace?:boolean)=>void;
   socket:WebSocket|undefined;
-  options:{name:string;classId:ClassId}={name:'Странник',classId:'warrior'};
-  token='';id='';fatal=false;
+  options:ConnectionOptions={heroId:''};
+  id='';fatal=false;
   save:SaveState|undefined;
   groundLoot:GroundDrop[]=[];
   retryTimer:ReturnType<typeof setTimeout>|undefined;
@@ -37,15 +39,11 @@ export class NetworkGame{
   constructor(){
     this.player=initialPlayer();
     this.mobs=[];this.players=[];this.projectiles=[];this.loot=[];this.events=[];this.pending=[];this.connected=false;this.seq=0;this.accumulator=0;this.stand=stand;this.receivedAt=0;this.lastAttack=0;this.retryDelay=600;this.closed=false;
-    const session=new URLSearchParams(location.search).get('session');
-    this.storage=session?sessionStorage:localStorage;this.tokenKey=`frontier-token:${location.origin}${session?':'+session:''}`;
     this.onStatus=()=>{};this.onChat=()=>{};this.serverTime=0;
   }
   send(message:ClientMessage){if(this.socket?.readyState===WebSocket.OPEN)this.socket.send(JSON.stringify(message));}
-  connect(options:ConnectionOptions={}){
-    this.options={name:options.name||localStorage.getItem('frontier-name')||'Странник',classId:options.classId||'warrior'};
-    // An explicitly empty key means create a hero, even after an old key failed.
-    this.token=options.token!==undefined?options.token:this.storage.getItem(this.tokenKey)||'';
+  connect(options:ConnectionOptions){
+    this.options={heroId:options.heroId};
     this.closed=false;this.fatal=false;this.firstState=new Promise<void>((resolve,reject)=>{this.resolveJoin=resolve;this.rejectJoin=reject;});this.open();return this.firstState;
   }
   open(){
@@ -55,7 +53,7 @@ export class NetworkGame{
     const socket=this.socket=new WebSocket(`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}/ws`);
     let welcomed=false;
     const deadline=setTimeout(()=>socket.close(),7000);
-    socket.onopen=()=>this.send({type:'join',protocol:2,...this.options,token:this.token||undefined});
+    socket.onopen=()=>this.send({type:'join',protocol:3,...this.options});
     socket.onmessage=event=>{
       if(this.socket!==socket)return;
       // The authoritative server owns this protocol; reject malformed envelopes before applying them.
@@ -66,10 +64,10 @@ export class NetworkGame{
         m=raw as ServerMessage;
       } catch {socket.close(1002,'Invalid server message');return;}
       if(m.type==='welcome'){
-        welcomed=true;this.id=m.id;this.token=m.token;this.storage.setItem(this.tokenKey,m.token);localStorage.setItem('frontier-name',this.options.name);this.onChat(m.chat,true);return;
+        welcomed=true;this.id=m.id;this.onChat(m.chat,true);return;
       }
       if(m.type==='error'){
-        if(m.code!=='full'&&m.code!=='storage_unavailable'){this.fatal=true;this.rejectJoin?.(new Error(m.text));}
+        if(m.code!=='full'&&m.code!=='storage_unavailable'){this.fatal=true;this.connected=false;this.rejectJoin?.(new ConnectionError(m.code,m.text));this.rejectJoin=null;this.onTerminal(m.code,m.text);socket.close();}
         this.onStatus('error',m.text);return;
       }
       if(m.type==='state'&&welcomed&&m.self){
@@ -83,7 +81,7 @@ export class NetworkGame{
         this.player=next;this.mobs=m.mobs;this.players=m.players;this.projectiles=m.projectiles;this.save=m.save;
         this.groundLoot=m.groundLoot||[];
         this.events.push(...m.events);this.onStatus('online',m.save.ok?'В общем мире':'Ошибка сохранения — не закрывайте игру');
-        this.resolveJoin?.();this.resolveJoin=null;return;
+        this.resolveJoin?.();this.resolveJoin=null;this.rejectJoin=null;return;
       }
       if(m.type==='chat')this.onChat([m.entry]);
     };
@@ -94,6 +92,11 @@ export class NetworkGame{
       this.retryTimer=setTimeout(()=>this.open(),this.retryDelay);this.retryDelay=Math.min(4000,this.retryDelay*1.7);
     };
     socket.onerror=()=>{};
+  }
+  disconnect(){
+    this.stopInput();this.closed=true;this.connected=false;this.pending=[];clearTimeout(this.retryTimer);
+    this.socket?.close(1000,'Character selection');this.socket=undefined;
+    this.rejectJoin?.(new ConnectionError('cancelled','Подключение отменено'));this.rejectJoin=null;this.resolveJoin=null;
   }
   update(dt:number,input:Partial<HeroInput>){
     if(!this.connected)return;

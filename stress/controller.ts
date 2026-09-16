@@ -19,7 +19,7 @@ import {CAMP_SPAWN} from '../public/game/camp-layout.js';
 const FOREST_AFK_SPOTS=AFK_SPOTS.filter(spot=>locationAt(spot)==='forest');
 import {skillsForClass} from '../public/game/skills.js';
 
-interface Bot {socket:WebSocket;id:string;token:string|null;seq:number;state:SelfSnapshot|null;index:number;nextSkill:0|1}
+interface Bot {socket:WebSocket;id:string;heroId:string;cookie:string;seq:number;state:SelfSnapshot|null;index:number;nextSkill:0|1}
 const delay=(ms:number)=>new Promise<void>(resolve=>setTimeout(resolve,ms));
 export async function assertStressSandbox(dataDir:string,host:string){
   if(process.env.NODE_ENV==='production'||host!=='127.0.0.1'||!path.resolve(dataDir).startsWith(path.join(tmpdir(),'ashen-stress-'))||await readFile(path.join(dataDir,'.stress-sandbox'),'utf8')!=='temporary benchmark world\n')throw new Error('Stress mode requires the isolated npm run stress runner');
@@ -57,8 +57,23 @@ class StressController {
   private snapshot(){return {tick:distribution(this.samples.tick),simulation:distribution(this.samples.simulation),broadcast:distribution(this.samples.broadcast),interval:distribution(this.samples.interval),eventLoopP99Ms:this.histogram.percentile(99)/1e6,outboundBytes:this.bytes,durationMs:Date.now()-this.epoch,players:this.world.players.size,bots:this.bots.length,activeAfk:[...this.world.players.values()].filter(hero=>!!hero.afk&&!hero.dead).length,afkTargets:[...this.world.players.values()].filter(hero=>!hero.dead&&hero.afk?.targetId!==null&&hero.afk?.targetId!==undefined).length,skillCasts:this.skillCasts,attackCasts:this.attackCasts,projectilePeak:this.projectilePeak,projectiles:this.world.projectiles.length,liveMobs:this.world.mobs.filter(mob=>mob.state!=='dead').length,errors:this.errors};}
   private send(bot:Bot,message:ClientMessage){if(bot.socket.readyState===WebSocket.OPEN)bot.socket.send(JSON.stringify(message));}
   private async addBot(url:string,index:number,warriorsOnly:boolean,deadline:number){
-    const connect=()=>new WebSocket(url.replace('http:','ws:')+'/ws',{origin:url});
-    const bot:Bot={socket:connect(),id:'',token:null,seq:0,state:null,index,nextSkill:0};
+    let heroId='',cookie='';
+    while(Date.now()<deadline){
+      const response=await fetch(url+'/api/stress-session',{
+        method:'POST',headers:{Origin:url,'Content-Type':'application/json'},
+        body:JSON.stringify({name:`Нагрузка ${index+1}`,classId:warriorsOnly?'warrior':(['warrior','archer','mage'] as const)[index%3]}),
+        signal:AbortSignal.timeout(Math.max(1,Math.min(6500,deadline-Date.now()))),redirect:'error',
+      });
+      if(response.status===503){await response.body?.cancel();await delay(Math.min(250,Math.max(0,deadline-Date.now())));continue;}
+      if(response.status!==201){await response.body?.cancel();throw new Error(`Bot account creation HTTP ${response.status}`);}
+      const result:unknown=await response.json();
+      const sessionCookie=response.headers.getSetCookie().find(value=>/^ashen_session=[A-Za-z0-9_-]{43};/.test(value));
+      if(!isRecord(result)||!isRecord(result.character)||typeof result.character.id!=='string'||!result.character.id||!sessionCookie)throw new Error('Invalid bot account response');
+      heroId=result.character.id;cookie=sessionCookie.split(';')[0];break;
+    }
+    if(!heroId||!cookie)throw new Error('Bot account creation deadline exceeded');
+    const connect=()=>new WebSocket(url.replace('http:','ws:')+'/ws',{origin:url,headers:{Cookie:cookie}});
+    const bot:Bot={socket:connect(),id:'',heroId,cookie,seq:0,state:null,index,nextSkill:0};
     let attempt=0;
     while(Date.now()<deadline){
       const socket=attempt++?connect():bot.socket;bot.socket=socket;bot.state=null;
@@ -71,8 +86,8 @@ class StressController {
         if(bot.socket!==socket)return;
         const message=JSON.parse(String(raw)) as ServerMessage;
         if(message.type==='welcome'){
-          if(bot.id&&bot.id!==message.id){issue='Bot identity changed after reconnect';return;}
-          bot.id=message.id;bot.token=message.token;
+          if(bot.heroId!==message.id){issue='Bot identity changed after reconnect';return;}
+          bot.id=message.id;
         }
         if(message.type==='state')bot.state=message.self;
         if(message.type==='error')joinError=message.code;
@@ -80,11 +95,11 @@ class StressController {
       const attemptDeadline=Math.min(deadline,Date.now()+6500);
       while(!opened&&!closed&&!issue&&Date.now()<attemptDeadline)await delay(25);
       if(opened){
-        this.send(bot,{type:'join',protocol:2,name:`Нагрузка ${index+1}`,classId:warriorsOnly?'warrior':(['warrior','archer','mage'] as const)[index%3],...(bot.token?{token:bot.token}:{})});
+        this.send(bot,{type:'join',protocol:3,heroId:bot.heroId});
         while(!bot.state&&!joinError&&!closed&&!issue&&Date.now()<attemptDeadline)await delay(25);
       }
-      if(bot.state&&bot.id&&bot.token){this.bots.push(bot);return;}
-      const retryable=joinError==='storage_unavailable'||(!!bot.token&&!joinError&&!issue&&(closed||opened));
+      if(bot.state&&bot.id){this.bots.push(bot);return;}
+      const retryable=joinError==='storage_unavailable'||(!joinError&&!issue&&(closed||opened));
       if(retryable&&socket.readyState===WebSocket.OPEN)socket.close();
       else socket.terminate();
       if(retryable){

@@ -56,12 +56,17 @@ const remoteModels=new Map<string,RemoteWarrior>(),loadingPlayers=new Set<string
 const ZOOM={min:.7,max:1.9,sensitivity:.0015};
 const keys=new Set<string>(),models=new Map<number,MobModel>(),particles:Particle[]=[],floats:FloatingNumber[]=[];
 let heldHudSkill:number|null=null,channelSlot:number|null=null,lastChannelPulse=0;
-const raycaster=new T.Raycaster(),ndc=new T.Vector2(),groundPlane=new T.Plane(new T.Vector3(0,1,0),0),cameraTarget=new T.Vector3(.5,.3,2);
+const raycaster=new T.Raycaster(),ndc=new T.Vector2(),groundPlane=new T.Plane(new T.Vector3(0,1,0),0),cameraTarget=new T.Vector3(.5,.3,2),skillOrigin=new T.Vector3();
 const mouse:HeldMouse={x:0,y:0,active:false,point:null,held:false,attacking:false,pointerId:null,pickPending:false};
 // Five metres cover the full animated actor and its shadow beyond the viewport.
 // Keep pose bookkeeping current, but sample/draw only groups near the camera.
 const actorFrustum=new T.Frustum(),actorProjection=new T.Matrix4(),actorBounds=new T.Sphere(new T.Vector3(),5);
 function actorVisible(p:Point){actorBounds.center.set(p.x,1,p.z);return actorFrustum.intersectsSphere(actorBounds);}
+function skillOriginFor(playerId:string){
+  const actor=playerId===game.id?warrior:remoteModels.get(playerId);
+  const hand=actor?.model.getObjectByName('mixamorigRightHand')||actor?.model.getObjectByName('mixamorig:RightHand');
+  return hand?.getWorldPosition(skillOrigin)??null;
+}
 const marker=new T.Group();
 const distance=(a:Point,b:Point)=>Math.hypot(a.x-b.x,a.z-b.z);
 const mini=$('minimap'),map=mini.getContext('2d')!;
@@ -355,7 +360,7 @@ async function start(){
     }
     const pmrem=new T.PMREMGenerator(renderer);scene.environment=pmrem.fromScene(lightRoom,.08).texture;scene.environmentIntensity=.38;pmrem.dispose();for(const p of lightPanels){p.geometry.dispose();p.material.dispose();}
 
-    forestRegion=new T.Scene();stadiumRegion=new T.Scene();scene.add(forestRegion,stadiumRegion);world=createEnvironment(forestRegion);stadium=createStadiumEnvironment(stadiumRegion);snow=createSnowEnvironment(scene);wasteland=createWastelandEnvironment(scene);updateTarget=bindTargetPresentation(scene);skillEffects=createSkillEffects(scene);persistentSkillEffects=createPersistentSkillEffects(scene);game=new NetworkGame();interfaceUI=bindInterface(game,toast,clearInput);afkSettings=bindAfkSettings(game,toast);skillbook=bindSkillbook(game,toast);bindResponsiveChat();
+    forestRegion=new T.Scene();stadiumRegion=new T.Scene();scene.add(forestRegion,stadiumRegion);world=createEnvironment(forestRegion);stadium=createStadiumEnvironment(stadiumRegion);snow=createSnowEnvironment(scene);wasteland=createWastelandEnvironment(scene);updateTarget=bindTargetPresentation(scene);skillEffects=createSkillEffects(scene);persistentSkillEffects=createPersistentSkillEffects(scene,skillOriginFor);game=new NetworkGame();interfaceUI=bindInterface(game,toast,clearInput);afkSettings=bindAfkSettings(game,toast);skillbook=bindSkillbook(game,toast);bindResponsiveChat();
     $('load-progress').textContent='Загружаем персонажа и обитателей леса…';
     mobAssets=await loadMobAssets();
     $('load-progress').textContent='Подключаем героя к общему миру…';const stressMode=await stressEnabled();if(stressMode){const response=await fetch('/api/stress-session',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});if(!response.ok)throw new Error('Не удалось открыть изолированную FPS-сессию');const data=await response.json() as {character:{id:string}};await game.connect({heroId:data.character.id});}else await interfaceUI.join();

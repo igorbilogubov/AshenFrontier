@@ -16,3 +16,5 @@
 !stress/**
 !storage/
 !storage/**
+!auth/
+!auth/**

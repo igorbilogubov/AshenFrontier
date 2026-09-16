@@ -2,7 +2,7 @@
 
 ## Следующая версия аккаунтов — ещё не опубликована
 
-Код Google-входа и schema 5 подготовлен локально. Перед его выкладкой настроить OAuth Web Client и точный callback `/auth/google/callback`; в закрытое окружение Compose добавить `GAME_PUBLIC_ORIGIN`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`. Compose требует эти значения; Docker build включает `auth/`. [Настройка](docs/GOOGLE_AUTH_SETUP.md).
+Код Google-входа и schema 5 подготовлен локально. Перед его выкладкой настроить OAuth Web Client и точный callback `/auth/google/callback`; в закрытое окружение Compose добавить `GAME_PUBLIC_ORIGIN`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`. Compose требует эти значения. Docker build включает `auth/`; `.dockerignore` явно пропускает этот каталог, а `npm run check` сопоставляет все локальные `COPY` из Dockerfile с allowlist контекста. [Настройка](docs/GOOGLE_AUTH_SETUP.md).
 
 Schema 5 удаляет старый столбец ключей героев; существующие строки остаются без аккаунта, случайное автоматическое присвоение запрещено. Необходимо закрыть вопрос о переносе нынешних тестовых героев до переключения пользовательской базы. После миграции откат только контейнера к protocol 2 несовместим: требуется совместимый релиз. Общая база и production в текущей задаче не менялись; новый push/deployment не выполнялись. Текущее исключение пользователя о новых backups/проверках сохранности остаётся в силе, volume и старые архивы не удалять.
 
@@ -130,7 +130,7 @@ python3 /opt/ashen-frontier/ops/backup.py
 
 Для параллельных задач сначала завершить и проверить согласованные изменения в общей папке на `main` по [WORKFLOW.md](WORKFLOW.md). Выкладывать чистый согласованный commit; записать его SHA рядом с идентификатором нового релиза и результатами проверки. Git push/merge сами по себе сервер не изменяют. Рабочий сервер не использовать как общую тестовую среду незавершённых веток.
 
-Создать отдельный каталог `/opt/ashen-frontier/releases/<release>` и уникальный тег образа. После перехода на TypeScript передать `server.ts`, `world.ts`, загрузчик `server.mjs`, `shared/`, `stress/`, `public/`, `tsconfig.json`, `scripts/build.mjs`, package-файлы, Dockerfile и deploy-конфигурацию. Docker собирает `dist/` на отдельном этапе, в runtime устанавливаются только production-зависимости. `GAME_STRESS` в production запрещён; диагностические API не активируются. Не передавать локальные данные, node_modules, .env, артефакты или Blender-исходники. Собрать и проверить образ, пока прежняя игра работает. Затем штатно остановить только игру, сделать закрытую резервную копию актуальных данных и запустить новый образ:
+Создать отдельный каталог `/opt/ashen-frontier/releases/<release>` и уникальный тег образа. После перехода на TypeScript передать `server.ts`, `world.ts`, загрузчик `server.mjs`, `shared/`, `stress/`, `storage/`, `auth/`, `public/`, `tsconfig.json`, `scripts/build.mjs`, package-файлы, Dockerfile и deploy-конфигурацию. Docker собирает `dist/` на отдельном этапе, в runtime устанавливаются только production-зависимости. `GAME_STRESS` в production запрещён; диагностические API не активируются. Не передавать локальные данные, node_modules, .env, артефакты или Blender-исходники. Собрать и проверить образ, пока прежняя игра работает. Затем штатно остановить только игру, сделать закрытую резервную копию актуальных данных и запустить новый образ:
 
 ```sh
 ASHEN_RELEASE=<release> docker compose -f deploy/compose.yaml up -d --no-build --wait game

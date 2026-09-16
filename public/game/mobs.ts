@@ -12,7 +12,7 @@ export const CREATURE_CLIPS=['Idle','Walk','Run','Attack','Hit','Death'] as cons
 export const WOLF_CLIPS=[...CREATURE_CLIPS,'Turn_Left','Turn_Right'] as const;
 export const BEAR_CLIPS=[...CREATURE_CLIPS,'Turn_Left','Turn_Right'] as const;
 export const ATTACK_CONTACT=.68;
-export const STRIDES={wolf:{walk:.72,run:1.12},boar:{walk:.52,run:.82},alpha:{walk:.70,run:1.12},bear:{walk:.72,run:1.00},lynx:{walk:.72,run:1.00},yak:{walk:.72,run:1.00},'frost-spider':{walk:.62,run:.90},'ice-golem':{walk:.64,run:.92}};
+export const STRIDES={wolf:{walk:.72,run:1.12},boar:{walk:.52,run:.82},alpha:{walk:.70,run:1.12},bear:{walk:.72,run:1.00},lynx:{walk:.72,run:1.00},yak:{walk:.72,run:1.00},'frost-spider':{walk:.62,run:.90},'ice-golem':{walk:.64,run:.92},'ash-jackal':{walk:.72,run:1},scorpion:{walk:.52,run:.76},'monitor-lizard':{walk:.58,run:.82},scarab:{walk:.54,run:.78}};
 // Mesh-local bind-space bounds, sampled from the shipped GLBs throughout every
 // exported clip (including lunge and death), with at least .12 m clearance.
 // Three.js transforms these fixed boxes/spheres with each skinned mesh; no
@@ -25,6 +25,10 @@ const CULLING_BOUNDS:Readonly<Record<MobType,Readonly<{min:readonly [number,numb
   lynx:{min:[-1.81,-0.14,-1.18],max:[0.72,1.94,1.4]},
   yak:{min:[-1.92,-0.14,-1.18],max:[0.86,2.18,1.56]},
   'frost-spider':{min:[-1.48,-0.13,-1.21],max:[1.48,1.15,1.36]},
+  'ash-jackal':{min:[-1.79, -0.12, -1.65],max:[0.68, 1.92, 1.54]},
+  scorpion:{min:[-1.29, -0.12, -1.47],max:[1.29, 1.93, 1.87]},
+  'monitor-lizard':{min:[-1.36, -0.14, -2.29],max:[1.36, 0.99, 1.42]},
+  scarab:{min:[-1.29, -0.13, -1.11],max:[1.29, 1.46, 1.73]},
   'ice-golem':{min:[-1.28,-0.16,-0.72],max:[1.28,2.46,2.36]}
 });
 let assetPromise:Promise<MobAssets>|undefined;
@@ -40,7 +44,7 @@ export function createMob(type:MobType,assets:MobAssets,eliteId?:string){
   const cfg=mobConfig({type,eliteId}),asset=assets?.[type];
   if(!cfg||!asset)throw new Error(`Модель ${type} не загружена`);
   const root=new T.Group(),body=clone(asset.scene);root.name=`Creature_${type}`;body.scale.setScalar(cfg.scale);root.add(body);
-  const contact=contactShadow(root,(type==='frost-spider'?2.3:type==='bear'||type==='yak'?1.55:1.25)*cfg.scale,(type==='ice-golem'?1.5:2.45)*cfg.scale);
+  const contact=contactShadow(root,(type==='scorpion'||type==='scarab'||type==='monitor-lizard'?2.3:type==='frost-spider'?2.3:type==='bear'||type==='yak'?1.55:1.25)*cfg.scale,(type==='ice-golem'?1.5:2.45)*cfg.scale);
   const eliteMaterials=new Map<T.Material,T.Material>();
   body.traverse(o=>{if(o instanceof T.Mesh){
     o.castShadow=true;o.receiveShadow=true;o.frustumCulled=true;
@@ -68,7 +72,7 @@ export function createMob(type:MobType,assets:MobAssets,eliteId?:string){
   T.AnimationUtils.makeClipAdditive(additive,0,clips.Idle,30);
   const reaction=mixer.clipAction(additive).play();reaction.paused=true;reaction.weight=0;
 
-  const health=joint(root,0,(type==='frost-spider'?1.22:type==='ice-golem'?2.42:type==='yak'?2.0:type==='boar'?1.45:type==='bear'?1.84:type==='lynx'?1.92:1.78)*cfg.scale,0);
+  const health=joint(root,0,(type==='scorpion'?1.95:type==='scarab'?1.55:type==='monitor-lizard'?1.13:type==='ash-jackal'?1.95:type==='frost-spider'?1.22:type==='ice-golem'?2.42:type==='yak'?2.0:type==='boar'?1.45:type==='bear'?1.84:type==='lynx'?1.92:1.78)*cfg.scale,0);
   box(health,1.12,.08,.018,new T.MeshBasicMaterial({color:'#1c2420'}));
   const fill=box(health,1.06,.045,.022,new T.MeshBasicMaterial({color:eliteId||type==='alpha'?'#dfaf69':'#be705b'}),0,0,.015);
   health.traverse(o=>{o.castShadow=false;o.receiveShadow=false;});

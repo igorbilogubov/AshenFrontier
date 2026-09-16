@@ -1,5 +1,6 @@
 import {bindAccountInterface} from './account-interface.js';
-import {skillsForClass} from './skills.js';
+import {SKILLS} from './skills.js';
+import {effectiveSkill} from './skill-builds.js';
 import {actionIcon} from './action-icons.js';
 import {bindInventoryInteractions} from './inventory-interactions.js';
 import {CLASSES,EQUIPMENT_SLOTS,BAG_CAPACITY,backpackItems,itemBonus,STAT_KEYS,STAT_DEFINITIONS,CLASS_PROGRESSION,characterStats} from '../rules.js';
@@ -184,13 +185,13 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
     $('hud-experience').setAttribute('aria-valuemax',String(p.xpNeeded||0));$('hud-experience').setAttribute('aria-valuenow',String(p.xp||0));
     write($('mana-text'),`${Math.floor(p.mana||0)} / ${p.maxMana||0}`);$('mana-fill').style.height=`${clampRatio(p.mana,p.maxMana)*100}%`;
     $('mana-orb').setAttribute('aria-valuemax',String(p.maxMana||0));$('mana-orb').setAttribute('aria-valuenow',String(Math.floor(p.mana||0)));$('hud-xp-fill').style.transform=`scaleX(${clampRatio(p.xp,p.xpNeeded)})`;
-    for(const [index,skill] of skillsForClass(p.classId).entries()){
-      const button=$((['special','skill-secondary','skill-tertiary','skill-quaternary'] as const)[index]),rawRemaining=p.skillCooldowns?.[skill.id]??0,remaining=Number.isFinite(rawRemaining)?Math.max(0,rawRemaining):0;
-      if(button.dataset.skill!==skill.id)button.querySelector('.skill-sigil')!.innerHTML=actionIcon(skill.id);
-      write(button.querySelector('kbd')!,skill.slot);button.dataset.skill=skill.id;button.style.setProperty('--cooldown',`${skill.cooldown>0?Math.min(1,remaining/skill.cooldown)*100:0}%`);
-      write(button.querySelector('.skill-name')!,skill.name);write(button.querySelector('.skill-meta')!,remaining>0?`${remaining.toFixed(1)}с`:`${skill.manaCost} маны`);
-      button.disabled=!game.connected||!!p.dead||!!p.attack||safe(p)||remaining>0||p.mana<skill.manaCost;
-      button.title=`${skill.name} · ${skill.slot} · ${skill.manaCost} маны${skill.cooldown>0?` · откат ${skill.cooldown}с`:''}\n${skill.description}`;
+    for(const [index,buttonId] of (['special','skill-secondary','skill-tertiary','skill-quaternary'] as const).entries()){
+      const button=$(buttonId),skillId=p.skillBuild?.slots[index]??null,base=skillId?SKILLS[skillId]:undefined,skill=base?effectiveSkill(p,base.id):undefined,rawRemaining=skill?p.skillCooldowns?.[skill.id]??0:0,remaining=Number.isFinite(rawRemaining)?Math.max(0,rawRemaining):0;
+      if(button.dataset.skill!==(skill?.id||'')){button.querySelector('.skill-sigil')!.innerHTML=skill?actionIcon(skill.id):'';button.dataset.skill=skill?.id||'';}
+      write(button.querySelector('kbd')!,index+1);button.style.setProperty('--cooldown',`${skill&&skill.cooldown>0?Math.min(1,remaining/skill.cooldown)*100:0}%`);
+      write(button.querySelector('.skill-name')!,skill?.name||'Пустой слот');write(button.querySelector('.skill-meta')!,skill?(remaining>0?`${remaining.toFixed(1)}с`:`${skill.manaCost} маны`):'Книга · K');
+      button.disabled=!skill||!game.connected||!!p.dead||!!p.attack||safe(p)||remaining>0||p.mana<skill.manaCost;
+      button.title=skill?`${skill.name} · ${index+1} · ${skill.manaCost} маны${skill.cooldown>0?` · откат ${skill.cooldown}с`:''}\n${skill.description}`:`Слот ${index+1} пуст · откройте книгу навыков клавишей K`;
       button.setAttribute('aria-label',button.title);
     }
     if($('attack').dataset.classId!==p.classId){$('attack').dataset.classId=p.classId;$('attack').querySelector('.attack-icon')!.innerHTML=actionIcon(p.classId);}

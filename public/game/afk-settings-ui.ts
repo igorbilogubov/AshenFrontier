@@ -1,5 +1,5 @@
 import {afkCombatRadius,defaultAfkPreferences,parseAfkPreferences} from './afk-preferences.js';
-import {skillsForClass} from './skills.js';
+import {equippedSkills} from './skill-builds.js';
 import type {NetworkGame} from './network.js';
 import type {AfkPreferences,ClassId,SkillId,WorldEvent} from '../../shared/types.js';
 
@@ -45,11 +45,13 @@ export function bindAfkSettings(game:NetworkGame,toast:(message:string)=>void){
   }
   function renderSkills(classId:ClassId){
     if(!draft)return;
-    const selected=new Set(draft.skillOrder),available=skillsForClass(classId),ordered=[...draft.skillOrder,...available.map(skill=>skill.id).filter(id=>!selected.has(id))];
+    const available=equippedSkills(game.player).filter(skill=>skill.classId===classId&&skill.kind!=='mobility'),allowed=new Set(available.map(skill=>skill.id));
+    draft.skillOrder=draft.skillOrder.filter(id=>allowed.has(id));
+    const selected=new Set(draft.skillOrder),ordered=[...draft.skillOrder,...available.map(skill=>skill.id).filter(id=>!selected.has(id))];
     orderNode.replaceChildren();
     ordered.forEach(id=>{
       const skill=available.find(item=>item.id===id)!;const row=document.createElement('div');row.className='afk-skill-row';
-      const label=document.createElement('label'),checkbox=document.createElement('input');checkbox.type='checkbox';checkbox.checked=selected.has(id);checkbox.dataset.skill=id;label.append(checkbox,document.createTextNode(`${skill.slot} · ${skill.name}`));
+      const label=document.createElement('label'),checkbox=document.createElement('input');checkbox.type='checkbox';checkbox.checked=selected.has(id);checkbox.dataset.skill=id;label.append(checkbox,document.createTextNode(`${game.player.skillBuild.slots.indexOf(id)+1} · ${skill.name}`));
       const actions=document.createElement('span');actions.className='afk-order-actions';
       for(const [direction,caption] of [[-1,'Выше'],[1,'Ниже']] as const){const button=document.createElement('button');button.type='button';button.textContent=direction<0?'↑':'↓';button.title=`${caption}: ${skill.name}`;button.setAttribute('aria-label',button.title);button.dataset.move=id;button.dataset.direction=String(direction);const index=draft!.skillOrder.indexOf(id);button.disabled=index<0||index+direction<0||index+direction>=draft!.skillOrder.length;actions.append(button);}
       row.append(label,actions);orderNode.append(row);
@@ -57,7 +59,7 @@ export function bindAfkSettings(game:NetworkGame,toast:(message:string)=>void){
   }
   function render(force=false){
     if(!draft)return;
-    const key=JSON.stringify([owner,draft,baseline,pending?.value,unconfirmed,status,game.connected]);if(!force&&key===renderKey)return;renderKey=key;
+    const key=JSON.stringify([owner,draft,baseline,pending?.value,unconfirmed,status,game.connected,game.player.skillBuild]);if(!force&&key===renderKey)return;renderKey=key;
     check('afk-pickup-gold').checked=draft.pickupGold;
     for(let rarity=0;rarity<rarityLabels.length;rarity++)check('afk-rarity-'+rarity).checked=draft.pickupRarities.includes(rarity);
     check('afk-hp-enabled').checked=draft.hpPotion.enabled;check('afk-mp-enabled').checked=draft.manaPotion.enabled;

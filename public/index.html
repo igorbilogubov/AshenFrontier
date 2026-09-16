@@ -13,11 +13,12 @@
   <link rel="stylesheet" href="game/camp-ui.css">
   <link rel="stylesheet" href="game/target-presentation.css">
   <link rel="stylesheet" href="game/afk-settings.css">
+  <link rel="stylesheet" href="game/skillbook.css">
   <link rel="stylesheet" href="game/responsive-chat.css">
   <link rel="stylesheet" href="game/accounts.css">
 </head>
 <body>
-  <canvas id="scene" tabindex="0" aria-label="Пепельная опушка. Камера с постоянным углом, колёсико мыши — приближение и отдаление. Удерживайте левую кнопку мыши — идти за курсором; отпустите — остановиться. Shift — ходьба и бег, пробел или правая кнопка — удар, 1, 2, 3, 4 — навыки, Q/W — назначенные зелья из рюкзака, F — автоохота с текущего места."></canvas>
+  <canvas id="scene" tabindex="0" aria-label="Пепельная опушка. Камера с постоянным углом, колёсико мыши — приближение и отдаление. Удерживайте левую кнопку мыши — идти за курсором; отпустите — остановиться. Shift — ходьба и бег, пробел или правая кнопка — удар, 1, 2, 3, 4 — навыки, Q/W — назначенные зелья из рюкзака, F — автоохота с текущего места, K — книга навыков."></canvas>
   <div id="world-ui" aria-hidden="true"></div>
   <div id="hurt-vignette" aria-hidden="true"></div>
   <header>
@@ -32,6 +33,7 @@
     <p class="reward">Награда: 50 золота</p>
   </aside>
   <aside id="snow-guide" class="quest" aria-label="Охота в Снежном пределе" hidden><p class="eyebrow">ЗА СЕВЕРНЫМ ПЕРЕВАЛОМ · УР. 10</p><h2>Снежный предел</h2><p>Восемь спотов, открытые равнины и древний ледник. Элитные существа отмечены золотом на карте.</p><p class="reward">Обратный проход — на западе. У входа можно укрыться от боя.</p></aside>
+  <aside id="wasteland-guide" class="quest" aria-label="Охота в Пепельных пустошах" hidden><p class="eyebrow">ЗА ПЕПЕЛЬНЫМ ПРОХОДОМ · УР. 25</p><h2>Пепельные пустоши</h2><p>Огромная выжженная долина, восемь охотничьих спотов и древний шпиль на востоке.</p><p class="reward">Западный пост безопасен. Обратный проход ведёт к Снежному пределу.</p></aside>
   <aside id="stadium-guide" class="quest" aria-label="Охота в Стадиуме" hidden>
     <p class="eyebrow">ОХОТНИЧЬИ ЗАГОНЫ</p><h2>Выберите свою охоту</h2>
     <p>Четыре загона: волки, кабаны, вожаки и медведи. Нажмите F в выбранном месте — герой будет атаковать в пределах дальности навыков.</p>
@@ -67,7 +69,7 @@
       </div>
     </div>
   </footer>
-  <nav class="hero-shortcuts" aria-label="Окна героя"><button id="character-toggle" type="button" title="Характеристики · C" aria-controls="character-panel" aria-expanded="false"><span class="shortcut-icon" aria-hidden="true"></span><span>Герой</span><kbd>C</kbd><b id="unspent-badge" hidden>0</b></button><button id="inventory-toggle" type="button" title="Снаряжение · I" aria-controls="inventory-panel" aria-expanded="false"><span class="shortcut-icon" aria-hidden="true"></span><span>Вещи</span><kbd>I</kbd></button></nav>
+  <nav class="hero-shortcuts" aria-label="Окна героя"><button id="character-toggle" type="button" title="Характеристики · C" aria-controls="character-panel" aria-expanded="false"><span class="shortcut-icon" aria-hidden="true"></span><span>Герой</span><kbd>C</kbd><b id="unspent-badge" hidden>0</b></button><button id="inventory-toggle" type="button" title="Снаряжение · I" aria-controls="inventory-panel" aria-expanded="false"><span class="shortcut-icon" aria-hidden="true"></span><span>Вещи</span><kbd>I</kbd></button><button id="skillbook-toggle" type="button" title="Навыки и таланты · K" aria-controls="skillbook-panel" aria-expanded="false"><span class="shortcut-icon" aria-hidden="true">✦</span><span>Навыки</span><kbd>K</kbd><b id="talent-points-badge" hidden>0</b></button></nav>
   <div id="death-screen" hidden><p class="eyebrow">ВЫ ПАЛИ В БОЮ</p><h2>Костёр ещё горит</h2><p>Возвращаемся в лагерь…</p><small>Опыт и золото этой вылазки сохраняются.</small></div>
   <div id="loading" role="status"><span class="mark">✦</span><h2>Открываем лесную тропу…</h2><p id="load-progress">Готовим локацию и её обитателей</p><button id="retry" type="button" hidden>Повторить</button></div>
   <section id="join-panel" class="panel-overlay account-overlay" hidden aria-label="Аккаунт и персонажи">
@@ -125,6 +127,26 @@
       <p class="bag-hint" id="inventory-hint">Наведите для описания · ПКМ — надеть / снять · перетащите в слот</p>
       <button id="claim-items" class="subtle-button" type="button" hidden>Забрать ожидающие вещи</button>
     </div><div class="panel-bottom inventory-bottom"><span id="inventory-gold">0 золота</span><a class="workshop-link" href="/game/equipment-preview.html" target="_blank" rel="noopener">Примерка классов ↗</a><span id="inventory-status">Снаряжение меняется в безопасной зоне</span></div>
+  </aside>
+  <aside id="skillbook-panel" class="skillbook-panel" hidden aria-labelledby="skillbook-title">
+    <div class="skillbook-heading"><div><p class="eyebrow">КНИГА МАСТЕРСТВА</p><h2 id="skillbook-title">Навыки и таланты</h2></div><div class="skillbook-level"><span>Уровень</span><b id="skillbook-level">1</b></div><button id="skillbook-close" class="skillbook-close" type="button" aria-label="Закрыть книгу навыков">×</button></div>
+    <div class="skillbook-tabs" role="tablist" aria-label="Разделы книги"><button id="skillbook-skills-tab" type="button" role="tab" aria-selected="true" aria-controls="skillbook-skills">Книга навыков <span>12</span></button><button id="skillbook-talents-tab" type="button" role="tab" aria-selected="false" aria-controls="skillbook-talents">Таланты <span id="talent-tab-points">0</span></button></div>
+    <div class="skillbook-content">
+      <section id="skillbook-skills" class="skillbook-page" role="tabpanel" aria-labelledby="skillbook-skills-tab">
+        <div class="skillbook-intro"><div><h3>Боевой набор</h3><p>Перетащите открытый навык в один из четырёх слотов или выберите навык, затем слот.</p></div><div id="skillbook-safe-state" class="skillbook-safe-state"></div></div>
+        <div id="skillbook-slots" class="skillbook-slots" role="group" aria-label="Четыре активных навыка"></div>
+        <div id="skillbook-catalog" class="skillbook-catalog" role="list" aria-label="Доступные навыки класса"></div>
+      </section>
+      <section id="skillbook-talents" class="skillbook-page" role="tabpanel" aria-labelledby="skillbook-talents-tab" hidden>
+        <div class="talent-summary"><div><span>Очки талантов</span><b><i id="talent-spent">0</i> / <i id="talent-total">0</i></b><small id="talent-next-point"></small></div><div class="talent-budget"><i id="talent-budget-fill"></i></div><p>Свободно распределяйте очки между направлениями. Итоговый талант требует 8 очков в ветке; активным может быть только один.</p></div>
+        <div id="talent-branches" class="talent-branches"></div>
+      </section>
+    </div>
+    <div class="skillbook-footer">
+      <div class="skillbook-presets" role="group" aria-label="Пресеты сборки"><span>Пресеты</span><div id="skillbook-preset-list"></div></div>
+      <div class="skillbook-actions"><button id="skillbook-reset" class="skillbook-secondary" type="button">Сбросить таланты</button><p id="skillbook-status" role="status" aria-live="polite">Изменения применяются у костра.</p><button id="skillbook-discard" class="skillbook-secondary" type="button" disabled>Отменить</button><button id="skillbook-apply" class="skillbook-primary" type="button" disabled>Применить сборку</button></div>
+    </div>
+    <div id="skillbook-tooltip" class="skillbook-tooltip" role="tooltip" hidden></div>
   </aside>
   <aside id="chat-panel" aria-label="Чат мира"><div id="chat-lines" aria-live="polite"></div><form id="chat-form"><input id="chat-input" placeholder="Чат мира · Enter" maxlength="180" aria-label="Сообщение в чат"><button type="submit" aria-label="Отправить сообщение">↗</button></form></aside>
   <script type="module" src="game/scene.js"></script>

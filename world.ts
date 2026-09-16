@@ -11,7 +11,7 @@ import {angleDelta,turnTowards,inStrike} from './public/game/motion.js';
 import {SKILLS,skillsForClass,legacySkillId} from './public/game/skills.js';
 import {LOOT_TTL_MS,MAX_GROUND_DROPS_PER_HERO,PICKUP_RANGE,gearRarity} from './public/game/loot-rules.js';
 import {portalById} from './public/game/stadium.js';
-import {locationAt,sameLocation} from './public/game/world-layout.js';
+import {locationAt,sameLocation,fieldRegionAt} from './public/game/world-layout.js';
 import {SHOP,shopPrice,sellPrice} from './public/game/shop.js';
 import {defaultAfkPreferences,parseAfkPreferences,afkCombatRadius} from './public/game/afk-preferences.js';
 import {PERSONAL_CHEST,CHEST_APPROACH,CHEST_DOOR_OUTSIDE,CHEST_DOOR_INSIDE,inChestRoom} from './public/game/personal-stash.js';
@@ -702,7 +702,7 @@ export class World{
       this.addGroundDrop(p.id,{id:randomUUID(),kind:'gold',x:m.x,z:m.z,amount:cfg.coins,expiresAt:this.t+LOOT_TTL_MS});
       const rarity=gearRarity(m.type,m.eliteId,this.random);
       if(rarity!==null){
-        const region=locationAt(m),choices=regionalEquipment(p.classId,region==='stadium'?'forest':region,rarity),definition=choices[Math.floor(this.random()*choices.length)];
+        const choices=regionalEquipment(p.classId,fieldRegionAt(m),rarity),definition=choices[Math.floor(this.random()*choices.length)];
         const item=rollEquipment(definition.id,randomUUID(),this.random);
         const shifted=stand(m.x+.22,m.z+.12),x=shifted?m.x+.22:m.x,z=shifted?m.z+.12:m.z;
         this.addGroundDrop(p.id,{id:randomUUID(),kind:'item',x,z,item,expiresAt:this.t+LOOT_TTL_MS});

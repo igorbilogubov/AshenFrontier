@@ -1,3 +1,5 @@
+import {LATE_SPAWNS,LATE_MOB_TYPES,LATE_ELITE_TYPES,lateSafe} from './late-world.js';
+import {DUNGEON_SPAWNS,dungeonById,dungeonSafe} from './dungeons.js';
 import {WASTELAND_SPAWNS,wastelandSafe} from './wasteland.js';
 import {SNOW_SPAWNS,snowSafe} from './snow.js';
 import {campSafe} from './camp-layout.js';
@@ -22,6 +24,7 @@ export const SPEED=2.35;
 export const RUN_SPEED=3.8;
 export const WEAPONS=Object.freeze({sword:{name:'Стальной меч',duration:.64,range:1.95,damage:25},axe:{name:'Боевой топор',duration:.84,range:1.85,damage:40}});
 export const MOB_TYPES=Object.freeze({
+  ...LATE_MOB_TYPES,
   wolf:{name:'Пепельный волк',hp:60,damage:8,speed:1.82,range:1.35,windup:.70,cooldown:1.10,aggro:4.7,coins:8,xp:12,radius:.38,scale:1},
   boar:{name:'Лесной кабан',hp:90,damage:12,speed:1.55,range:1.55,windup:.95,cooldown:1.35,aggro:4.4,coins:12,xp:18,radius:.46,scale:1.1},
   bear:{name:'Пепельный медведь',hp:145,damage:15,speed:1.38,range:1.6,windup:1.08,cooldown:1.5,aggro:4.8,coins:21,xp:32,radius:.62,scale:1.15},
@@ -36,6 +39,7 @@ export const MOB_TYPES=Object.freeze({
   alpha:{name:'Седой вожак',hp:190,damage:17,speed:2.02,range:1.75,windup:1.05,cooldown:1.3,aggro:5.1,coins:35,xp:55,radius:.52,scale:1.4},
 });
 export const ELITE_TYPES=Object.freeze({
+ ...LATE_ELITE_TYPES,
  'obsidian-stinger':{type:'scorpion',name:'Обсидиановое жало',hp:2900,damage:75,coins:320,xp:640,scale:1.4,respawn:240},
  'sun-devourer':{type:'scarab',name:'Пожиратель солнца',hp:3900,damage:88,coins:420,xp:850,scale:1.4,respawn:300},
  'grey-alpha':{type:'alpha',name:'Седой вожак',hp:190,damage:17,coins:35,xp:55,scale:1.4,respawn:180},
@@ -43,11 +47,13 @@ export const ELITE_TYPES=Object.freeze({
  'frost-matriarch':{type:'yak',name:'Матриарх метели',hp:1100,damage:40,coins:130,xp:230,scale:1.45,respawn:240},
  'glacier-warden':{type:'ice-golem',name:'Страж ледника',hp:1500,damage:52,coins:180,xp:320,scale:1.45,respawn:300},
 });
-export function mobConfig(m:{type:MobType;eliteId?:string}){
+export function mobConfig(m:{type:MobType;eliteId?:string;bossId?:string;dungeonId?:string}){
  const elite=m.eliteId?ELITE_TYPES[m.eliteId as keyof typeof ELITE_TYPES]:undefined;
- return {...MOB_TYPES[m.type],respawn:24,...(elite?.type===m.type?elite:{})};
+ const base={level:1,...MOB_TYPES[m.type]},dungeon=dungeonById(m.dungeonId);
+ if(dungeon){const boss=!!m.bossId;return {...base,level:dungeon.level,name:boss?dungeon.bossName:`Страж · ${base.name}`,hp:Math.round(base.hp*(boss?10:2)),damage:Math.round(base.damage*(boss?1.8:1.15)),xp:Math.round(base.xp*(boss?12:2)),coins:Math.round(base.coins*(boss?15:2)),scale:base.scale*(boss?1.6:1.13),aggro:boss?12:6,respawn:180};}
+ return {...base,respawn:24,...(elite?.type===m.type?elite:{})};
 }
-export const SPAWNS:readonly Readonly<Position & {type:MobType;spotId?:AfkSpotId;eliteId?:string}>[]=Object.freeze([
+export const SPAWNS:readonly Readonly<Position & {type:MobType;spotId?:AfkSpotId;eliteId?:string;bossId?:import('../../shared/types.js').DungeonId;dungeonId?:import('../../shared/types.js').DungeonId;bossLocked?:boolean}>[]=Object.freeze([
   {type:'wolf',x:7.6,z:1.8},{type:'wolf',x:10.4,z:-4},{type:'boar',x:12.4,z:6.4},
   {type:'wolf',x:15.4,z:1.4},{type:'boar',x:18.2,z:-6.2},{type:'wolf',x:20.7,z:4.9},
   {type:'alpha',eliteId:'grey-alpha',x:25,z:-1.2},
@@ -60,8 +66,10 @@ export const SPAWNS:readonly Readonly<Position & {type:MobType;spotId?:AfkSpotId
   {type:'bear',eliteId:'elder-bear',x:-20,z:-16},
   ...SNOW_SPAWNS,
   ...WASTELAND_SPAWNS,
+  ...LATE_SPAWNS as readonly (Position & {type:MobType;spotId?:AfkSpotId;eliteId?:string})[],
+  ...DUNGEON_SPAWNS,
 ]);
-export const safe=(p:Position)=>campSafe(p)||stadiumSafe(p)||snowSafe(p)||wastelandSafe(p);
+export const safe=(p:Position)=>lateSafe(p)||dungeonSafe(p)||campSafe(p)||stadiumSafe(p)||snowSafe(p)||wastelandSafe(p);
 
 export const stand=(x:number,z:number,r=.29)=>Number.isFinite(x)&&Number.isFinite(z)&&canOccupy(x,z,nearbyObstacles(x,z,r),r,boundsForPosition({x,z}));
 export const distance=(a:Position,b:Position)=>Math.hypot(a.x-b.x,a.z-b.z);

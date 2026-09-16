@@ -1,3 +1,4 @@
+import {LATE_SPOTS} from './late-world.js';
 import {WASTELAND_SPOTS,type WastelandSpotId} from './wasteland.js';
 import {SNOW_SPOTS} from './snow.js';
 import type {SnowSpotId} from './snow.js';
@@ -7,7 +8,7 @@ import {STADIUM_PENS} from './stadium.js';
 import type {StadiumPenId} from './stadium.js';
 import type {MobType} from '../../shared/types.js';
 
-export type AfkSpotId=WastelandSpotId|SnowSpotId|StadiumPenId|'wolf-den'|'boar-clearing'|'northern-stones'|'eastern-logging'|'bear-grove';
+export type AfkSpotId=`${import('./late-world.js').LateRegionId}-spot-${number}`|WastelandSpotId|SnowSpotId|StadiumPenId|'wolf-den'|'boar-clearing'|'northern-stones'|'eastern-logging'|'bear-grove';
 export interface AfkSpot extends Position {
   readonly id:AfkSpotId;
   readonly name:string;
@@ -26,6 +27,7 @@ export const AFK_SPOTS:readonly Readonly<AfkSpot>[]=Object.freeze([
   ...STADIUM_PENS,
   ...SNOW_SPOTS,
   ...WASTELAND_SPOTS,
+  ...LATE_SPOTS as readonly AfkSpot[],
 ]);
 export const BEAR_AFK_SPAWNS:readonly Readonly<Position & {type:'bear';spotId:'bear-grove'}>[]=Object.freeze([
   ...[[-29.9,-33.4],[-27,-35.1],[-24.1,-33.4],[-29.9,-30.6],[-27,-28.9],[-24.1,-30.6]].map(([x,z])=>Object.freeze({type:'bear' as const,spotId:'bear-grove' as const,x,z})),

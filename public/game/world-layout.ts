@@ -1,3 +1,7 @@
+import {lateRegionAt} from './late-world.js';
+import {dungeonAt} from './dungeons.js';
+import type {LocationId,FieldRegionId} from '../../shared/types.js';
+export type {LocationId} from '../../shared/types.js';
 import {WASTELAND_BOUNDS,inWasteland} from './wasteland.js';
 import {SNOW_BOUNDS,inSnow} from './snow.js';
 import type {Position} from './motion.js';
@@ -6,9 +10,9 @@ import {STADIUM_BOUNDS,inStadium} from './stadium.js';
 
 /** Shared metres: terrain, server bounds, roads and minimap read this layout. */
 export const WORLD_BOUNDS=Object.freeze({minX:-37,maxX:73,minZ:-45,maxZ:45});
-export type LocationId='forest'|'stadium'|'snow'|'wasteland';
-export const locationAt=(point:Position):LocationId=>inWasteland(point)?'wasteland':inSnow(point)?'snow':inStadium(point)?'stadium':'forest';
-export const boundsForPosition=(point:Position)=>inWasteland(point)?WASTELAND_BOUNDS:inSnow(point)?SNOW_BOUNDS:inStadium(point)?STADIUM_BOUNDS:WORLD_BOUNDS;
+
+export const locationAt=(point:Position):LocationId=>dungeonAt(point)?.id??lateRegionAt(point)?.id??(inWasteland(point)?'wasteland':inSnow(point)?'snow':inStadium(point)?'stadium':'forest');
+export const boundsForPosition=(point:Position)=>dungeonAt(point)?.bounds??lateRegionAt(point)?.bounds??(inWasteland(point)?WASTELAND_BOUNDS:inSnow(point)?SNOW_BOUNDS:inStadium(point)?STADIUM_BOUNDS:WORLD_BOUNDS);
 export const sameLocation=(a:Position,b:Position)=>locationAt(a)===locationAt(b);
 export interface WorldClearing extends Position {readonly id:string;readonly name:string;readonly radius:number;readonly tint:string}
 export const WORLD_CLEARINGS:readonly Readonly<WorldClearing>[]=Object.freeze([
@@ -84,3 +88,5 @@ export function roadEdgeDistance(x:number,z:number){
   for(const road of WORLD_ROADS)for(let i=1;i<road.points.length;i++)distance=Math.min(distance,segmentDistance(x,z,road.points[i-1],road.points[i])-road.width/2);
   return distance;
 }
+
+export const fieldRegionAt=(point:Position):FieldRegionId=>dungeonAt(point)?.region??(locationAt(point)==='stadium'?'forest':locationAt(point) as FieldRegionId);

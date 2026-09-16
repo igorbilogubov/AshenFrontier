@@ -1,3 +1,5 @@
+import {LATE_REGIONS} from './late-world.js';
+import {DUNGEON_OBSTACLES,DUNGEON_PASSAGES} from './dungeons.js';
 import {WASTELAND_OBSTACLES} from './wasteland.js';
 import {SNOW_OBSTACLES} from './snow.js';
 import {CAMP_OBSTACLES,campSafe,insideHouse} from './camp-layout.js';
@@ -68,7 +70,9 @@ export const OBSTACLES:readonly Readonly<Obstacle>[]=Object.freeze([
   ...STADIUM_OBSTACLES,
   ...SNOW_OBSTACLES,
   ...WASTELAND_OBSTACLES,
-  ...trees.filter(t=>t.solid).map(({x,z})=>({x,z,r:.32}))
+  ...LATE_REGIONS.flatMap(r=>r.obstacles),
+  ...DUNGEON_OBSTACLES,
+  ...trees.filter(t=>t.solid&&DUNGEON_PASSAGES.every(p=>Math.hypot(p.x-t.x,p.z-t.z)>4)).map(({x,z})=>({x,z,r:.32}))
 ].map(o=>Object.freeze(o)));
 
 // Server movement performs many tiny swept steps. The enlarged map must not

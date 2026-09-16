@@ -50,10 +50,15 @@ export interface Hero extends PersistentHero {
   interactionTarget:InteractionTarget|null; shopActive:boolean; stashActive:boolean;
   effects:SkillEffect[];channel?:{skillId:SkillId;heldUntil:number;nextTick:number;targetId?:number;yaw:number};mobility?:{from:Point;to:Point;age:number;duration:number;skillId:SkillId};shieldBudget?:number;manaSourceReceived?:{amount:number;resetAt:number};
 }
-export type MobType = 'wolf' | 'boar' | 'alpha' | 'bear' | 'lynx' | 'yak' | 'frost-spider' | 'ice-golem' | 'ash-jackal' | 'scorpion' | 'monitor-lizard' | 'scarab';
+export type FieldRegionId='forest'|'snow'|'wasteland'|'swamp'|'mines'|'rift'|'citadel';
+export type DungeonId=`${FieldRegionId}-dungeon`;
+export type LocationId=FieldRegionId|DungeonId|'stadium';
+export interface BossTelegraph extends Point {kind:'cone'|'circle'|'ring';yaw:number;radius:number;innerRadius:number;halfAngle:number;remaining:number;duration:number}
+export interface DungeonProgress {id:DungeonId;guardsRemaining:number;bossDefeated:boolean;resetIn:number}
+export type MobType = 'swamp-frog'|'marsh-crocodile'|'plague-mosquito'|'bog-spider'|'cave-bat'|'cave-crawler'|'crystal-beetle'|'stone-guardian'|'hellhound'|'lava-elemental'|'ember-crab'|'basalt-brute'|'bonehound'|'gargoyle'|'void-stalker'|'iron-warden'| 'wolf' | 'boar' | 'alpha' | 'bear' | 'lynx' | 'yak' | 'frost-spider' | 'ice-golem' | 'ash-jackal' | 'scorpion' | 'monitor-lizard' | 'scarab';
 export type MobState = 'idle' | 'chase' | 'windup' | 'recover' | 'return' | 'dead';
 export interface PublicMob extends Point {
-  type: MobType; eliteId?:string; id: number; homeX: number; homeZ: number; hp: number; state: MobState; timer: number;
+  type: MobType; eliteId?:string; bossId?:DungeonId; dungeonId?:DungeonId; bossLocked?:boolean; telegraph?:BossTelegraph; id: number; homeX: number; homeZ: number; hp: number; state: MobState; timer: number;
   yaw: number; targetYaw: number; age: number; gait: number; speed: number; flash: number; target: string | null; slow?: number; spotId?: string;
 }
 export interface Mob extends PublicMob {
@@ -74,12 +79,12 @@ export interface EventPayloads {
   kill: { id: number; name: string; xp: number }; loot: Point & { id: number; amount: number };
   shopOpen:{npcId:string};
   stashOpened:{npcId:string};
-  portal:{portalId:string;location:'forest'|'stadium'|'snow'|'wasteland'};
+  portal:{portalId:string;location:LocationId};
   skillImpact: Point & { skillId: SkillId; caster: string; attackId: number; yaw: number; phase?: 'warning' | 'impact' | 'start' | 'end'; delay?: number; radius?: number; from?: Point };
 }
 export type WorldEvent = { [K in keyof EventPayloads]: { type: K; owner?: string } & EventPayloads[K] }[keyof EventPayloads];
 export type GameEvent = WorldEvent;
-export interface WorldSnapshot { t: number; players: PublicPlayer[]; mobs: PublicMob[]; projectiles: PublicProjectile[]; groundLoot:GroundDrop[]; skillZones?:SkillZone[]; self: SelfSnapshot | null; events: WorldEvent[] }
+export interface WorldSnapshot { dungeon?:DungeonProgress; t: number; players: PublicPlayer[]; mobs: PublicMob[]; projectiles: PublicProjectile[]; groundLoot:GroundDrop[]; skillZones?:SkillZone[]; self: SelfSnapshot | null; events: WorldEvent[] }
 export interface ChatEntry { name: string; text: string; t: number }
 export type ClientCommand =
   | {type:'buildApply';revision:number;build:SkillBuild} | {type:'buildSavePreset';index:0|1|2} | {type:'buildLoadPreset';revision:number;index:0|1|2} | {type:'skillStop'}

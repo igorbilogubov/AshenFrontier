@@ -1,3 +1,5 @@
+import {LATE_PASSAGES} from './late-world.js';
+import {DUNGEON_PASSAGES} from './dungeons.js';
 import {WASTELAND_PASSAGES} from './wasteland.js';
 import {SNOW_PASSAGES} from './snow.js';
 import type {Position,Obstacle} from './motion.js';
@@ -20,12 +22,14 @@ export const STADIUM_PENS:readonly Readonly<StadiumPen>[]=Object.freeze([
 ].map(p=>Object.freeze({...p,spawnIds:Object.freeze(p.spawnIds)})) as readonly Readonly<StadiumPen>[]);
 const formation:readonly (readonly [number,number])[]=[[-3,-2.2],[0,-3.7],[3,-2.2],[-3,1.8],[0,3.5],[3,1.8]];
 export const STADIUM_SPAWNS:readonly Readonly<Position & {type:MobType;spotId:StadiumPenId}>[]=Object.freeze(STADIUM_PENS.flatMap((pen,index)=>formation.map(([dx,dz],i)=>Object.freeze({type:(index===3?'bear':index===1?'boar':index===2&&i<2?'alpha':'wolf') as MobType,spotId:pen.id,x:pen.x+dx,z:pen.z+dz}))));
-export interface Portal extends Position {readonly id:'camp-stadium'|'stadium-camp'|'forest-snow'|'snow-forest'|'snow-wasteland'|'wasteland-snow';readonly minLevel?:number;readonly name:string;readonly range:number;readonly destination:Readonly<Position>;readonly destinationName:string}
+export interface Portal extends Position {readonly id:string;readonly minLevel?:number;readonly name:string;readonly range:number;readonly destination:Readonly<Position>;readonly destinationName:string}
 export const PORTALS:readonly Readonly<Portal>[]=Object.freeze([
   Object.freeze({id:'camp-stadium',name:'Стадиум',x:-4.6,z:2.9,range:1.8,destination:Object.freeze({x:160,z:14.8}),destinationName:'Стадиум'}),
   Object.freeze({id:'stadium-camp',name:'Лагерь',x:160,z:19.4,range:1.8,destination:Object.freeze({x:-3.2,z:2.5}),destinationName:'Лесная опушка'}),
 ]);
-export const portalById=(id:unknown)=>typeof id==='string'?[...PORTALS,...SNOW_PASSAGES,...WASTELAND_PASSAGES].find(portal=>portal.id===id):undefined;
+export const ALL_PASSAGES=Object.freeze([...SNOW_PASSAGES,...WASTELAND_PASSAGES,...LATE_PASSAGES,...DUNGEON_PASSAGES]);
+export const ALL_PORTALS:readonly Portal[]=Object.freeze([...PORTALS,...ALL_PASSAGES]);
+export const portalById=(id:unknown)=>typeof id==='string'?ALL_PORTALS.find(portal=>portal.id===id):undefined;
 export const inStadium=(p:Position,padding=0)=>Number.isFinite(p.x)&&Number.isFinite(p.z)&&p.x>=STADIUM_BOUNDS.minX+padding&&p.x<=STADIUM_BOUNDS.maxX-padding&&p.z>=STADIUM_BOUNDS.minZ+padding&&p.z<=STADIUM_BOUNDS.maxZ-padding;
 export const stadiumSafe=(p:Position)=>Math.hypot(p.x-STADIUM_HUB.x,p.z-STADIUM_HUB.z)<STADIUM_HUB.r;
 /** Low fences have the same rectangles in rendering, movement and line of sight.

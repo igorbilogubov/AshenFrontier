@@ -3,7 +3,7 @@ import {defaultSkillBuild} from './skill-builds.js';
 import {moveHero,stand} from './location.js';
 import {sameLocation} from './world-layout.js';
 import {characterStats} from '../rules.js';
-import type {SelfSnapshot,PublicPlayer,PublicMob,PublicProjectile,WorldEvent,ChatEntry,ClientMessage,ServerMessage,WeaponId,HeroInput,SkillId,GroundDrop,SkillZone} from '../../shared/types.js';
+import type {SelfSnapshot,PublicPlayer,PublicMob,PublicProjectile,WorldEvent,ChatEntry,ClientMessage,ServerMessage,WeaponId,HeroInput,SkillId,GroundDrop,SkillZone,OnlinePlayer} from '../../shared/types.js';
 
 export type ClientPlayer=SelfSnapshot & {coins:number};
 export interface ConnectionOptions {heroId:string}
@@ -23,7 +23,7 @@ function initialPlayer():ClientPlayer {
 
 export class NetworkGame{
   player:ClientPlayer;
-  mobs:PublicMob[];players:PublicPlayer[];projectiles:PublicProjectile[];loot:LegacyLoot[];events:WorldEvent[];pending:InputFrame[];
+  mobs:PublicMob[];players:PublicPlayer[];onlinePlayers:OnlinePlayer[];projectiles:PublicProjectile[];loot:LegacyLoot[];events:WorldEvent[];pending:InputFrame[];
   connected:boolean;seq:number;accumulator:number;stand:typeof stand;receivedAt:number;lastAttack:number;retryDelay:number;closed:boolean;
   serverTime:number;
   onTerminal:(code:string,message:string)=>void=()=>{};
@@ -42,7 +42,7 @@ export class NetworkGame{
   rejectJoin:((reason:Error)=>void)|null=null;
   constructor(){
     this.player=initialPlayer();
-    this.mobs=[];this.players=[];this.projectiles=[];this.loot=[];this.events=[];this.pending=[];this.connected=false;this.seq=0;this.accumulator=0;this.stand=stand;this.receivedAt=0;this.lastAttack=0;this.retryDelay=600;this.closed=false;
+    this.mobs=[];this.players=[];this.onlinePlayers=[];this.projectiles=[];this.loot=[];this.events=[];this.pending=[];this.connected=false;this.seq=0;this.accumulator=0;this.stand=stand;this.receivedAt=0;this.lastAttack=0;this.retryDelay=600;this.closed=false;
     this.onStatus=()=>{};this.onChat=()=>{};this.serverTime=0;
   }
   send(message:ClientMessage){if(this.socket?.readyState===WebSocket.OPEN)this.socket.send(JSON.stringify(message));}
@@ -51,7 +51,7 @@ export class NetworkGame{
     this.closed=false;this.fatal=false;this.firstState=new Promise<void>((resolve,reject)=>{this.resolveJoin=resolve;this.rejectJoin=reject;});this.open();return this.firstState;
   }
   open(){
-    clearTimeout(this.retryTimer);this.connected=false;this.pending=[];this.seq=0;
+    clearTimeout(this.retryTimer);this.connected=false;this.onlinePlayers=[];this.pending=[];this.seq=0;
     this.onStatus('connecting','Подключаемся к миру…');
     this.socket?.close();
     const socket=this.socket=new WebSocket(`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}/ws`);
@@ -82,7 +82,7 @@ export class NetworkGame{
         this.serverTime=m.t;
         const next:ClientPlayer={...self,coins:self.gold};
         if(next.afk||next.interactionTarget)this.pending=[];else for(const input of this.pending)moveHero(next,.05,input);
-        this.player=next;this.mobs=m.mobs;this.players=m.players;this.projectiles=m.projectiles;this.save=m.save;
+        this.player=next;this.mobs=m.mobs;this.players=m.players;this.onlinePlayers=m.onlinePlayers;this.projectiles=m.projectiles;this.save=m.save;
         this.groundLoot=m.groundLoot||[];this.skillZones=m.skillZones||[];this.dungeon=m.dungeon;
         this.events.push(...m.events);this.onStatus('online',m.save.ok?'В общем мире':'Ошибка сохранения — не закрывайте игру');
         this.resolveJoin?.();this.resolveJoin=null;this.rejectJoin=null;return;
@@ -90,7 +90,7 @@ export class NetworkGame{
       if(m.type==='chat')this.onChat([m.entry]);
     };
     socket.onclose=()=>{
-      clearTimeout(deadline);if(this.socket!==socket)return;this.connected=false;this.pending=[];
+      clearTimeout(deadline);if(this.socket!==socket)return;this.connected=false;this.onlinePlayers=[];this.pending=[];
       if(this.closed||this.fatal)return;
       this.onStatus('connecting','Связь потеряна. Возвращаемся тем же героем…');
       this.retryTimer=setTimeout(()=>this.open(),this.retryDelay);this.retryDelay=Math.min(4000,this.retryDelay*1.7);
@@ -98,13 +98,13 @@ export class NetworkGame{
     socket.onerror=()=>{};
   }
   disconnect(){
-    this.stopInput();this.closed=true;this.connected=false;this.pending=[];clearTimeout(this.retryTimer);
+    this.stopInput();this.closed=true;this.connected=false;this.onlinePlayers=[];this.pending=[];clearTimeout(this.retryTimer);
     this.socket?.close(1000,'Character selection');this.socket=undefined;
     this.rejectJoin?.(new ConnectionError('cancelled','Подключение отменено'));this.rejectJoin=null;this.resolveJoin=null;
   }
   update(dt:number,input:Partial<HeroInput>){
     if(!this.connected)return;
-    if(performance.now()-this.receivedAt>3000){this.connected=false;this.socket?.close();return;}
+    if(performance.now()-this.receivedAt>3000){this.connected=false;this.onlinePlayers=[];this.socket?.close();return;}
     this.accumulator+=dt;
     while(this.accumulator>=.05){
       this.accumulator-=.05;const frame:InputFrame={type:'input',x:input.x||0,z:input.z||0,aim:typeof input.aim==='number'&&Number.isFinite(input.aim)?input.aim:null,seq:++this.seq};

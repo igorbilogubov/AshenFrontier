@@ -70,6 +70,7 @@ export interface Mob extends PublicMob {
 export interface PublicProjectile extends Point { id: string; owner: string; yaw: number; remaining: number; speed: number; kind: 'archer' | 'mage'; skillId?: SkillId; attackId?: number }
 export interface Projectile extends PublicProjectile { damage: number; aoe: number; maxTargets?: number; hitIds?: number[]; pierce?: boolean; damageScaleOnPierce?: number; slowMs?: number; automatic?: boolean; targetId?:number; dot?:{skillId:SkillId;damage:number;duration:number};rootMs?:number }
 export type PublicPlayer = Pick<Hero, 'id' | 'name' | 'classId' | 'x' | 'z' | 'yaw' | 'weapon' | 'hp' | 'level' | 'dead' | 'hurt' | 'attack' | 'moveBlend' | 'runBlend' | 'gait' | 'vx' | 'vz' | 'connected'> & { maxHp: number; effects?:SkillEffect[]; appearance?:ItemAppearance };
+export type OnlinePlayer = Pick<Hero,'id'|'name'|'classId'|'level'> & {location:LocationId};
 export type SelfSnapshot = PersistentHero & {campReturnRemaining?:number;appearance?:ItemAppearance;afk?:AfkState|null;afkRadius?:number;interactionTarget?:InteractionTarget|null;shopActive?:boolean;stashActive?:boolean} & Omit<CharacterStats, 'attack'> & Pick<Hero, 'targetYaw' | 'vx' | 'vz' | 'hurt' | 'gait' | 'moveBlend' | 'runBlend' | 'ack'>;
 export interface EventPayloads {
   buildResult:{ok:boolean;revision:number;message?:string};
@@ -85,7 +86,7 @@ export interface EventPayloads {
 }
 export type WorldEvent = { [K in keyof EventPayloads]: { type: K; owner?: string } & EventPayloads[K] }[keyof EventPayloads];
 export type GameEvent = WorldEvent;
-export interface WorldSnapshot { dungeon?:DungeonProgress; t: number; players: PublicPlayer[]; mobs: PublicMob[]; projectiles: PublicProjectile[]; groundLoot:GroundDrop[]; skillZones?:SkillZone[]; self: SelfSnapshot | null; events: WorldEvent[] }
+export interface WorldSnapshot { dungeon?:DungeonProgress; t: number; players: PublicPlayer[]; onlinePlayers:OnlinePlayer[]; mobs: PublicMob[]; projectiles: PublicProjectile[]; groundLoot:GroundDrop[]; skillZones?:SkillZone[]; self: SelfSnapshot | null; events: WorldEvent[] }
 export interface ChatEntry { name: string; text: string; t: number }
 export type ClientCommand =
   | {type:'buildApply';revision:number;build:SkillBuild} | {type:'buildSavePreset';index:0|1|2} | {type:'buildLoadPreset';revision:number;index:0|1|2} | {type:'skillStop'}

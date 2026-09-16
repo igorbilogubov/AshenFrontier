@@ -295,7 +295,7 @@ function render(dt:number){
   benchmark?.mark('camera-picking');
   warrior.animate(dt,hero,!benchmark?.freezeAnimations);
   marker.position.set(hero.x,.03,hero.z);marker.rotation.y=hero.yaw;marker.visible=!hero.dead;
-  const region=locationAt(hero);forestRegion.visible=region==='forest';stadiumRegion.visible=region==='stadium';
+  const region=locationAt(hero);document.body.classList.toggle('snow-region',region==='snow');forestRegion.visible=region==='forest';stadiumRegion.visible=region==='stadium';
   world.marker.visible=false;if(forestRegion.visible)world.animate(time);if(stadiumRegion.visible)stadium.animate(time);snow.animate(time,hero,region==='snow');
   const sky=region==='snow'?'#859eac':'#485b58';(scene.background as T.Color).set(sky);if(scene.fog instanceof T.FogExp2){scene.fog.color.set(sky);scene.fog.density=region==='snow'?.009:.014;}sun.color.set(region==='snow'?'#e2f0ff':'#ffe4bc');
   world.campHouse.update(game.player);renderPlayers(dt);renderShots();skillEffects?.update(dt);skillEffects?.slowMobs(game.mobs);

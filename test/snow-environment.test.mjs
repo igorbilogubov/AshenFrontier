@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import * as T from '../public/game/vendor/three.module.js';
+import * as T from '../dist/public/game/vendor/three.module.js';
 import {createSnowEnvironment} from '../dist/public/game/snow-environment.js';
 import {SNOW_BOUNDS,SNOW_ENTRY,SNOW_PASSAGES} from '../dist/public/game/snow.js';
 import {possibleLoot} from '../dist/public/game/possible-loot.js';

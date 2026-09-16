@@ -43,6 +43,9 @@ export function createEnvironment(scene:T.Scene){
       float soilGrain=fract(sin(dot(floor(vSoilPoint*95.0),vec2(12.9898,78.233)))*43758.5453);
       vec3 wornSoil=vec3(.245,.182,.116)*(.93+.16*soilGrain);
       diffuseColor.rgb=mix(diffuseColor.rgb,wornSoil,vPathWear*.82);
+      float passEdge=smoothstep(62.0,75.0,vSoilPoint.x)*exp(-pow((vSoilPoint.y-5.0)/8.0,2.0));
+      float snowCover=smoothstep(.15,.9,passEdge+sin(vSoilPoint.x*1.6+vSoilPoint.y*2.1)*.08);
+      diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.59,.69,.72)*(.96+.07*soilGrain),snowCover);
     `);
     shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>','vec3 unwornNormal=normal;\n#include <normal_fragment_maps>\nnormal=normalize(mix(normal,unwornNormal,vPathWear*.85));');
   };
@@ -223,7 +226,6 @@ export function createEnvironment(scene:T.Scene){
     const cliff=mesh(scene,new T.DodecahedronGeometry(1,0),rocks[i%3],73+i*2,1.2,5+side*(5+i));cliff.scale.set(2.2,2+i*.3,1.8);
     const cap=mesh(scene,new T.DodecahedronGeometry(1,0),passSnow,73+i*2,2.8+i*.3,5+side*(5+i));cap.scale.set(2.1,.45,1.7);
   }
-  for(let i=0;i<12;i++){const drift=mesh(scene,new T.CircleGeometry(.5+i*.07,12),passSnow,65+(i%4)*1.4,.02,2+Math.floor(i/4)*2.8);drift.rotation.x=-Math.PI/2;drift.scale.y=.6;drift.castShadow=false;}
   const marker=mesh(scene,new T.RingGeometry(.18,.21,40),new T.MeshBasicMaterial({color:'#d5bb80',transparent:true,opacity:.8,side:T.DoubleSide}));marker.rotation.x=-Math.PI/2;marker.position.y=.025;marker.visible=false;marker.userData.dynamic=true;
   // Bake static scenery per material. Hundreds of slate tiles and beams become
   // a few draw calls; the fire, instanced forest and animated actors stay separate.

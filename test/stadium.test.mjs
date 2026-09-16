@@ -7,7 +7,7 @@ import {locationAt,boundsForPosition} from '../dist/public/game/world-layout.js'
 const step=(world,n=1)=>{for(let i=0;i<n;i++)world.tick(.05);};
 
 test('Stadium keeps the original three pen ids and appends one six-bear pen',()=>{
-  assert.equal(STADIUM_PENS.length,4);assert.equal(STADIUM_SPAWNS.length,24);assert.equal(SPAWNS.length,95);
+  assert.equal(STADIUM_PENS.length,4);assert.equal(STADIUM_SPAWNS.length,24);assert.equal(SPAWNS.length,194);
   assert.equal(AFK_SPOTS.filter(p=>locationAt(p)==='forest').length,5);
   assert.equal(AFK_SPOTS.filter(p=>locationAt(p)==='stadium').length,4);
   assert.deepEqual(STADIUM_PENS.slice(0,3).flatMap(p=>p.spawnIds),Array.from({length:18},(_,i)=>41+i));
@@ -69,7 +69,7 @@ test('snapshots isolate players, mobs, ground loot and spatial effects by region
   world.addGroundDrop(arena.id,{id:'arena',kind:'gold',amount:5,x:160,z:15,expiresAt:world.t+1000});world.addGroundDrop(arena.id,{id:'forest',kind:'gold',amount:7,x:0,z:2,expiresAt:world.t+1000});
   world.emit('hit',{x:142,z:-6,amount:1,id:41});world.emit('hit',{x:10,z:0,amount:1,id:0});
   const a=world.snapshot(arena.id),f=world.snapshot(forest.id);
-  assert.deepEqual(a.players.map(p=>p.id),[arena.id]);assert.deepEqual(f.players.map(p=>p.id),[forest.id]);assert.equal(a.mobs.length,24);assert.equal(f.mobs.length,71);assert.deepEqual(a.groundLoot.map(d=>d.id),['arena']);assert.equal(a.events.length,1);assert.equal(a.events[0].id,41);assert.equal(f.events.length,1);assert.equal(f.events[0].id,0);
+  assert.deepEqual(a.players.map(p=>p.id),[arena.id]);assert.deepEqual(f.players.map(p=>p.id),[forest.id]);assert.equal(a.mobs.length,24);assert.equal(f.mobs.length,72);assert.deepEqual(a.groundLoot.map(d=>d.id),['arena']);assert.equal(a.events.length,1);assert.equal(a.events[0].id,41);assert.equal(f.events.length,1);assert.equal(f.events[0].id,0);
 });
 
 test('stationary online AFK fights in every pen for all three classes and keeps uncollected rewards on the ground',()=>{

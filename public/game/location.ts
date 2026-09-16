@@ -1,3 +1,4 @@
+import {SNOW_SPAWNS,snowSafe} from './snow.js';
 import {campSafe} from './camp-layout.js';
 import {canOccupy,turnTowards,gaitProfile} from './motion.js';
 import type {Position} from './motion.js';
@@ -23,20 +24,36 @@ export const MOB_TYPES=Object.freeze({
   wolf:{name:'Пепельный волк',hp:60,damage:8,speed:1.82,range:1.35,windup:.70,cooldown:1.10,aggro:4.7,coins:8,xp:12,radius:.38,scale:1},
   boar:{name:'Лесной кабан',hp:90,damage:12,speed:1.55,range:1.55,windup:.95,cooldown:1.35,aggro:4.4,coins:12,xp:18,radius:.46,scale:1.1},
   bear:{name:'Пепельный медведь',hp:145,damage:15,speed:1.38,range:1.6,windup:1.08,cooldown:1.5,aggro:4.8,coins:21,xp:32,radius:.62,scale:1.15},
+  lynx:{name:'Снежная рысь',hp:230,damage:20,speed:2.2,range:1.4,windup:.72,cooldown:1.15,aggro:5.2,coins:28,xp:46,radius:.43,scale:1},
+  yak:{name:'Шерстистый як',hp:330,damage:25,speed:1.4,range:1.8,windup:1.15,cooldown:1.6,aggro:4.8,coins:36,xp:62,radius:.72,scale:1},
+  'frost-spider':{name:'Морозный паук',hp:285,damage:28,speed:1.8,range:1.6,windup:.85,cooldown:1.25,aggro:5.1,coins:40,xp:72,radius:.58,scale:1},
+  'ice-golem':{name:'Ледяной голем',hp:460,damage:36,speed:1.2,range:1.9,windup:1.3,cooldown:1.7,aggro:5,coins:52,xp:95,radius:.76,scale:1},
   alpha:{name:'Седой вожак',hp:190,damage:17,speed:2.02,range:1.75,windup:1.05,cooldown:1.3,aggro:5.1,coins:35,xp:55,radius:.52,scale:1.4},
 });
-export const SPAWNS:readonly Readonly<Position & {type:MobType;spotId?:AfkSpotId}>[]=Object.freeze([
+export const ELITE_TYPES=Object.freeze({
+ 'grey-alpha':{type:'alpha',name:'Седой вожак',hp:190,damage:17,coins:35,xp:55,scale:1.4,respawn:180},
+ 'elder-bear':{type:'bear',name:'Древний буролом',hp:420,damage:25,coins:65,xp:110,scale:1.65,respawn:240},
+ 'frost-matriarch':{type:'yak',name:'Матриарх метели',hp:1100,damage:40,coins:130,xp:230,scale:1.45,respawn:240},
+ 'glacier-warden':{type:'ice-golem',name:'Страж ледника',hp:1500,damage:52,coins:180,xp:320,scale:1.45,respawn:300},
+});
+export function mobConfig(m:{type:MobType;eliteId?:string}){
+ const elite=m.eliteId?ELITE_TYPES[m.eliteId as keyof typeof ELITE_TYPES]:undefined;
+ return {...MOB_TYPES[m.type],respawn:24,...(elite?.type===m.type?elite:{})};
+}
+export const SPAWNS:readonly Readonly<Position & {type:MobType;spotId?:AfkSpotId;eliteId?:string}>[]=Object.freeze([
   {type:'wolf',x:7.6,z:1.8},{type:'wolf',x:10.4,z:-4},{type:'boar',x:12.4,z:6.4},
   {type:'wolf',x:15.4,z:1.4},{type:'boar',x:18.2,z:-6.2},{type:'wolf',x:20.7,z:4.9},
-  {type:'alpha',x:25,z:-1.2},
+  {type:'alpha',eliteId:'grey-alpha',x:25,z:-1.2},
   ...AFK_SPAWNS,
   ...ROAMING_SPAWNS,
   ...STADIUM_SPAWNS.slice(0,18),
   ...EXTRA_ROAMING_SPAWNS,
   ...BEAR_AFK_SPAWNS,
   ...STADIUM_SPAWNS.slice(18),
+  {type:'bear',eliteId:'elder-bear',x:-20,z:-16},
+  ...SNOW_SPAWNS,
 ]);
-export const safe=(p:Position)=>campSafe(p)||stadiumSafe(p);
+export const safe=(p:Position)=>campSafe(p)||stadiumSafe(p)||snowSafe(p);
 
 export const stand=(x:number,z:number,r=.29)=>Number.isFinite(x)&&Number.isFinite(z)&&canOccupy(x,z,nearbyObstacles(x,z,r),r,boundsForPosition({x,z}));
 export const distance=(a:Position,b:Position)=>Math.hypot(a.x-b.x,a.z-b.z);

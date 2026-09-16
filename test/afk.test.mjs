@@ -123,11 +123,11 @@ test('multi-target AFK kills collect gold and leave full-backpack items on the g
   assert(p.gold>0);assert(w.snapshot(p.id).groundLoot.some(drop=>drop.kind==='item'));
 });
 
-test('all six members of each spot respawn at their homes after sixteen seconds; original boss timer remains forty',()=>{
+test('all six members of each spot respawn at their homes after sixteen seconds; named forest alpha returns after three minutes',()=>{
   const {w,p}=fixture();
   const original={gold:p.gold,xp:p.xp,kills:p.kills};
   for(const spot of AFK_SPOTS)for(const id of spot.spawnIds){const m=w.mobs.find(m=>m.id===id);w.kill(m);assert.equal(m.timer,16);assert.equal(m.state,'dead');}
-  const boss=w.mobs[6];w.kill(boss);assert.equal(boss.timer,40);
+  const boss=w.mobs[6];w.kill(boss);assert.equal(boss.timer,180);
   w.remove(p.id);for(let i=0;i<161;i++)w.tick(.1,w.t+100);
   for(const spot of AFK_SPOTS)for(const id of spot.spawnIds){const m=w.mobs.find(m=>m.id===id);assert.equal(m.state,'idle');assert.equal(m.hp,MOB_TYPES[m.type].hp);assert.equal(m.x,m.homeX);assert.equal(m.z,m.homeZ);}
   assert.equal(boss.state,'dead');assert.deepEqual({gold:p.gold,xp:p.xp,kills:p.kills},original);

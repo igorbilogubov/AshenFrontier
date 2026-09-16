@@ -11,7 +11,7 @@ import {canEquip,characterStats} from '../dist/public/rules.js';
 const slots=['weapon','armor','helmet','boots','ring','amulet'];
 
 test('each class has ten unique definitions and six slots, with stable validated rolls and art',async()=>{
-  assert.equal(EQUIPMENT_ITEMS.length,30);assert.equal(new Set(EQUIPMENT_ITEMS.map(i=>i.id)).size,30);
+  assert.equal(EQUIPMENT_ITEMS.length,60);assert.equal(new Set(EQUIPMENT_ITEMS.map(i=>i.id)).size,60);
   for(const classId of ['archer','mage']){
     const catalog=CLASS_ITEMS[classId];assert.equal(catalog.length,10);
     assert.deepEqual(slots.map(slot=>catalog.filter(d=>d.slot===slot).length),[2,2,2,2,1,1]);

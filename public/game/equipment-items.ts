@@ -1,7 +1,7 @@
 import type {ClassId, EquipmentSlot, Item, ItemRoll, ItemStatKey, ItemAppearance, StatSource} from '../../shared/types.js';
 
 export interface ItemDefinition {
-  id:string; classId:ClassId; name:string; slot:EquipmentSlot; appearance:string; level:number;
+  id:string; rarity?:1|2; classId:ClassId; name:string; slot:EquipmentSlot; appearance:string; level:number;
   ranges:readonly {key:ItemStatKey; min:number; max:number; step?:number}[];
 }
 export const ITEM_STAT_LABELS:Record<ItemStatKey,string>={attack:'Урон',armor:'Защита',maxHp:'Здоровье',maxMana:'Мана',hpRegen:'Восстановление HP',manaRegen:'Восстановление маны',accuracy:'Шанс попадания',haste:'Скорость атаки'};
@@ -42,7 +42,10 @@ export const MAGE_ITEMS:readonly ItemDefinition[]=[
   {classId:'mage',id:'moon-amulet',name:'Лунный оберег',slot:'amulet',appearance:'moon-amulet',level:1,ranges:[{key:'maxHp',min:5,max:15},{key:'maxMana',min:5,max:10}]}
 ];
 export const CLASS_ITEMS:Record<ClassId,readonly ItemDefinition[]>={warrior:WARRIOR_ITEMS,archer:ARCHER_ITEMS,mage:MAGE_ITEMS};
-export const EQUIPMENT_ITEMS:readonly ItemDefinition[]=Object.values(CLASS_ITEMS).flat();
+// Frozen v1 ranges belong to these new IDs. Existing item definitions stay unchanged.
+const rareDefinitions=(items:readonly ItemDefinition[]):readonly ItemDefinition[]=>items.map(item=>({...item,id:`${item.id}-rare-v1`,name:`${item.name} превосходства`,rarity:2,ranges:item.ranges.map(range=>{const step=range.step??1;return {...range,min:Math.round(Math.ceil(range.min*1.25/step)*step*1000)/1000,max:Math.round(Math.ceil(range.max*1.25/step)*step*1000)/1000};})}));
+export const RARE_CLASS_ITEMS:Record<ClassId,readonly ItemDefinition[]>={warrior:rareDefinitions(WARRIOR_ITEMS),archer:rareDefinitions(ARCHER_ITEMS),mage:rareDefinitions(MAGE_ITEMS)};
+export const EQUIPMENT_ITEMS:readonly ItemDefinition[]=[...Object.values(CLASS_ITEMS).flat(),...Object.values(RARE_CLASS_ITEMS).flat()];
 export const equipmentItems=(classId:ClassId)=>CLASS_ITEMS[classId];
 export const itemDefinition=(id:unknown)=>typeof id==='string'?EQUIPMENT_ITEMS.find(item=>item.id===id):undefined;
 // Called with server randomness for real loot. The workshop creates labelled,
@@ -54,12 +57,12 @@ export function rollEquipment(definitionId:string,id:string,random:()=>number):I
     const step=range.step??1,steps=Math.round((range.max-range.min)/step);
     return {...range,value:Math.round((range.min+Math.floor(unit*(steps+1))*step)*1000)/1000};
   });
-  return {id,name:definition.name,slot:definition.slot,rarity:1,power:rolls[0].value,classId:definition.classId,definitionId,rollVersion:1,itemLevel:definition.level,rolls};
+  return {id,name:definition.name,slot:definition.slot,rarity:definition.rarity??1,power:rolls[0].value,classId:definition.classId,definitionId,rollVersion:1,itemLevel:definition.level,rolls};
 }
 export function validateEquipment(item:Item){
   if(item.definitionId===undefined){if(item.rolls!==undefined||item.rollVersion!==undefined)throw new Error('Item rolls need a definition');return;}
   const definition=itemDefinition(item.definitionId);
-  if(!definition||item.rollVersion!==1||item.slot!==definition.slot||item.classId!==definition.classId||item.itemLevel!==definition.level||!Array.isArray(item.rolls)||item.rolls.length!==definition.ranges.length)throw new Error('Invalid saved equipment');
+  if(!definition||item.rarity!==(definition.rarity??1)||item.rollVersion!==1||item.slot!==definition.slot||item.classId!==definition.classId||item.itemLevel!==definition.level||!Array.isArray(item.rolls)||item.rolls.length!==definition.ranges.length)throw new Error('Invalid saved equipment');
   for(let i=0;i<definition.ranges.length;i++){
     const roll=item.rolls[i],range=definition.ranges[i];
     if(!roll||roll.key!==range.key||roll.min!==range.min||roll.max!==range.max||(roll.step??1)!==(range.step??1)||!Number.isFinite(roll.value)||roll.value<roll.min||roll.value>roll.max||Math.abs((roll.value-roll.min)/(range.step??1)-Math.round((roll.value-roll.min)/(range.step??1)))>1e-6)throw new Error('Invalid saved equipment roll');

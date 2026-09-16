@@ -2,7 +2,7 @@ import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 import {mesh,box,cylinder,joint} from './models.js';
 import {pineGeometry} from './vegetation.js';
-import {SNOW_BOUNDS,SNOW_ENTRY,SNOW_ROADS,SNOW_LANDMARKS,SNOW_PASSAGES,SNOW_TREES} from './snow.js';
+import {SNOW_BOUNDS,SNOW_ENTRY,SNOW_SPOTS,SNOW_ROADS,SNOW_LANDMARKS,SNOW_PASSAGES,SNOW_TREES} from './snow.js';
 
 /** All solid inland scenery follows snow.ts. Ice and wind marks remain walkable. */
 export function createSnowEnvironment(scene:T.Scene){
@@ -30,7 +30,7 @@ export function createSnowEnvironment(scene:T.Scene){
   const groundMat=new T.MeshStandardMaterial({vertexColors:true,roughness:1});
   groundMat.onBeforeCompile=shader=>{
     shader.vertexShader='varying vec3 snowPoint;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nsnowPoint=position;');
-    shader.fragmentShader='varying vec3 snowPoint;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\nfloat ripple=sin(snowPoint.x*2.8+snowPoint.z*5.6+sin(snowPoint.z*.7)*1.3);diffuseColor.rgb*=.985+.015*ripple;');
+    shader.fragmentShader='varying vec3 snowPoint;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\nfloat ripple=sin(snowPoint.x*2.8+snowPoint.z*5.6+sin(snowPoint.z*.7)*1.3);float drift=sin(snowPoint.x*.31+sin(snowPoint.z*.17)*2.7)*sin(snowPoint.z*.23-snowPoint.x*.12);float grain=fract(sin(dot(floor(snowPoint.xz*36.0),vec2(12.9898,78.233)))*43758.5453);float icePatch=smoothstep(.35,.85,drift);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.31,.48,.59),icePatch*.27);diffuseColor.rgb*=.91+.065*ripple+.05*grain;');
   };
   const ground=mesh(root,groundG,groundMat);ground.castShadow=false;
   const staticRoot=new T.Group();root.add(staticRoot);
@@ -61,6 +61,14 @@ export function createSnowEnvironment(scene:T.Scene){
   const entry=joint(staticRoot,266,0,8);
   // Arrival refuge: two low stone braziers flank the open path, without blocking it.
   for(const z of [-4,4]){cylinder(entry,.42,.58,.45,rock,2,.225,z,8);cylinder(entry,.46,.32,.3,dark,2,.6,z,8);}
+  // Low pebbles are walkable dressing, batched with the existing stone material.
+  // Keep spawn clearings and roads readable; no tall collision-like scenery here.
+  for(let i=0;i<340;i++){
+    const x=263+((i*47.173)%173),z=-77+((i*71.719)%159);
+    if(trailDistance(x,z)<3||SNOW_SPOTS.some(p=>Math.hypot(x-p.x,z-p.z)<p.radius+5))continue;
+    const pebble=mesh(staticRoot,new T.DodecahedronGeometry(1,0),rock,x,.055,z);
+    pebble.scale.set(.12+i%3*.05,.065,.1+i%4*.035);pebble.rotation.y=i;pebble.castShadow=false;
+  }
   bake(staticRoot);
   const flameMat=new T.MeshBasicMaterial({color:'#ffc783',transparent:true,opacity:.85,depthWrite:false});
   const flames=[-4,4].map(z=>{const f=mesh(root,new T.ConeGeometry(.22,.7,6),flameMat,268,1,8+z);f.castShadow=false;return f;});

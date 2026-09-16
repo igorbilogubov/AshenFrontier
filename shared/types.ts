@@ -58,7 +58,7 @@ export interface PublicMob extends Point {
 }
 export interface Mob extends PublicMob {
   contributors: Map<string, { at: number; damage: number; automatic?: boolean }>;
-  slowUntil?: number; rootUntil?:number; dots?:{owner:string;skillId:SkillId;remaining:number;nextTick:number;damage:number;automatic:boolean}[];
+  slowUntil?: number; rootUntil?:number;rootImmunityUntil?:number; dots?:{owner:string;skillId:SkillId;remaining:number;nextTick:number;damage:number;automatic:boolean}[];
   patrol?: { goal: Point | null; pause: number; leg: number; speed: number; age: number } | null;
 }
 export interface PublicProjectile extends Point { id: string; owner: string; yaw: number; remaining: number; speed: number; kind: 'archer' | 'mage'; skillId?: SkillId; attackId?: number }

@@ -8,6 +8,7 @@ import {BAG_CAPACITY,STASH_CAPACITY,backpackItems} from '../public/rules.js';
 import {CONSUMABLE_LIMIT,validateConsumables,backpackUsage,consumableKindQuantity} from '../public/game/consumables.js';
 import {defaultAfkPreferences,parseAfkPreferences} from '../public/game/afk-preferences.js';
 
+import {defaultSkillBuild,parseSkillBuild} from '../public/game/skill-builds.js';
 const {Pool}=pg;
 const slots:readonly EquipmentSlot[]=['weapon','armor','helmet','boots','ring','amulet'];
 const lockSql='SELECT pg_try_advisory_lock(8675309, 4732) AS locked';
@@ -65,6 +66,7 @@ function checkEntry(entry:CommitEntry):void{
   if(hero.potions!==consumableKindQuantity(hero,'hp')||hero.manaPotions!==consumableKindQuantity(hero,'mana'))throw new Error('Consumable counters must match inventory');
   if(hero.consumableInventory.some(stack=>ids.has(stack.id)))throw new Error('Duplicate item and consumable identity');
   if(!Number.isSafeInteger(hero.consumableOverflow)||hero.consumableOverflow<0||hero.consumableOverflow>2||backpackUsage(hero)>BAG_CAPACITY+hero.consumableOverflow)throw new Error('Backpack capacity exceeded');
+  if(!parseSkillBuild(hero.skillBuild,hero.classId,hero.level)||!Number.isSafeInteger(hero.buildRevision)||hero.buildRevision<0||!Array.isArray(hero.skillPresets)||hero.skillPresets.length!==3||hero.skillPresets.some(b=>b!==null&&!parseSkillBuild(b,hero.classId,hero.level)))throw new Error('Invalid skill build');
   if(!parseAfkPreferences(hero.afkPreferences,hero.classId))throw new Error('Invalid AFK preferences');
 }
 function heroValues(hero:PersistentHero,accountId:string):unknown[]{
@@ -72,11 +74,11 @@ function heroValues(hero:PersistentHero,accountId:string):unknown[]{
   return [hero.id,accountId,hero.schemaVersion,hero.name,hero.classId,hero.level,hero.xp,hero.gold,hero.kills,hero.statRevision,
     a.strength,a.dexterity,a.vitality,a.energy,hero.x,hero.z,hero.yaw,hero.weapon,hero.hp,hero.mana,hero.potions,
     hero.potionCooldown,hero.manaPotions,hero.manaPotionCooldown,hero.specialCooldown,hero.dead,hero.combatUntil,hero.attackSerial,hero.running,hero.questKills,
-    hero.boss,hero.questClaimed,JSON.stringify(hero.skillCooldowns??{}),hero.attack===null?null:JSON.stringify(hero.attack),JSON.stringify(hero.afkPreferences),hero.quickSlots.q,hero.quickSlots.w,Math.min(hero.consumableOverflow,Math.max(0,backpackUsage(hero)-BAG_CAPACITY))];
+    hero.boss,hero.questClaimed,JSON.stringify(hero.skillCooldowns??{}),hero.attack===null?null:JSON.stringify(hero.attack),JSON.stringify(hero.afkPreferences),hero.quickSlots.q,hero.quickSlots.w,Math.min(hero.consumableOverflow,Math.max(0,backpackUsage(hero)-BAG_CAPACITY)),JSON.stringify(hero.skillBuild),hero.buildRevision,JSON.stringify(hero.skillPresets)];
 }
 const heroColumns=`id,account_id,schema_version,name,class_id,level,xp,gold,kills,stat_revision,
   strength,dexterity,vitality,energy,x,z,yaw,weapon,hp,mana,potions,potion_cooldown,mana_potions,mana_potion_cooldown,special_cooldown,dead,
-  combat_until,attack_serial,running,quest_kills,boss,quest_claimed,skill_cooldowns,attack,afk_preferences,quick_slot_q,quick_slot_w,consumable_overflow`;
+  combat_until,attack_serial,running,quest_kills,boss,quest_claimed,skill_cooldowns,attack,afk_preferences,quick_slot_q,quick_slot_w,consumable_overflow,skill_build,build_revision,skill_presets`;
 const updateColumns=heroColumns.split(',').map(s=>s.trim()).filter(s=>s!=='id'&&s!=='account_id');
 
 async function writeInventory(client:PoolClient,hero:PersistentHero):Promise<{gained:string[];lost:string[]}>{
@@ -169,6 +171,7 @@ async function readHero(client:PoolClient,heroId:string,accountId:string):Promis
   const consumableInventory:ConsumableStack[]=stackRows.rows.map(stack=>({id:stack.id,definitionId:stack.definition_id,quantity:stack.quantity}));
   const stash=stashLocations.sort((a,b)=>a.position-b.position).map(location=>location.id);
   const hero:PersistentHero={
+    skillBuild:parseSkillBuild(row.skill_build,row.class_id,row.level)??defaultSkillBuild(row.class_id,row.level),buildRevision:numeric(row.build_revision),skillPresets:row.skill_presets,
     schemaVersion:row.schema_version,id:row.id,name:row.name,classId:row.class_id,level:row.level,
     xp:numeric(row.xp),gold:numeric(row.gold),kills:row.kills,items,pendingItems,stash,equipment,consumableInventory,quickSlots:{q:row.quick_slot_q,w:row.quick_slot_w},consumableOverflow:row.consumable_overflow,
     allocatedStats:{strength:row.strength,dexterity:row.dexterity,vitality:row.vitality,energy:row.energy},statRevision:row.stat_revision,

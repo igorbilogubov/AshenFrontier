@@ -69,7 +69,6 @@ export function effectiveSkill(hero:BuildSource,id:SkillId):SkillDefinition{
  if(s.effectDuration&&s.kind==='defense')s.effectDuration*=1+(b.defenseDuration??0);
  if(b.duelist)s.damageScale*=single?1.12:area?.88:1;
  if(b.crowd&&id==='warrior-whirlwind'){s.range*=1.25;s.damageScale*=.9;}
- if(b.guardian)s.damageScale*=.9;
  if(b.sniper&&id==='archer-aimed'){s.damageScale*=1.18;s.durationScale*=1.15;}
  if(b.ranger&&id==='archer-poison'){s.effectDuration!*=1.5;s.damageScale*=.88;}
  if(b.hunter&&(id==='archer-volley'||id==='archer-rain')){if(s.radius)s.radius*=1.25;s.damageScale*=.9;}

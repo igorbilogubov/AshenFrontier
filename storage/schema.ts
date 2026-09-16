@@ -222,7 +222,7 @@ export async function migrate(client:PoolClient):Promise<void>{
     await client.query('SELECT pg_advisory_xact_lock(8675309, 4733)');
     await client.query('CREATE TABLE IF NOT EXISTS schema_migrations (version integer PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())');
     const applied=await client.query<{version:number}>('SELECT version FROM schema_migrations');
-    if([1,2,3,4,5].some(version=>!applied.rows.some(row=>row.version===version))){
+    if([1,2,3,4,5,6].some(version=>!applied.rows.some(row=>row.version===version))){
       // Data migrations must never copy counters while an older process can
       // still buy or consume them. Read-only opens of a current schema stay free.
       const world=await client.query<{locked:boolean}>('SELECT pg_try_advisory_xact_lock(8675309, 4732) AS locked');
@@ -238,6 +238,12 @@ export async function migrate(client:PoolClient):Promise<void>{
     if(!fourth.rowCount){await client.query(consumableInventorySchema);await client.query('INSERT INTO schema_migrations(version) VALUES (4)');}
     const fifth=await client.query<{version:number}>('SELECT version FROM schema_migrations WHERE version=5');
     if(!fifth.rowCount){await client.query(accountsSchema);await client.query('INSERT INTO schema_migrations(version) VALUES (5)');}
+    const sixth=await client.query<{version:number}>('SELECT version FROM schema_migrations WHERE version=6');
+    if(!sixth.rowCount){await client.query(`
+      ALTER TABLE heroes ADD COLUMN skill_build jsonb CHECK (skill_build IS NULL OR (jsonb_typeof(skill_build)='object' AND jsonb_typeof(skill_build->'slots')='array' AND jsonb_array_length(skill_build->'slots')=4 AND jsonb_typeof(skill_build->'talents')='object'));
+      ALTER TABLE heroes ADD COLUMN build_revision bigint NOT NULL DEFAULT 0 CHECK(build_revision>=0);
+      ALTER TABLE heroes ADD COLUMN skill_presets jsonb NOT NULL DEFAULT '[null,null,null]'::jsonb CHECK(jsonb_typeof(skill_presets)='array' AND jsonb_array_length(skill_presets)=3);
+    `);await client.query('INSERT INTO schema_migrations(version) VALUES (6)');}
     await client.query('COMMIT');
   }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}
 }

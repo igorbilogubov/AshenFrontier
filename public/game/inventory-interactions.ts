@@ -6,9 +6,9 @@ import {renderItemRolls} from './item-details.js';
 import {itemArtwork} from './item-icons.js';
 import {ITEM_STAT_LABELS,rollEquipment,rollUnit} from './equipment-items.js';
 import {SHOP,shopItems,sellPrice} from './shop.js';
-import {CONSUMABLES,CONSUMABLE_LIMIT,backpackUsage,consumableDefinition,consumableQuantity} from './consumables.js';
+import {CONSUMABLE_CATALOG,CONSUMABLE_LIMIT,backpackUsage,consumableDefinition,consumableKindQuantity,consumableQuantity} from './consumables.js';
 import {PERSONAL_CHEST} from './personal-stash.js';
-import {actionIcon} from './action-icons.js';
+import {consumableArtwork,consumableTier} from './consumable-ui.js';
 import {equippedSetCounts,itemSet} from './equipment-sets.js';
 
 export const RARITY_LABELS=['Обычный','Необычный','Редкий','Возвышенный','Сетовый'] as const;
@@ -23,17 +23,27 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
   const inventory=document.getElementById('inventory-panel')!,bag=document.getElementById('bag-items')!,slots=document.getElementById('equipment-slots')!;
   const tooltip=node('aside','item-tooltip');tooltip.id='item-tooltip';tooltip.setAttribute('role','tooltip');tooltip.hidden=true;document.body.append(tooltip);
   const vendor=node('aside','rpg-panel vendor-panel');vendor.id='vendor-panel';vendor.hidden=true;vendor.setAttribute('aria-label','Магазин торговца');
-  const heading=node('div','panel-title'),titles=node('div');titles.append(node('p','eyebrow','ЛАГЕРНЫЙ ТОРГОВЕЦ'),node('h2','','Снаряжение в дорогу'));
+  const heading=node('div','panel-title'),titles=node('div');titles.append(node('p','eyebrow','ЛАГЕРНЫЙ ТОРГОВЕЦ'),node('h2','','Снаряжение и зелья'));
   const close=node('button','panel-close','×');close.type='button';close.setAttribute('aria-label','Закрыть магазин');heading.append(titles,close);
   const tabs=node('nav','vendor-tabs');tabs.setAttribute('aria-label','Комплекты классов');
   const body=node('div','panel-body'),intro=node('p','vendor-intro','Простое снаряжение с минимальными свойствами. Лучшие экземпляры ищите в лесу.'),wares=node('div','vendor-grid');
   const supplies=node('div','vendor-supplies');
   for(const kind of ['hp','mana'] as const){
-    const info=CONSUMABLES[kind],button=node('button','vendor-consumable');button.type='button';
-    button.dataset.consumable=kind;const icon=node('span','consumable-art');icon.innerHTML=actionIcon(kind==='hp'?'potion':'mana-potion');
-    button.append(icon,node('span','',`${info.name} · ${info.price} зол.`),node('small','',`+${info.restore} · перетащите из рюкзака на Q/W`));
-    const purchase=()=>{if(!canTrade())return;const definitionId=kind==='hp'?'hp-basic':'mana-basic',count=consumableQuantity(game.player,definitionId);if(count>=CONSUMABLE_LIMIT){toast('Запас зелий заполнен');return;}if(!count&&backpackUsage(game.player)>=BAG_CAPACITY){toast('Освободите ячейку в рюкзаке');return;}if(game.player.gold<info.price){toast('Недостаточно золота');return;}send({type:'buyConsumable',kind,requestId:crypto.randomUUID()});};
-    button.onclick=purchase;button.oncontextmenu=event=>{event.preventDefault();event.stopPropagation();purchase();};supplies.append(button);
+    const group=node('section',`vendor-consumable-group vendor-consumable-${kind}`),groupTitle=node('h3','',kind==='hp'?'Зелья здоровья':'Зелья маны');group.append(groupTitle);
+    for(const info of Object.values(CONSUMABLE_CATALOG).filter(value=>value.kind===kind)){
+      const tier=consumableTier(info.id),card=node('article',`vendor-consumable consumable-tier-${tier.rank}`),icon=node('span','consumable-art');
+      card.dataset.consumableDefinition=info.id;icon.innerHTML=consumableArtwork(info);
+      const details=node('div','vendor-consumable-details');details.append(node('strong','',info.name),node('small','',`+${info.restore} ${kind==='hp'?'HP':'MP'} · уровень ${tier.label}`));
+      const actions=node('div','vendor-consumable-actions');
+      for(const quantity of [1,50] as const){
+        const button=node('button','vendor-consumable-buy',quantity===1?`1 шт. · ${info.price} зол.`:`50 шт. · ${info.price*quantity} зол.`);button.type='button';
+        button.dataset.definitionId=info.id;button.dataset.quantity=String(quantity);
+        button.setAttribute('aria-label',`Купить ${info.name}: ${quantity} штук за ${info.price*quantity} золота`);
+        button.onclick=()=>buyConsumable(info.id,quantity);actions.append(button);
+      }
+      card.append(icon,details,actions);group.append(card);
+    }
+    supplies.append(group);
   }
   body.append(intro,supplies,wares);
   const sellZone=node('div','vendor-sell-zone','Перетащите сюда вещь из рюкзака, чтобы продать');sellZone.setAttribute('aria-label','Продать предмет');body.append(sellZone);
@@ -122,7 +132,7 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
     const key=JSON.stringify([definition.id,stack.quantity]);if(hover===element&&hoverSignature===key&&!tooltip.hidden)return;
     hideTooltip();hover=element;element.setAttribute('aria-describedby',tooltip.id);tooltip.replaceChildren();
     hoverSignature=key;
-    const heading=node('div','tooltip-heading'),art=node('div','tooltip-art');art.innerHTML=actionIcon(definition.kind==='mana'?'mana-potion':'potion');
+    const heading=node('div','tooltip-heading'),art=node('div','tooltip-art');art.innerHTML=consumableArtwork(definition);
     const text=node('div');text.append(node('p','eyebrow',definition.kind==='hp'?'ЗДОРОВЬЕ':'МАНА'),node('h3','',definition.name));heading.append(art,text);
     tooltip.append(heading,node('p','tooltip-requirements',`Восстанавливает ${definition.restore} ${definition.kind==='hp'?'HP':'MP'} · в стопке ${stack.quantity} / ${definition.stackLimit}`),node('p','tooltip-footer','Перетащите бутылку на Q или W, чтобы назначить. Зелье останется в рюкзаке.'));tooltip.hidden=false;
     const position=tooltipPosition(element.getBoundingClientRect(),tooltip.offsetWidth,tooltip.offsetHeight,innerWidth,innerHeight);tooltip.style.left=`${position.x}px`;tooltip.style.top=`${position.y}px`;
@@ -144,6 +154,15 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
     if(game.player.gold<listing.price){toast('Недостаточно золота');return;}
     if(backpackUsage(game.player)>=BAG_CAPACITY){toast('Освободите ячейку в рюкзаке');return;}
     send({type:'buy',definitionId});
+  }
+  function buyConsumable(definitionId:string,quantity:1|50){
+    const definition=consumableDefinition(definitionId);if(!definition)return;
+    if(!canTrade()){toast('Подойдите к торговцу и откройте магазин');return;}
+    const definitionCount=consumableQuantity(game.player,definition.id),kindCount=consumableKindQuantity(game.player,definition.kind),totalPrice=definition.price*quantity;
+    if(definitionCount+quantity>definition.stackLimit||kindCount+quantity>CONSUMABLE_LIMIT){toast(`Для ${quantity} бутылок не хватает места в запасе`);return;}
+    if(!definitionCount&&backpackUsage(game.player)>=BAG_CAPACITY){toast('Освободите ячейку в рюкзаке');return;}
+    if(game.player.gold<totalPrice){toast(`Нужно ${totalPrice} золота`);return;}
+    send({type:'buyConsumable',definitionId,quantity,requestId:crypto.randomUUID()});
   }
   function renderShop(){
     wares.replaceChildren();tabs.replaceChildren();
@@ -227,6 +246,11 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
     gold.textContent=`${game.player.gold} золота`;
     for(const element of inventory.querySelectorAll<HTMLElement>('.bag-cell,.equipment-slot')){element.draggable=false;element.removeAttribute('title');}
     for(const element of wares.querySelectorAll<HTMLElement>('.vendor-item')){const listing=shopItems().find(value=>value.definitionId===element.dataset.definitionId);element.classList.toggle('unaffordable',game.player.gold<(listing?.price||0));}
+    for(const button of supplies.querySelectorAll<HTMLButtonElement>('.vendor-consumable-buy')){
+      const definition=consumableDefinition(button.dataset.definitionId),quantity=Number(button.dataset.quantity) as 1|50;if(!definition)continue;
+      const definitionCount=consumableQuantity(game.player,definition.id),kindCount=consumableKindQuantity(game.player,definition.kind),needsCell=!definitionCount&&backpackUsage(game.player)>=BAG_CAPACITY;
+      button.disabled=!canTrade()||game.player.gold<definition.price*quantity||definitionCount+quantity>definition.stackLimit||kindCount+quantity>CONSUMABLE_LIMIT||needsCell;
+    }
     const hint=document.getElementById('inventory-hint')!;hint.textContent=stashOpened?'Сундук открыт · ПКМ или перетаскивание — переложить вещь':opened?'Магазин открыт · ПКМ по вещи — продать · перетащите зелье на Q/W':'Зелье — перетащите на Q/W · вещь — ПКМ или перетащите в слот';
     if(hover&&!tooltip.hidden){if(hover.dataset.consumableDefinition){if(!game.player.consumableInventory.some(stack=>stack.id===hover!.dataset.consumableId))hideTooltip();else showConsumableTooltip(hover);}else if(!itemFor(hover))hideTooltip();else showTooltip(hover);}
   }

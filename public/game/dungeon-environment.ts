@@ -18,9 +18,12 @@ export function createDungeonEnvironment(scene:T.Scene){
    if(w.w!==undefined&&w.d!==undefined){const height=w.z>10?.75:1.75;box(geometry,w.w,height,w.d,stone,w.x,height/2,w.z);box(geometry,w.w+.1,.1,w.d+.1,trim,w.x,height+.04,w.z);}
    else{cylinder(geometry,.65,.8,2.6,stone,w.x,1.3,w.z,8);cylinder(geometry,.88,.88,.18,trim,w.x,2.6,w.z,8);cylinder(geometry,.20,.28,.5,accent,w.x,3,w.z,6);}
   }
-  for(let row=0;row<11;row++)for(let col=0;col<21;col++){
-   if((row+col)%3===0)continue;const p=box(geometry,4.4,.035,4.35,trim,d.bounds.minX+3+col*5,.001,-23+row*4.5);p.castShadow=false;
+  const tileMaterial=surfaceMaterial(new T.Color(d.floor).lerp(new T.Color('#888d85'),.09).getStyle(),{grain:.10,frequency:34});
+  const paving=new T.InstancedMesh(new T.BoxGeometry(1.9,.04,1.92),tileMaterial,55*26),matrix=new T.Matrix4();let tile=0;
+  for(let row=0;row<26;row++)for(let col=0;col<55;col++){
+   matrix.makeTranslation(d.bounds.minX+1+col*1.97+(row%2)*.06,.005,-25+row*2);paving.setMatrixAt(tile,matrix);paving.setColorAt(tile,new T.Color().setScalar(.84+.16*((col*17+row*31)%19)/18));tile++;
   }
+  paving.receiveShadow=true;paving.castShadow=false;root.add(paving);
   for(const dx of [20,44,68,84]){for(const side of [-1,1]){box(geometry,1.3,2.2,1.2,trim,d.bounds.minX+dx,1.1,side*4.2);box(geometry,.36,.65,.06,accent,d.bounds.minX+dx+.68,1.45,side*4.2);}}
   for(const [room,dx] of [30,54,76,96].entries()){
    const x=d.bounds.minX+dx;

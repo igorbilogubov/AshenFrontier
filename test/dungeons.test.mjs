@@ -45,3 +45,8 @@ test('boss rewards use parent region, support yellow and set rolls, and cap prog
 test('level checks reject a dungeon entrance and persisted low-level region positions',()=>{
  const w=new World(),p=newHero();w.add(p);for(const d of DUNGEONS){Object.assign(p,d.entrance);assert(!w.usePortal(p,`enter-${d.id}`));const saved=safeHero({...persistentHero(p),...d.entry});assert.equal(locationAt(saved),'forest');}
 });
+
+test('root and slow affect boss movement; cleared rooms reset even with a stationary occupant',()=>{
+ const {w,d,p,boss,guards}=fixture();for(const g of guards)g.state='dead';w.refreshDungeon(d.id);p.x=boss.x-10;boss.state='chase';boss.target=p.id;boss.rootUntil=w.t+1000;const start=boss.x;w.tick(.05);assert.equal(boss.x,start);boss.rootUntil=0;boss.slowUntil=w.t+1000;w.tick(.05);assert(Math.abs(boss.x-start)<mobConfig(boss).speed*.05*.71);
+ p.x=boss.x;p.z=boss.z;w.hurtMob(p,boss,1e9);w.dungeonRuns.get(d.id).resetAt=w.t+10;w.tick(.05);assert.equal(p.x,d.entry.x);assert.equal(p.z,d.entry.z);assert(safe(p));assert(!p.afk);assert(boss.bossLocked);assert(guards.every(g=>g.state!=='dead'));
+});

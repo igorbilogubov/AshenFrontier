@@ -20,7 +20,7 @@ test('each eligible contributor sees only personal ground gold; XP and quest cre
   Object.assign(other,{x:8,z:2});w.add(other);w.add(idle);
   m.contributors.set(p.id,{at:w.t,damage:30});m.contributors.set(other.id,{at:w.t,damage:30});w.kill(m);
   for(const hero of [p,other]){
-    assert.equal(hero.gold,0);assert.equal(hero.xp,12);assert.equal(hero.questKills,1);assert.equal(hero.items.length,2);
+    assert.equal(hero.gold,0);assert.equal(hero.xp,13);assert.equal(hero.questKills,1);assert.equal(hero.items.length,2);
     const drops=w.snapshot(hero.id).groundLoot;assert.equal(drops.length,1);assert.equal(drops[0].kind,'gold');assert.equal(drops[0].amount,8);
     assert(!('owner' in drops[0]));
   }

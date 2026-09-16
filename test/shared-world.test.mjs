@@ -40,7 +40,7 @@ test('attacks use server range, timing and cooldown rather than packet damage',(
 test('both nearby contributors earn personal persistent loot and a distant/idle bystander does not',()=>{
   const {w,p}=setup(),m=isolated(w,p),other=newHero('Союзник'),idle=newHero('Наблюдатель');Object.assign(other,{x:7,z:2.3});w.add(other);w.add(idle);
   w.hurtMob(p,m,25);w.hurtMob(other,m,35);
-  for(const player of [p,other]){assert.equal(player.gold,0);assert.equal(player.xp,12);assert.equal(player.questKills,1);assert.equal(player.items.length,2);assert.equal(w.snapshot(player.id).groundLoot.length,2);}
+  for(const player of [p,other]){assert.equal(player.gold,0);assert.equal(player.xp,13);assert.equal(player.questKills,1);assert.equal(player.items.length,2);assert.equal(w.snapshot(player.id).groundLoot.length,2);}
   assert.equal(idle.gold,0);assert.equal(idle.items.length,2);
   assert.deepEqual(w.snapshot(idle.id).groundLoot,[]);
   const reward=w.snapshot(p.id).groundLoot.length;w.kill(m);assert.equal(w.snapshot(p.id).groundLoot.length,reward);

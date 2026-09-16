@@ -837,7 +837,9 @@ export class World{
     const guards=this.mobs.some(m=>m.dungeonId===id&&!m.bossId&&m.state!=='dead');
     const boss=this.mobs.find(m=>m.bossId===id);if(boss)boss.bossLocked=guards;
   }
-  resetDungeon(id:string){
+  resetDungeon(id:string,evacuate=false){
+    if(evacuate){const d=dungeonById(id)!;for(const p of this.players.values())if(dungeonAt(p)?.id===id){this.stopAfk(p);this.stopInteraction(p);this.clearSkillRuntime(p);p.attack=null;p.input={...p.input,x:0,z:0,aim:null};Object.assign(p,d.entry,{vx:0,vz:0,moveBlend:0,runBlend:0});this.settleSafe(p);this.notice(p,'Подземелье обновилось. Вы перемещены к безопасному входу.');}}
+
     for(const m of this.mobs)if(m.dungeonId===id){Object.assign(m,{x:m.homeX,z:m.homeZ,hp:mobConfig(m).hp,state:'idle',timer:1,age:0,target:null,speed:0,flash:0,patrol:null,slowUntil:0,rootUntil:0,rootImmunityUntil:0,dots:[]});delete m.telegraph;m.contributors.clear();this.bossTurns.delete(m.id);}
     this.refreshDungeon(id);this.dungeonRuns.set(id,{resetAt:0,lastOccupied:this.t});
   }
@@ -845,18 +847,19 @@ export class World{
     for(const [id,run] of this.dungeonRuns){
       const occupied=[...this.players.values()].some(p=>p.connected&&!p.dead&&dungeonAt(p)?.id===id&&!dungeonSafe(p));
       if(occupied)run.lastOccupied=this.t;
-      // No respawn over a player still exploring the cleared rooms. Foyer stays safe.
-      if(!occupied&&((run.resetAt>0&&this.t>=run.resetAt)||this.t-run.lastOccupied>=DUNGEON_ABANDON_SECONDS*1000))this.resetDungeon(id);
+      // A cleared shared dungeon cannot be held forever by an idle/AFK occupant.
+      if(run.resetAt>0&&this.t>=run.resetAt)this.resetDungeon(id,true);
+      else if(!occupied&&this.t-run.lastOccupied>=DUNGEON_ABANDON_SECONDS*1000)this.resetDungeon(id);
     }
   }
   tickBoss(m:Mob,dt:number){
-    const cfg=mobConfig(m),home={x:m.homeX,z:m.homeZ};
+    const cfg=mobConfig(m),home={x:m.homeX,z:m.homeZ},movementScale=(m.rootUntil??0)>this.t?0:(m.slowUntil??0)>this.t?.7:1;
     const candidates=[...this.players.values()].filter(p=>p.connected&&!p.dead&&!safe(p)&&sameLocation(p,m)&&distance(p,home)<22&&clearPath(m,p));
     const target=candidates.find(p=>p.id===m.target)??candidates.sort((a,b)=>distance(a,m)-distance(b,m))[0];
     if(!target){
       delete m.telegraph;m.target=null;
       const d=distance(m,home);
-      if(d>.2){m.state='return';const yaw=Math.atan2(home.x-m.x,home.z-m.z);m.yaw=turnTowards(m.yaw,yaw,dt,8);m.speed=translate(m,Math.sin(yaw)*cfg.speed*dt,Math.cos(yaw)*cfg.speed*dt,cfg.radius,true)/dt;}
+      if(d>.2){m.state='return';const yaw=Math.atan2(home.x-m.x,home.z-m.z);m.yaw=turnTowards(m.yaw,yaw,dt,8);m.speed=translate(m,Math.sin(yaw)*cfg.speed*movementScale*dt,Math.cos(yaw)*cfg.speed*movementScale*dt,cfg.radius,true)/dt;}
       else{if(m.state!=='idle'){m.state='idle';m.timer=5;}m.timer-=dt;if(m.timer<=0){m.hp=cfg.hp;m.contributors.clear();}}
       m.gait+=m.speed*dt*5.8;return;
     }
@@ -868,7 +871,7 @@ export class World{
     }
     if(m.state==='recover'){m.timer-=dt;if(m.timer>0)return;}
     const yaw=Math.atan2(target.x-m.x,target.z-m.z);m.yaw=turnTowards(m.yaw,yaw,dt,8);
-    if(distance(target,m)>8){m.state='chase';m.speed=translate(m,Math.sin(yaw)*cfg.speed*dt,Math.cos(yaw)*cfg.speed*dt,cfg.radius,true)/dt;m.gait+=m.speed*dt*5.8;return;}
+    if(distance(target,m)>8){m.state='chase';m.speed=translate(m,Math.sin(yaw)*cfg.speed*movementScale*dt,Math.cos(yaw)*cfg.speed*movementScale*dt,cfg.radius,true)/dt;m.gait+=m.speed*dt*5.8;return;}
     const turn=this.bossTurns.get(m.id)??0,kind=(['cone','circle','ring'] as const)[turn%3];this.bossTurns.set(m.id,turn+1);
     const duration=kind==='cone'?1.15:kind==='circle'?1.7:1.9,origin=kind==='circle'?{x:target.x,z:target.z}:{x:m.x,z:m.z};
     m.telegraph={...origin,kind,yaw,radius:kind==='cone'?8:kind==='circle'?2.6:9,innerRadius:3.4,halfAngle:.65,duration,remaining:duration};m.targetYaw=yaw;m.yaw=yaw;m.state='windup';m.timer=duration;m.age=0;

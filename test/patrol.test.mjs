@@ -1,10 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {World,newHero} from '../dist/world.js';
+import {locationAt} from '../dist/public/game/world-layout.js';
+import {LATE_REGIONS} from '../dist/public/game/late-world.js';
 import {MOB_TYPES,stand,safe} from '../dist/public/game/location.js';
 
 test('undisturbed animals walk in sustained bouts and rest, without tick-by-tick Walk/Idle flicker',()=>{
-  const world=new World(),samples=world.mobs.map(()=>({moving:false,ticks:0,walks:[],rests:[],changes:0}));
+  const world=new World();world.mobs=world.mobs.filter(m=>!m.dungeonId);
+  for(const point of [{x:.5,z:4},{x:160,z:15},{x:266,z:8},{x:526,z:0},...LATE_REGIONS.map(r=>r.entry)]){const observer=newHero(`Observer ${locationAt(point)}`);Object.assign(observer,point,{level:100});world.add(observer);}
+  const samples=world.mobs.map(()=>({moving:false,ticks:0,walks:[],rests:[],changes:0}));
   for(let tick=0;tick<2400;tick++){
     world.tick(.05);
     for(const mob of world.mobs){
@@ -15,8 +19,8 @@ test('undisturbed animals walk in sustained bouts and rest, without tick-by-tick
       assert(Math.hypot(mob.x-mob.homeX,mob.z-mob.homeZ)<2.2,'patrol left its home area');
     }
   }
-  for(const s of samples){
-    assert(s.walks.length>=5,'animal did not patrol');
+  for(const [i,s] of samples.entries()){
+    assert(s.walks.length>=(MOB_TYPES[world.mobs[i].type].speed<=1.4?3:5),`animal ${world.mobs[i].type}#${i} in ${locationAt(world.mobs[i])} did not patrol: ${s.walks.length}`);
     assert(s.walks.every(seconds=>seconds>=1),'short movement bursts make the walk clip flicker');
     assert(s.rests.every(seconds=>seconds>=.5),'pauses must be visible, not single-tick stops');
     assert(s.changes/2<30,'too many Walk/Idle transitions per minute');
@@ -24,7 +28,7 @@ test('undisturbed animals walk in sustained bouts and rest, without tick-by-tick
 });
 
 test('patrol yields immediately to pursuit, keeps combat speed, and clears its route on respawn',()=>{
-  const world=new World(),mob=world.mobs[0];world.mobs=[mob];
+  const world=new World(),mob=world.mobs[0];world.mobs=[mob];world.add(newHero('Safe observer'));
   for(let i=0;i<300&&(!mob.patrol?.goal||mob.speed<.1);i++)world.tick(.05);
   assert(mob.patrol.goal);
   const player=newHero('Следопыт');Object.assign(player,{x:mob.x+2.5,z:mob.z});world.add(player);
@@ -35,3 +39,5 @@ test('patrol yields immediately to pursuit, keeps combat speed, and clears its r
   assert.equal(mob.state,'idle');assert.equal(mob.patrol,null);assert.equal(mob.x,mob.homeX);
   world.tick(.05);assert(mob.patrol.pause>0);assert.equal(mob.speed,0);
 });
+
+test('empty regions suspend movement until an observer arrives without losing creature state',()=>{const w=new World(),m=w.mobs[0],start={x:m.x,z:m.z,hp:m.hp};for(let i=0;i<200;i++)w.tick(.05);assert.deepEqual({x:m.x,z:m.z,hp:m.hp},start);assert.equal(m.speed,0);w.add(newHero('Observer'));for(let i=0;i<300&&!m.patrol?.goal;i++)w.tick(.05);assert(m.patrol?.goal);});

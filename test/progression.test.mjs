@@ -1,4 +1,5 @@
 import {equipLegacySkills} from './helpers/skill-builds.mjs';
+import {xpNeeded} from '../dist/public/game/progression-curve.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {World,newHero,safeHero,persistentHero,stats,makeLoot,SAVE_VERSION} from '../dist/world.js';
@@ -107,10 +108,10 @@ test('class changes never alter identity, stats, resources or gear in any charac
   }
 });
 
-test('real kills advance the existing XP curve, award five points per level and survive a save round trip',()=>{
-  const {w,p}=fixture();allocate(w,p,{strength:5});p.xp=64;
+test('real kills advance the level100 XP curve, award five points per level and survive a save round trip',()=>{
+  const {w,p}=fixture();allocate(w,p,{strength:5});p.xp=xpNeeded(1)-1;
   const m=field(w,p);w.hurtMob(p,m,60);
-  assert.equal(p.level,2);assert.equal(p.xp,11);assert.equal(stats(p).xpNeeded,130);
+  assert.equal(p.level,2);assert.equal(p.xp,12);assert.equal(stats(p).xpNeeded,xpNeeded(2));
   assert.equal(stats(p).unspentPoints,5);assert.equal(p.statRevision,2);
   assert.equal(w.events.filter(e=>e.type==='level').length,1);
   const saved=persistentHero(p),restored=safeHero(saved);

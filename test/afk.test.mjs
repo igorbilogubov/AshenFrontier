@@ -72,7 +72,7 @@ test('AFK rewards use real kill ledger without advancing the active quest; saved
   toggle(w,p,true);p.kills=2;p.questKills=4;
   const m=w.mobs[0];m.hp=60;assert(clearPath(p,m));
   assert(w.hurtMob(p,m,100,true));
-  assert.equal(p.kills,3);assert.equal(p.questKills,4);assert.equal(p.xp,12);assert.equal(p.gold,0);
+  assert.equal(p.kills,3);assert.equal(p.questKills,4);assert.equal(p.xp,7);assert.equal(p.gold,0);
   assert.equal(p.items.length,2);assert.equal(w.snapshot(p.id).groundLoot.length,2);assert.equal(m.state,'dead');
   const saved=persistentHero(p);assert(!('afk' in saved));
   const restored=safeHero(saved);assert.equal(restored.afk,null);assert.equal(restored.kills,3);

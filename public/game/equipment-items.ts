@@ -2,7 +2,7 @@ import type {ClassId, EquipmentSlot, Item, ItemRoll, ItemStatKey, ItemAppearance
 import {REGIONAL_ITEMS,REGIONAL_COLLECTIONS,GEAR_REGIONS,type GearRegion,type CollectionRegion} from './regional-equipment.js';
 
 export interface ItemDefinition {
-  id:string; rarity?:1|2|3|4; setId?:string; classId:ClassId; name:string; slot:EquipmentSlot; appearance:string; level:number;
+  id:string; rarity?:0|1|2|3|4; setId?:string; classId:ClassId; name:string; slot:EquipmentSlot; appearance:string; level:number;
   ranges:readonly {key:ItemStatKey; min:number; max:number; step?:number}[];
 }
 export const ITEM_STAT_LABELS:Record<ItemStatKey,string>={attack:'Урон',armor:'Защита',maxHp:'Здоровье',maxMana:'Мана',hpRegen:'Восстановление HP',manaRegen:'Восстановление маны',accuracy:'Шанс попадания',haste:'Скорость атаки'};
@@ -43,12 +43,17 @@ export const MAGE_ITEMS:readonly ItemDefinition[]=[
   {classId:'mage',id:'moon-amulet',name:'Лунный оберег',slot:'amulet',appearance:'moon-amulet',level:1,ranges:[{key:'maxHp',min:5,max:15},{key:'maxMana',min:5,max:10}]}
 ];
 export const CLASS_ITEMS:Record<ClassId,readonly ItemDefinition[]>={warrior:WARRIOR_ITEMS,archer:ARCHER_ITEMS,mage:MAGE_ITEMS};
+// Versioned common definitions let white drops use a real pool without
+// changing the IDs, ranges, or rarity of any saved green equipment.
+const commonDefinitions=(items:readonly ItemDefinition[]):readonly ItemDefinition[]=>items.map(item=>({...item,id:`${item.id}-common-v1`,name:`${item.name} простого качества`,rarity:0 as const,ranges:item.ranges.map(range=>{const step=range.step??1;return {...range,min:Math.round(Math.ceil(range.min*.75/step)*step*1000)/1000,max:Math.round(Math.ceil(range.max*.75/step)*step*1000)/1000};})}));
+export const COMMON_CLASS_ITEMS:Record<ClassId,readonly ItemDefinition[]>={warrior:commonDefinitions(WARRIOR_ITEMS),archer:commonDefinitions(ARCHER_ITEMS),mage:commonDefinitions(MAGE_ITEMS)};
 // Frozen v1 ranges belong to these new IDs. Existing item definitions stay unchanged.
 const rareDefinitions=(items:readonly ItemDefinition[]):readonly ItemDefinition[]=>items.map(item=>({...item,id:`${item.id}-rare-v1`,name:`${item.name} превосходства`,rarity:2,ranges:item.ranges.map(range=>{const step=range.step??1;return {...range,min:Math.round(Math.ceil(range.min*1.25/step)*step*1000)/1000,max:Math.round(Math.ceil(range.max*1.25/step)*step*1000)/1000};})}));
 export const RARE_CLASS_ITEMS:Record<ClassId,readonly ItemDefinition[]>={warrior:rareDefinitions(WARRIOR_ITEMS),archer:rareDefinitions(ARCHER_ITEMS),mage:rareDefinitions(MAGE_ITEMS)};
 type ClassCatalog=Record<ClassId,readonly ItemDefinition[]>;
 const classes=['warrior','archer','mage'] as const;
 export const RARE_REGIONAL_ITEMS=Object.fromEntries((Object.keys(REGIONAL_ITEMS) as CollectionRegion[]).map(region=>[region,Object.fromEntries(classes.map(classId=>[classId,rareDefinitions(REGIONAL_ITEMS[region][classId])]))])) as Record<CollectionRegion,ClassCatalog>;
+export const COMMON_REGIONAL_ITEMS=Object.fromEntries((Object.keys(REGIONAL_ITEMS) as CollectionRegion[]).map(region=>[region,Object.fromEntries(classes.map(classId=>[classId,commonDefinitions(REGIONAL_ITEMS[region][classId])]))])) as Record<CollectionRegion,ClassCatalog>;
 const bases=(classId:ClassId,region:GearRegion)=>region==='forest'?CLASS_ITEMS[classId]:REGIONAL_ITEMS[region][classId];
 const scaledRanges=(item:ItemDefinition,scale:number)=>item.ranges.map(range=>{const step=range.step??1;return {...range,min:Math.round(Math.ceil(range.min*scale/step)*step*1000)/1000,max:Math.round(Math.ceil(range.max*scale/step)*step*1000)/1000};});
 export const BOSS_SET_DEFINITIONS=GEAR_REGIONS.flatMap(region=>classes.map(classId=>({
@@ -58,8 +63,8 @@ export const BOSS_SET_DEFINITIONS=GEAR_REGIONS.flatMap(region=>classes.map(class
 const selectedSetBases=(classId:ClassId,region:GearRegion)=>region==='forest'?CLASS_ITEMS[classId].filter(item=>['watch-blade','watch-armor','watch-helm','watch-boots','copper-ring','ember-amulet','sentinel-bow','sentinel-armor','sentinel-hood','sentinel-boots','hawk-ring','leaf-amulet','runekeeper-staff','runekeeper-armor','runekeeper-crown','runekeeper-boots','rune-ring','moon-amulet'].includes(item.id)):bases(classId,region);
 export const YELLOW_ITEMS=Object.fromEntries(GEAR_REGIONS.map(region=>[region,Object.fromEntries(classes.map(classId=>[classId,bases(classId,region).map(item=>({...item,id:`${item.id}-exalted-v1`,name:`${item.name} величия`,rarity:3 as const,ranges:scaledRanges(item,1.42)}))]))])) as unknown as Record<GearRegion,ClassCatalog>;
 export const SET_ITEMS=Object.fromEntries(GEAR_REGIONS.map(region=>[region,Object.fromEntries(classes.map(classId=>[classId,selectedSetBases(classId,region).map(item=>({...item,id:`${item.id}-set-v1`,name:`${item.name} наследия`,rarity:4 as const,setId:`${region}-${classId}-set-v1`,ranges:scaledRanges(item,1.23)}))]))])) as unknown as Record<GearRegion,ClassCatalog>;
-export const EQUIPMENT_ITEMS:readonly ItemDefinition[]=[...Object.values(CLASS_ITEMS).flat(),...Object.values(RARE_CLASS_ITEMS).flat(),...Object.values(REGIONAL_ITEMS).flatMap(region=>Object.values(region).flat()),...Object.values(RARE_REGIONAL_ITEMS).flatMap(region=>Object.values(region).flat()),...Object.values(YELLOW_ITEMS).flatMap(region=>Object.values(region).flat()),...Object.values(SET_ITEMS).flatMap(region=>Object.values(region).flat())];
-export const regionalEquipment=(classId:ClassId,region:GearRegion,rarity:1|2|3|4):readonly ItemDefinition[]=>rarity===4?SET_ITEMS[region][classId]:rarity===3?YELLOW_ITEMS[region][classId]:region==='forest'?(rarity===2?RARE_CLASS_ITEMS:CLASS_ITEMS)[classId]:(rarity===2?RARE_REGIONAL_ITEMS:REGIONAL_ITEMS)[region][classId];
+export const EQUIPMENT_ITEMS:readonly ItemDefinition[]=[...Object.values(COMMON_CLASS_ITEMS).flat(),...Object.values(CLASS_ITEMS).flat(),...Object.values(RARE_CLASS_ITEMS).flat(),...Object.values(REGIONAL_ITEMS).flatMap(region=>Object.values(region).flat()),...Object.values(COMMON_REGIONAL_ITEMS).flatMap(region=>Object.values(region).flat()),...Object.values(RARE_REGIONAL_ITEMS).flatMap(region=>Object.values(region).flat()),...Object.values(YELLOW_ITEMS).flatMap(region=>Object.values(region).flat()),...Object.values(SET_ITEMS).flatMap(region=>Object.values(region).flat())];
+export const regionalEquipment=(classId:ClassId,region:GearRegion,rarity:0|1|2|3|4):readonly ItemDefinition[]=>rarity===4?SET_ITEMS[region][classId]:rarity===3?YELLOW_ITEMS[region][classId]:region==='forest'?(rarity===0?COMMON_CLASS_ITEMS:rarity===2?RARE_CLASS_ITEMS:CLASS_ITEMS)[classId]:(rarity===0?COMMON_REGIONAL_ITEMS:rarity===2?RARE_REGIONAL_ITEMS:REGIONAL_ITEMS)[region][classId];
 export const equipmentItems=(classId:ClassId)=>CLASS_ITEMS[classId];
 export const itemDefinition=(id:unknown)=>typeof id==='string'?EQUIPMENT_ITEMS.find(item=>item.id===id):undefined;
 // Called with server randomness for real loot. The workshop creates labelled,

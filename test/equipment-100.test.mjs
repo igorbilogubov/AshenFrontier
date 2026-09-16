@@ -9,8 +9,8 @@ const classes=['warrior','archer','mage'];
 const levels=[1,10,25,40,55,70,85];
 function dressed(classId,region,rarity,count=6){const items=[...new Map(regionalEquipment(classId,region,rarity).map(d=>[d.slot,d])).values()].slice(0,count).map((d,i)=>rollEquipment(d.id,`item-${i}`,()=>.5));return {classId,level:100,items,equipment:Object.fromEntries(items.map(i=>[i.slot,i.id]))};}
 test('seven regional tiers preserve every class, slot and rarity, with immutable rolled ranges',()=>{
- assert.equal(EQUIPMENT_ITEMS.length,540);assert.equal(new Set(EQUIPMENT_ITEMS.map(d=>d.id)).size,540);
- for(const [index,region] of GEAR_REGIONS.entries())for(const cls of classes)for(const rarity of [1,2,3,4]){
+ assert.equal(EQUIPMENT_ITEMS.length,678);assert.equal(new Set(EQUIPMENT_ITEMS.map(d=>d.id)).size,678);
+ for(const [index,region] of GEAR_REGIONS.entries())for(const cls of classes)for(const rarity of [0,1,2,3,4]){
   const definitions=regionalEquipment(cls,region,rarity);assert.equal(new Set(definitions.map(d=>d.slot)).size,6);
   for(const definition of definitions){assert.equal(definition.classId,cls);assert.equal(definition.level,levels[index]);
    for(const random of [()=>0,()=>.5,()=>.999999]){const item=rollEquipment(definition.id,'sample',random);assert.equal(item.rarity,rarity);validateEquipment(structuredClone(item));}
@@ -22,9 +22,9 @@ test('seven regional tiers preserve every class, slot and rarity, with immutable
 test('boss loot is one mutually exclusive roll, elites never yield yellow or set items',()=>{
  const counts={none:0,1:0,2:0,3:0,4:0};
  for(let i=0;i<10000;i++){const rng=()=>(i+.5)/10000;counts[gearRarity('scarab','named',rng,true)??'none']++;
-  assert.ok([null,1,2].includes(gearRarity('wolf','named',rng)));assert.ok([null,1].includes(gearRarity('wolf',undefined,rng)));
+  assert.ok([null,1,2].includes(gearRarity('wolf','named',rng)));assert.ok([null,0,1].includes(gearRarity('wolf',undefined,rng)));
  }
- assert.deepEqual(counts,{none:2300,1:3000,2:3500,3:800,4:400});
+ assert.deepEqual(counts,{none:4300,1:1000,2:3500,3:800,4:400});
 });
 test('only equipped pieces of the same set activate its 2/4 bonuses',()=>{
  assert.equal(EQUIPMENT_SETS.length,21);

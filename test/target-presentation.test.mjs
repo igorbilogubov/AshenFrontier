@@ -28,15 +28,15 @@ test('possible loot uses live mob coins, real one-item chance and only currently
   for(const type of Object.keys(MOB_TYPES)){
     const view=possibleLoot(type);
     assert.equal(view.gold,MOB_TYPES[type].coins);
-    assert.equal(view.itemChance,GEAR_CHANCE[type]??.10);
-    assert.deepEqual(view.categories.map(category=>category.id),['gold','weapon','armor','accessory']);
+    assert.equal(view.itemChance,GEAR_CHANCE[type]??.025);
+    assert.deepEqual(view.categories.map(category=>category.id),['gold','weapon','weapon','armor','armor','accessory','accessory']);
     assert.equal(view.categories[0].rarity,'gold');
     for(const category of view.categories.slice(1)){
       const matching=['warrior','archer','mage'].flatMap(classId=>regionalEquipment(classId,lootRegionForType(type),category.rarity)).filter(item=>category.slots.includes(item.slot));
       assert(matching.length>0);
       assert(matching.every(item=>rollEquipment(item.id,'test-only',()=>0).rarity===category.rarity));
     }
-    assert(!view.categories.some(category=>category.rarity===2),'no unimplemented rare drop is advertised');
+    assert.deepEqual([...new Set(view.categories.slice(1).map(category=>category.rarity))],[0,1]);
   }
 });
 
@@ -55,7 +55,7 @@ test('late regions keep their own catalog and a dungeon boss advertises all four
 test('dungeon guards expose their doubled dungeon reward without pretending to be bosses',()=>{
   const guard=possibleLoot('bonehound','guard-citadel',undefined,'citadel-dungeon');
   assert.equal(guard.gold,mobConfig({type:'bonehound',eliteId:'guard-citadel',dungeonId:'citadel-dungeon'}).coins);
-  assert.equal(guard.itemChance,.40);
+  assert.equal(guard.itemChance,.13);
   assert.deepEqual([...new Set(guard.categories.slice(1).map(category=>category.rarity))],[1,2]);
 });
 
@@ -70,12 +70,14 @@ test('selected mob gets center name/HP/real loot and ring; vendor/player remove 
     assert.equal(names['target-health'].textContent,'72 / 145');
     assert.equal(names['target-fill'].style.transform,`scaleX(${72/145})`);
     const loot=names['target-panel'].children[0],row=loot.children[0];
-    assert.equal(loot.hidden,false);assert.equal(row.children.length,4);
+    assert.equal(loot.hidden,false);assert.equal(row.children.length,7);
     assert.equal(loot.children.length,1,'drop row has no visible heading');
     assert(row.children.every(badge=>badge.children.length===1),'drop badges contain symbols only');
     assert(row.children[0].getAttribute('aria-label').includes('21 золота'));
-    assert(row.children.slice(1).every(badge=>badge.title.includes('10%')));
-    assert(row.children.slice(1).every(badge=>badge.className.includes('rarity-1')));
+    assert(row.children.slice(1).some(badge=>badge.title.includes('1%')));
+    assert(row.children.slice(1).some(badge=>badge.title.includes('2%')));
+    assert(row.children.slice(1).some(badge=>badge.className.includes('rarity-0')));
+    assert(row.children.slice(1).some(badge=>badge.className.includes('rarity-1')));
     assert.equal(ring.visible,true);assert.equal(ring.position.x,12);assert.equal(ring.position.z,7);
     update({kind:'vendor',id:'camp-vendor',name:'Торговец',x:2,z:-2});
     assert.equal(names['target-name'].textContent,'Торговец');assert.equal(names['target-health'].textContent,'Торговец');

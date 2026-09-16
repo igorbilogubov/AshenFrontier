@@ -40,8 +40,8 @@ test('snow snapshots, loot, attacks and contributions remain region isolated',()
  snow.contributors.set(f.id,{at:w.t,damage:999});w.kill(snow);assert.equal(f.kills,0);assert.equal(w.snapshot(f.id).groundLoot.length,0);
 });
 
-test('elite rare reward is 3% absolute, ordinary gear stays green and saved rare ranges remain exact',()=>{
- assert.equal(gearRarity('yak','frost-matriarch',()=>.029999),2);assert.equal(gearRarity('yak','frost-matriarch',()=>.03),1);assert.equal(gearRarity('yak','frost-matriarch',()=>.4),null);assert.equal(gearRarity('yak',undefined,()=>0),1);
+test('elite rare reward is 3% absolute, ordinary gear can be white and saved rare ranges remain exact',()=>{
+ assert.equal(gearRarity('yak','frost-matriarch',()=>.029999),2);assert.equal(gearRarity('yak','frost-matriarch',()=>.03),1);assert.equal(gearRarity('yak','frost-matriarch',()=>.4),null);assert.equal(gearRarity('yak',undefined,()=>0),0);
  for(const classId of ['warrior','archer','mage'])for(const [i,definition] of RARE_CLASS_ITEMS[classId].entries()){
   const item=rollEquipment(definition.id,definition.id,()=>.5);validateEquipment(item);assert.equal(item.rarity,2);assert.equal(definition.appearance,CLASS_ITEMS[classId][i].appearance);
   for(const [j,roll] of item.rolls.entries())assert(roll.max>CLASS_ITEMS[classId][i].ranges[j].max);

@@ -192,7 +192,7 @@ function processEvents(){
     if(event.type==='kill'){toast(`${event.name} повержен · +${event.xp} опыта`);}
     if(event.type==='safe'&&time-lastSafeToast>1.5){lastSafeToast=time;const region=locationAt(game.player);toast(region==='wasteland'?'Безопасный пост. Дальше начинаются Пепельные пустоши':region==='snow'?'Укрытие у перевала. Дальше начинается снежная охота':region==='stadium'?'Безопасная площадка. Пройдите в один из четырёх загонов':'Лагерь безопасен. Выйдите на лесную тропу');}
     if(event.type==='death'){clearInput();pendingWeapon=null;selected=null;}
-    if(event.type==='portal'){resetLocationView();toast(event.location==='wasteland'?'Пепельные пустоши · восемь спотов для охоты':event.location==='snow'?'Снежный предел · восемь охотничьих спотов':event.location==='stadium'?'Стадиум · четыре загона для охоты':'Пепельная опушка');}
+    if(event.type==='portal'){resetLocationView();const destination=dungeonAt(game.player)??lateRegionAt(game.player);toast(destination?.name??(event.location==='wasteland'?'Пепельные пустоши · восемь спотов для охоты':event.location==='snow'?'Снежный предел · восемь охотничьих спотов':event.location==='stadium'?'Стадиум · четыре загона для охоты':'Пепельная опушка'));}
     if(event.type==='camp'){resetLocationView();toast('У костра восстанавливаются здоровье, мана и зелья');}
     if(event.type==='quest')toast('Опушка очищена! Награда: 50 золота');
   }
@@ -231,8 +231,11 @@ function updateUI(){
   $('forest-quest').hidden=region!=='forest';$('stadium-guide').hidden=!inStadium;document.getElementById('snow-guide')!.hidden=!inSnow;document.getElementById('wasteland-guide')!.hidden=!inWasteland;
   const expansion=lateRegionAt(hero),dungeon=dungeonAt(hero);
   if(expansion||dungeon){$('location-name').textContent=(expansion??dungeon)!.name;$('map-legend').innerHTML=dungeon?'<span>ВХОД</span><span>СТРАЖИ</span><span>БОСС</span>':'<span>УКРЫТИЕ</span><span>◯ СПОТЫ</span><span>ПОДЗЕМЕЛЬЕ</span>';mini.setAttribute('aria-label',`Карта: ${(expansion??dungeon)!.name}`);}
-  let guide=document.getElementById('dungeon-progress');if(!guide){guide=document.createElement('aside');guide.id='dungeon-progress';guide.className='quest-card';guide.style.cssText='position:absolute;top:145px;left:24px;max-width:235px;pointer-events:none';document.body.append(guide);}
-  guide.hidden=!dungeon;if(dungeon){const p=game.dungeon;guide.textContent=p?.bossDefeated?`Босс повержен. Выход у входа. Новый поход через ${Math.ceil(p.resetIn)} с. Оставшиеся герои вернутся ко входу.`:(p?.guardsRemaining??12)>0?`${dungeon.name} · стражей осталось: ${p?.guardsRemaining??12} / 12. Печать босса снимется после их гибели.`:`${dungeon.bossName} · печать снята. Уклоняйтесь от отмеченных атак.`;}
+  $('dungeon-progress').hidden=!dungeon;
+  if(dungeon){const p=game.dungeon,guards=p?.guardsRemaining??12;
+    $('dungeon-objective').textContent=p?.bossDefeated?'Босс повержен':guards>0?`Стражи: ${12-guards} / 12`:dungeon.bossName;
+    $('dungeon-hint').textContent=p?.bossDefeated?`Новый поход через ${Math.ceil(p.resetIn)} с. Оставшиеся герои вернутся ко входу.`:guards>0?'Победите всех стражей, чтобы снять печать с босса.':'Печать снята. Уклоняйтесь от отмеченных атак.';
+  }
   const spot=afkSpotAt(hero);
   const clearing=WORLD_CLEARINGS.find(field=>Math.hypot(hero.x-field.x,hero.z-field.z)<field.radius);
   $('zone-state').textContent=camp?(inWasteland?'Безопасный пост':inSnow?'Укрытие у перевала':inStadium?'Безопасная площадка':'Безопасный лагерь'):spot?spot.name:inWasteland?'Пепельные пустоши · опасная зона':inSnow?'Снежный предел · опасная зона':inStadium?'Стадиум · входы в загоны':Math.hypot(hero.x-25,hero.z+1.2)<6?'Старые руины · вожак':clearing?`${clearing.id==='camp'?'Окраина лагеря':clearing.name} · опасная зона`:'Пепельная опушка · опасная зона';

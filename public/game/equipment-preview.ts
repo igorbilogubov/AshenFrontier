@@ -12,7 +12,7 @@ import type {ClassId,Equipment,Item} from '../../shared/types.js';
 const canvas=$('portrait'),renderer=new T.WebGLRenderer({canvas,antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;
 const scene=new T.Scene();scene.background=new T.Color('#15231e');scene.fog=new T.Fog('#15231e',7,16);
-const camera=new T.PerspectiveCamera(33,1,.1,30);camera.position.set(.25,2.35,5.9);camera.lookAt(0,1.04,0);
+const camera=new T.PerspectiveCamera(37,1,.1,30);camera.position.set(.25,2.35,5.9);camera.lookAt(0,.9,0);
 scene.add(new T.HemisphereLight('#e0e7d2','#3b4232',1.9));
 for(const [position,color,intensity] of [[[3,5,3],'#ffe0a6',3],[[-3,3,1],'#b2c9d4',1.8],[[1,4,-3],'#a9c7ab',3]] as const){const light=new T.DirectionalLight(color,intensity);light.position.set(position[0],position[1],position[2]);scene.add(light);if(position[0]===3){light.castShadow=true;light.shadow.mapSize.set(1024,1024);Object.assign(light.shadow.camera,{left:-2,right:2,top:3,bottom:-2});light.shadow.normalBias=.012;}}
 const ground=new T.Mesh(new T.CircleGeometry(9,64),new T.MeshStandardMaterial({color:'#172a20',roughness:1}));ground.rotation.x=-Math.PI/2;ground.position.y=-.036;ground.receiveShadow=true;scene.add(ground);

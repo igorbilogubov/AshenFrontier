@@ -1,0 +1,63 @@
+{
+  "environment": {
+    "node": "v24.19.0",
+    "cpu": "Apple M1",
+    "mobs": 711,
+    "players": 16,
+    "afk": true,
+    "ticks": 1200,
+    "warmup": 200,
+    "stepMs": 50,
+    "maps": [
+      "forest",
+      "snow",
+      "wasteland",
+      "swamp",
+      "mines",
+      "rift",
+      "citadel",
+      "forest-dungeon",
+      "snow-dungeon",
+      "wasteland-dungeon",
+      "swamp-dungeon",
+      "mines-dungeon",
+      "rift-dungeon",
+      "citadel-dungeon",
+      "stadium",
+      "forest"
+    ]
+  },
+  "result": {
+    "name": "current",
+    "tickWallMs": {
+      "mean": 6.398607583000012,
+      "p50": 6.228624999999738,
+      "p95": 8.310750000000098,
+      "p99": 9.400750000000244,
+      "max": 10.623832999999877
+    },
+    "tickCpuMs": {
+      "mean": 6.894833999999994,
+      "p50": 6.268,
+      "p95": 11.459,
+      "p99": 16.889,
+      "max": 23.086
+    },
+    "allSnapshotsWallMs": {
+      "mean": 4.424629139999966,
+      "p50": 4.133332999999766,
+      "p95": 5.638832999999977,
+      "p99": 5.796583000000055,
+      "max": 5.796583000000055
+    },
+    "allSnapshotsCpuMs": {
+      "mean": 4.9595,
+      "p50": 4.462,
+      "p95": 8.932,
+      "p99": 10.909,
+      "max": 10.909
+    },
+    "kills": 170,
+    "encounterHash": "b8d8e4fdc5f2fa8af931a8ed46c8d80d3693946fff661345411def5434367775"
+  }
+}

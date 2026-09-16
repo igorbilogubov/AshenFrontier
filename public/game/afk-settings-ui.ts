@@ -1,5 +1,6 @@
 import {AFK_PICKUP_RARITIES,afkCombatRadius,defaultAfkPreferences,parseAfkPreferences} from './afk-preferences.js';
 import {equippedSkills} from './skill-builds.js';
+import {AFK_PICKUP_RANGE} from './loot-rules.js';
 import type {NetworkGame} from './network.js';
 import type {AfkPreferences,ClassId,SkillId,WorldEvent} from '../../shared/types.js';
 
@@ -17,7 +18,7 @@ export function bindAfkSettings(game:NetworkGame,toast:(message:string)=>void){
   const panel=document.createElement('aside');panel.id='afk-settings-panel';panel.className='afk-settings-panel';panel.hidden=true;panel.setAttribute('aria-label','Настройки автоохоты');
   panel.innerHTML=`<div class="afk-settings-heading"><div><p class="eyebrow">НАСТРОЙКИ</p><h2>Автоохота</h2></div><button class="afk-settings-close" type="button" aria-label="Закрыть настройки автоохоты">×</button></div>
     <div class="afk-settings-scroll">
-      <section><h3>Добыча</h3><label class="afk-check"><input id="afk-pickup-gold" type="checkbox"> Подбирать своё золото</label><div class="afk-rarities" role="group" aria-label="Какие свои вещи подбирать">${rarityLabels.map((label,index)=>`<label class="rarity-filter-${index}"><input id="afk-rarity-${index}" type="checkbox"> ${label}</label>`).join('')}</div><small>Только своя добыча рядом с героем, без схода с места. При полном рюкзаке вещи остаются на земле.</small></section>
+      <section><h3>Добыча</h3><label class="afk-check"><input id="afk-pickup-gold" type="checkbox"> Подбирать своё золото</label><div class="afk-rarities" role="group" aria-label="Какие свои вещи подбирать">${rarityLabels.map((label,index)=>`<label class="rarity-filter-${index}"><input id="afk-rarity-${index}" type="checkbox"> ${label}</label>`).join('')}</div><small>Своя добыча в радиусе ${AFK_PICKUP_RANGE} м по выбранным фильтрам, без схода с места. При полном рюкзаке вещи остаются на земле.</small></section>
       <section><h3>Зелья</h3><div class="afk-threshold"><label><input id="afk-hp-enabled" type="checkbox"> HP ниже</label><input id="afk-hp-threshold" type="number" min="5" max="95" step="1" inputmode="numeric" aria-label="Порог здоровья в процентах"><span>%</span></div><div class="afk-threshold"><label><input id="afk-mp-enabled" type="checkbox"> MP ниже</label><input id="afk-mp-threshold" type="number" min="5" max="95" step="1" inputmode="numeric" aria-label="Порог маны в процентах"><span>%</span></div></section>
       <section><h3>Приоритет навыков</h3><p class="afk-help">Отметьте нужные навыки и поменяйте их порядок.</p><div id="afk-skill-order" class="afk-skill-order"></div><label class="afk-check"><input id="afk-basic-attack" type="checkbox"> Обычный удар, если навыки недоступны</label></section>
       <section><h3>Радиус атак</h3><div class="afk-radius"><input id="afk-radius" type="range" min="25" max="100" step="1" aria-label="Радиус атак в процентах"><output id="afk-radius-value" for="afk-radius">100%</output></div><small id="afk-range-hint"></small></section>

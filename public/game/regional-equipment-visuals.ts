@@ -4,7 +4,7 @@ import type {ClassId,ItemAppearance} from '../../shared/types.js';
 
 // Reuse the approved textured silhouettes and skinning. Colours match the
 // Blender inventory renders; each character already owns cloned materials.
-export const REGION_PALETTES={snow:{warrior:'#acd3df',archer:'#8aa9ac',mage:'#a6b7de'},wasteland:{warrior:'#ce9878',archer:'#ab8762',mage:'#c395ab'}} as const;
+export const REGION_PALETTES={snow:{warrior:'#acd3df',archer:'#8aa9ac',mage:'#a6b7de'},wasteland:{warrior:'#ce9878',archer:'#ab8762',mage:'#c395ab'},swamp:{warrior:'#75947a',archer:'#b2a572',mage:'#8fc5b4'},mines:{warrior:'#a3bcc8',archer:'#b38f62',mage:'#85bce6'},rift:{warrior:'#ba7159',archer:'#d6aa62',mage:'#a898dd'},citadel:{warrior:'#a5a7c7',archer:'#9677b9',mage:'#b4cbdf'}} as const;
 const warriorParts:Record<string,string[]>={'watch-sword':['Weapon_WatchSword'],'watch-armor':['Armor_Body','Cape'],'watch-helm':['Helmet'],'watch-boots':['Boots'],'copper-ring':['Copper_Ring'],'ember-amulet':['Ember_Amulet']};
 export function createRegionalEquipmentVisuals(model:T.Object3D){
   const originals=new Map<T.MeshStandardMaterial,{color:T.Color;metalness:number;roughness:number}>();

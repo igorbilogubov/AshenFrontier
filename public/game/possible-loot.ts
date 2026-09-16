@@ -36,5 +36,5 @@ export function possibleLoot(type:MobType,eliteId?:string):PossibleLoot{
     const rarities=new Set(definitions.map(item=>rollEquipment(item.id,'display-only',()=>0).rarity));
     for(const rarity of [...rarities].sort((a,b)=>a-b))categories.push({id,name:LABELS[id],rarity,slots,...(eliteId?{chance:rarity===2?ELITE_RARE_CHANCE:ELITE_GEAR_CHANCE-ELITE_RARE_CHANCE}:{})});
   }
-  return {gold:mobConfig({type,eliteId}).coins,itemChance:eliteId?ELITE_GEAR_CHANCE:GEAR_CHANCE[type],categories};
+  return {gold:mobConfig({type,eliteId}).coins,itemChance:eliteId?ELITE_GEAR_CHANCE:(GEAR_CHANCE[type]??.10),categories};
 }

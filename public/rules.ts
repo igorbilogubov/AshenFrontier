@@ -1,3 +1,4 @@
+import {activeSetBonuses} from './game/equipment-sets.js';
 import {itemDefinition,ITEM_STAT_LABELS,rollValue} from './game/equipment-items.js';
 import type {Attributes, ClassId, EquipmentSlot, Item, StatSource, CharacterStats} from '../shared/types.js';
 // Shared item/class definitions. No renderer-specific units or sprites.
@@ -82,6 +83,7 @@ export function characterStats(p: StatSource): CharacterStats{
     const power=positive(item.power);
     if(slot==='boots')s.speedScale=1+Math.min(.18,power*.005);else if(definition.stat!=='speed')s[definition.stat]+=power;
   }
+  for(const bonus of activeSetBonuses(p)){if(bonus.key==='haste')s.attackSpeed+=bonus.value/100;else if(bonus.key==='accuracy')s.hitChance+=bonus.value/100;else s[bonus.key]+=bonus.value;}
   s.attackSpeed=Math.min(.3,s.attackSpeed);s.hitChance=Math.min(.95,s.hitChance);
   s.damageReduction=Math.min(.65,s.armor/(s.armor+70));s.attackPower=s.attack;
   return s;

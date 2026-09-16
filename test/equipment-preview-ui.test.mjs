@@ -8,6 +8,7 @@ const source=path=>readFile(new URL(path,import.meta.url),'utf8');
 test('equipment preview offers seven regions, four rarities and visual-only +0..9 enhancement',async()=>{
   const [html,logic]=await Promise.all([source('../public/game/equipment-preview.html'),source('../public/game/equipment-preview.ts')]);
   for(const region of ['forest','snow','wasteland','swamp','mines','rift','citadel'])assert.match(html,new RegExp(`value="${region}"`));
+  for(const name of ['Топь забвения','Забытые шахты','Расколотые земли','Чёрная цитадель'])assert.match(html,new RegExp(name));
   for(const rarity of [1,2,3,4])assert.match(html,new RegExp(`value="${rarity}"`));
   assert.match(html,/id="enhancement-preview"[^>]*min="0"[^>]*max="9"/);
   assert.match(logic,/applyEnhancement\?\.\(visualEnhancement\(\)\)/);

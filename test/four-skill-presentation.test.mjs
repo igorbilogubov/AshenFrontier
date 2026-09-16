@@ -50,7 +50,7 @@ test('warrior thrust extends the actual sword forward at authoritative contact a
 test('persistent server effects and beams are bounded and clear on world changes',async()=>{
  const {createPersistentSkillEffects}=await import('../dist/public/game/persistent-skill-effects.js');const scene=new T.Scene(),effects=createPersistentSkillEffects(scene);
  const zones=Array.from({length:100},(_,i)=>({id:String(i),owner:'hero',skillId:i%2?'mage-mana-source':'archer-trap',x:i,z:0,radius:2,remaining:5}));
- const players=Array.from({length:20},(_,i)=>({id:String(i),x:0,z:i,dead:0,attack:{skillId:'mage-beam',target:{x:3,z:i},targetId:undefined},effects:[]}));
+ const players=Array.from({length:20},(_,i)=>({id:String(i),x:0,z:i,yaw:0,dead:0,attack:{skillId:'mage-beam',target:{x:3,z:i},targetId:undefined},effects:[]}));
  effects.sync(players,[],zones,1);assert.deepEqual(effects.stats(),{capacity:64,active:64,beamCapacity:12,beams:12});scene.updateMatrixWorld(true);scene.traverse(o=>assert(o.matrixWorld.elements.every(Number.isFinite)));
  effects.clear();assert(scene.children.every(c=>!c.visible));effects.sync([],[],[],2);assert.equal(effects.stats().active,0);effects.dispose();assert.equal(scene.children.length,0);
 });

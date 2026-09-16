@@ -32,6 +32,8 @@ function catalog(){
   $('catalog').replaceChildren();buttons.clear();
   for(const definition of previewItems()){const button=document.createElement('button');button.innerHTML=itemArtwork(samples.get(definition.id)!,previewClass);const label=document.createElement('small');label.textContent=definition.slot==='weapon'?(previewClass==='archer'?'ЛУК':previewClass==='mage'?'ПОСОХ':'МЕЧ'):shortNames[definition.slot];button.append(label);button.title=definition.name;button.setAttribute('aria-label',definition.name);button.onclick=()=>{selected=definition.id;feedback='';update();};$('catalog').append(button);buttons.set(definition.id,button);}
   $('wear-light').textContent=previewRegion==='forest'?collections[previewClass][2]:REGIONAL_COLLECTIONS[previewRegion][previewClass][1];$('wear-heavy').textContent=collections[previewClass][3];$('wear-heavy').hidden=previewRegion!=='forest';$('wardrobe-class').textContent=classNames[previewClass].toUpperCase()+' · УРОВЕНЬ '+source().level;
+  const note=classNames[previewClass]+' · '+(previewRegion==='forest'?collections[previewClass].slice(2).join(' и '):REGIONAL_COLLECTIONS[previewRegion][previewClass][1])+' · 6 слотов снаряжения';
+  $('model-note').textContent=note;canvas.setAttribute('aria-label',note);
 }
 catalog();
 function fit(){const {width,height}=canvas.getBoundingClientRect();renderer.setSize(width,height,false);camera.aspect=width/height;camera.updateProjectionMatrix();}
@@ -73,10 +75,9 @@ async function selectClass(classId:ClassId){
     if(warrior)scene.remove(warrior.root);warrior=model;scene.add(warrior.root);
     elapsed=0;warrior.previewClip(clip);warrior.equipment('sword',classId,equipmentAppearance(source()));
     const names={warrior:'Exo Gray',archer:'Erika Archer',mage:'Dreyar'};
-    const notes={warrior:'Воин · Странник и дозорный · 6 слотов снаряжения',archer:'Лучник · Следопыт и Лесной страж · 6 слотов снаряжения',mage:'Маг · Послушник и Хранитель рун · 6 слотов снаряжения'};
-    $('model-name').textContent=names[classId];$('model-note').textContent=notes[classId];
+    $('model-name').textContent=names[classId];
     $('warrior-wardrobe').hidden=false;$('warrior-presets').hidden=false;$('class-description').hidden=true;
-    $('class-name').textContent=names[classId];$('class-copy').textContent=notes[classId];canvas.setAttribute('aria-label',notes[classId]);if(!Object.keys(equipment).length)preset('wanderer');else update();
+    $('class-name').textContent=names[classId];$('class-copy').textContent=$('model-note').textContent;if(!Object.keys(equipment).length||Object.values(equipment).some(id=>id&&!previewItems().some(definition=>samples.get(definition.id)!.id===id)))preset('wanderer');else update();
   }catch(error){$('render-status').textContent=errorMessage(error);console.error(error);if(!warrior)throw error;}
 }
 $('class-preview').onchange=()=>{const value=($('class-preview') as HTMLSelectElement).value;if(value==='warrior'||value==='archer'||value==='mage')void selectClass(value);};

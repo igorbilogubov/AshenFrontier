@@ -21,7 +21,7 @@ export function createSnowEnvironment(scene:T.Scene){
   for(let i=0;i<position.count;i++){
     const x=position.getX(i),z=position.getZ(i),trail=1-T.MathUtils.smoothstep(trailDistance(x,z),-.9,1.7);
     const wind=Math.sin(x*.18+z*.39+Math.sin(z*.13)*2)*.03;
-    const color=new T.Color('#d2e2e5').lerp(new T.Color('#8ca8b6'),trail*.42).multiplyScalar(.95+wind);
+    const color=new T.Color('#b7d1dc').lerp(new T.Color('#628ca3'),trail*.78).multiplyScalar(.95+wind);
     colors.push(color.r,color.g,color.b);
     // Inside playable bounds terrain stays level, matching server movement.
     if(x<SNOW_BOUNDS.minX||x>SNOW_BOUNDS.maxX||z<SNOW_BOUNDS.minZ||z>SNOW_BOUNDS.maxZ)position.setY(i,.12+Math.sin(x*.12+z*.08)**2*.8);

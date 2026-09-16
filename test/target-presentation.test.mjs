@@ -8,7 +8,7 @@ import {GEAR_CHANCE} from '../dist/public/game/loot-rules.js';
 import {MOB_TYPES} from '../dist/public/game/location.js';
 
 class ElementStub{
-  constructor(){this.children=[];this.attributes=new Map();this.style={};this.hidden=false;this.textContent='';this.className='';this.title='';}
+  constructor(){this.children=[];this.attributes=new Map();this.style={};this.hidden=false;this.textContent='';this.className='';this.title='';this.classList={toggle:(name,enabled)=>{const classes=new Set(this.className.split(' ').filter(Boolean));if(enabled)classes.add(name);else classes.delete(name);this.className=[...classes].join(' ');}};}
   append(...nodes){this.children.push(...nodes);}
   replaceChildren(...nodes){this.children=[...nodes];}
   setAttribute(key,value){this.attributes.set(key,value);}

@@ -22,3 +22,5 @@ input,textarea,[contenteditable="true"]{cursor:text}
 input[type="button"],input[type="submit"],input[type="checkbox"],input[type="radio"]{cursor:url('/game/cursors/ashen-interact.svg') 2 2,pointer}
 
 #target-panel.elite-target{border-color:#c7a16a;box-shadow:0 0 0 1px #c7a16a30,inset 0 0 16px #b58a3712}#target-panel.elite-target #target-name{color:#f4cf86}#snow-guide p:not(.eyebrow){font-size:11px;color:#b7cdd3;line-height:1.55}
+
+body.snow-region .brand h1{color:#1f3949;text-shadow:0 1px 3px #ffffff80}body.snow-region .brand p{color:#2b4757;text-shadow:0 1px 3px #ffffff80}body.snow-region .account-menu>summary{color:#233f50;text-shadow:0 1px 2px #ffffff99}

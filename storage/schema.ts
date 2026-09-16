@@ -1,5 +1,7 @@
 import type {PoolClient} from 'pg';
 
+export const DATABASE_SCHEMA_VERSION=7;
+
 // The migration is embedded so both source execution and dist execution use the
 // exact same schema, including in the production Docker image.
 const initialSchema=`

@@ -3,7 +3,7 @@ import pg from 'pg';
 import type {PoolClient} from 'pg';
 import type {EquipmentSlot,Item,PersistentHero,ConsumableStack} from '../shared/types.js';
 import {MAX_CHARACTERS,type Account,type CharacterSummary,type GoogleIdentity} from '../shared/accounts.js';
-import {migrate} from './schema.js';
+import {migrate,DATABASE_SCHEMA_VERSION} from './schema.js';
 import {BAG_CAPACITY,STASH_CAPACITY,backpackItems} from '../public/rules.js';
 import {CONSUMABLE_LIMIT,validateConsumables,backpackUsage,consumableKindQuantity} from '../public/game/consumables.js';
 import {defaultAfkPreferences,parseAfkPreferences} from '../public/game/afk-preferences.js';
@@ -316,7 +316,7 @@ class PostgresHeroStore implements HeroStore{
       const result=await client.query<{locked?:boolean}> (this.writer?lockHealthSql:'SELECT 1 AS ok');
       if(this.writer&&!result.rows[0]?.locked){this.lost=true;return false;}
       const schema=await client.query<{version:number}>('SELECT max(version)::integer AS version FROM schema_migrations');
-      return !!result.rowCount&&schema.rows[0]?.version===6;
+      return !!result.rowCount&&schema.rows[0]?.version===DATABASE_SCHEMA_VERSION;
     });}catch{if(this.writer)this.lost=true;return false;}
   }
   async schemaVersion():Promise<number>{

@@ -15,7 +15,7 @@ test('schema 6 persists exact loadout, ranked talents, three presets and remaini
   p.level=86;p.skillBuild={slots:['mage-beam','mage-teleport','mage-mana-shield','mage-mana-source'],talents:{'mage-arcanist-1':2,'mage-arcanist-2':2,'mage-arcanist-3':2,'mage-arcanist-4':2,'mage-arcanist-mastery':1}};
   p.skillPresets=[structuredClone(p.skillBuild),defaultSkillBuild('mage',86),null];p.buildRevision=7;p.skillCooldowns={'mage-teleport':6.4,'mage-ice-step':6.4,'mage-mana-shield':17};
   const original=persistentHero(p);await store.commit([{accountId,hero:original,expectedRevision:0}],randomUUID(),'build fixture');
-  const loaded=await store.load(p.id,accountId);assert.equal(await store.schemaVersion(),6);assert.equal(loaded.revision,1);
+  const loaded=await store.load(p.id,accountId);assert.equal(await store.schemaVersion(),7);assert.equal(loaded.revision,1);
   assert.deepEqual(loaded.hero.skillBuild,p.skillBuild);assert.deepEqual(loaded.hero.skillPresets,p.skillPresets);assert.equal(loaded.hero.buildRevision,7);assert.deepEqual(loaded.hero.skillCooldowns,p.skillCooldowns);
   const restarted=safeHero(loaded.hero);assert.deepEqual(restarted.skillBuild,p.skillBuild);assert.equal(restarted.effects.length,0);assert.deepEqual(restarted.skillCooldowns,{...p.skillCooldowns,'mage-fireball':0});
   const invalid={...original,skillBuild:{...original.skillBuild,talents:{'mage-arcanist-1':3}}};
@@ -31,7 +31,7 @@ test('schema5 migration adds legal level-based defaults without granting talents
   await store.commit([{accountId,hero:persistentHero(p),expectedRevision:0}],randomUUID());await store.close();store=null;
   const client=new pg.Client({connectionString:db.url});await client.connect();try{await removeBuildSchema(client);}finally{await client.end();}
   store=await openHeroStore({connectionString:db.url});const restored=(await store.load(p.id,accountId)).hero;
-  assert.equal(await store.schemaVersion(),6);assert.deepEqual(restored.skillBuild,defaultSkillBuild('archer',14));assert.deepEqual(restored.skillPresets,[null,null,null]);assert.equal(restored.buildRevision,0);assert.deepEqual(restored.skillCooldowns,{'archer-rain':4.25});
+  assert.equal(await store.schemaVersion(),7);assert.deepEqual(restored.skillBuild,defaultSkillBuild('archer',14));assert.deepEqual(restored.skillPresets,[null,null,null]);assert.equal(restored.buildRevision,0);assert.deepEqual(restored.skillCooldowns,{'archer-rain':4.25});
   assert.deepEqual(restored.items,p.items);assert.equal(restored.level,14);
   await store.commit([{accountId,hero:restored,expectedRevision:1}],randomUUID());assert.deepEqual((await store.load(p.id,accountId)).hero.skillBuild,restored.skillBuild);
  }finally{await store?.close();await db.close();}

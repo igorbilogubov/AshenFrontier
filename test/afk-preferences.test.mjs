@@ -136,7 +136,7 @@ test('schema 3 migration keeps a schema 2 hero, stash, potions and class-specifi
     assert.equal(restored.revision,1);assert.equal(restored.hero.gold,31);assert.equal(restored.hero.potions,7);assert.equal(restored.hero.manaPotions,4);
     assert.deepEqual(restored.hero.items,hero.items);assert.deepEqual(restored.hero.stash,hero.stash);
     assert.deepEqual(restored.hero.afkPreferences,defaultAfkPreferences('mage'));
-    assert.equal(await store.schemaVersion(),6);assert.equal(await store.health(),true);
+    assert.equal(await store.schemaVersion(),7);assert.equal(await store.health(),true);
   }finally{if(store)await store.close();await db.close();}
 });
 

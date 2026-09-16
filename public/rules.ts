@@ -35,19 +35,19 @@ export const STAT_KEYS=Object.freeze(['strength','dexterity','vitality','energy'
 export const STAT_DEFINITIONS=Object.freeze({
   strength:{name:'Сила',description:'Урон оружием. Главная характеристика воина.'},
   dexterity:{name:'Ловкость',description:'Шанс попадания и защита. Главная характеристика лучника.'},
-  vitality:{name:'Живучесть',description:'Максимум здоровья и восстановление вне боя.'},
+  vitality:{name:'Живучесть',description:'Максимум здоровья и регенерация; в бою восстановление втрое медленнее.'},
   energy:{name:'Энергия',description:'Максимум маны и её восстановление. Главная характеристика мага.'}
 });
 export const CLASS_PROGRESSION=Object.freeze({
   warrior:{base:{strength:20,dexterity:12,vitality:20,energy:8},damage:{strength:.8,dexterity:.12,vitality:0,energy:0},hpPerVitality:4,mana:40,manaPerLevel:2,manaPerEnergy:4,specialManaCost:12,
     description:'Ближний бой: сильные удары и большой запас здоровья; для точности нужна ловкость.',
-    statDescriptions:{strength:'+0,8 урона за очко',dexterity:'+0,12 урона, точность и защита',vitality:'+4 HP и +0,025 HP/с вне боя',energy:'+4 MP и +0,075 MP/с'}},
+    statDescriptions:{strength:'+0,8 урона за очко',dexterity:'+0,12 урона, точность и защита',vitality:'+4 HP и +0,025 HP/с; в бою — треть',energy:'+4 MP и +0,075 MP/с'}},
   archer:{base:{strength:12,dexterity:20,vitality:16,energy:12},damage:{strength:.15,dexterity:.65,vitality:0,energy:0},hpPerVitality:3.5,mana:55,manaPerLevel:3,manaPerEnergy:4,specialManaCost:16,
     description:'Дальний одиночный урон: ловкость усиливает выстрел, точность и защиту; здоровье требует отдельных вложений.',
-    statDescriptions:{strength:'+0,15 урона за очко',dexterity:'+0,65 урона, точность и защита',vitality:'+3,5 HP и +0,025 HP/с вне боя',energy:'+4 MP и +0,075 MP/с'}},
+    statDescriptions:{strength:'+0,15 урона за очко',dexterity:'+0,65 урона, точность и защита',vitality:'+3,5 HP и +0,025 HP/с; в бою — треть',energy:'+4 MP и +0,075 MP/с'}},
   mage:{base:{strength:8,dexterity:14,vitality:14,energy:24},damage:{strength:0,dexterity:0,vitality:0,energy:.95},hpPerVitality:3,mana:75,manaPerLevel:5,manaPerEnergy:5,specialManaCost:24,
     description:'Магия и урон по площади: энергия усиливает заклинания; точность и выживаемость развиваются отдельно.',
-    statDescriptions:{strength:'Не усиливает заклинания; для текущей сборки не требуется',dexterity:'Точность заклинаний и защита',vitality:'+3 HP и +0,025 HP/с вне боя',energy:'+0,95 урона, +5 MP и +0,075 MP/с'}}
+    statDescriptions:{strength:'Не усиливает заклинания; для текущей сборки не требуется',dexterity:'Точность заклинаний и защита',vitality:'+3 HP и +0,025 HP/с; в бою — треть',energy:'+0,95 урона, +5 MP и +0,075 MP/с'}}
 });
 const positive=(value: unknown)=>typeof value==='number'&&Number.isFinite(value)?Math.max(0,value):0;
 export const baseAttributes=(classId: unknown): Attributes=>({...CLASS_PROGRESSION[validClass(classId)].base});

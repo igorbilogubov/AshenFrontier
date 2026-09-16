@@ -3,12 +3,22 @@ import {backpackItems} from '../rules.js';
 
 export type ConsumableKind='hp'|'mana';
 export interface ConsumableDefinition {id:string;kind:ConsumableKind;name:string;price:number;restore:number;cooldown:number;stackLimit:number}
-export const CONSUMABLE_LIMIT=50;
+export const CONSUMABLE_STACK_LIMIT=999;
+export const CONSUMABLE_LIMIT=CONSUMABLE_STACK_LIMIT*4;
 export const CONSUMABLES=Object.freeze({
-  hp:Object.freeze({id:'hp-basic',kind:'hp',name:'Зелье здоровья',price:6,restore:45,cooldown:4,stackLimit:50}),
-  mana:Object.freeze({id:'mana-basic',kind:'mana',name:'Зелье маны',price:8,restore:40,cooldown:4,stackLimit:50})
+  hp:Object.freeze({id:'hp-basic',kind:'hp',name:'Зелье здоровья',price:6,restore:45,cooldown:4,stackLimit:CONSUMABLE_STACK_LIMIT}),
+  mana:Object.freeze({id:'mana-basic',kind:'mana',name:'Зелье маны',price:8,restore:40,cooldown:4,stackLimit:CONSUMABLE_STACK_LIMIT})
 } satisfies Record<ConsumableKind,ConsumableDefinition>);
-export const CONSUMABLE_CATALOG:Readonly<Record<string,ConsumableDefinition>>=Object.freeze(Object.fromEntries(Object.values(CONSUMABLES).map(def=>[def.id,def])));
+const additionalConsumables:ConsumableDefinition[]=[
+  {id:'hp-medium',kind:'hp',name:'Среднее зелье здоровья',price:24,restore:180,cooldown:4,stackLimit:CONSUMABLE_STACK_LIMIT},
+  {id:'hp-large',kind:'hp',name:'Большое зелье здоровья',price:80,restore:600,cooldown:4,stackLimit:CONSUMABLE_STACK_LIMIT},
+  {id:'hp-greater',kind:'hp',name:'Великое зелье здоровья',price:240,restore:1800,cooldown:4,stackLimit:CONSUMABLE_STACK_LIMIT},
+  {id:'mana-medium',kind:'mana',name:'Среднее зелье маны',price:32,restore:160,cooldown:4,stackLimit:CONSUMABLE_STACK_LIMIT},
+  {id:'mana-large',kind:'mana',name:'Большое зелье маны',price:100,restore:500,cooldown:4,stackLimit:CONSUMABLE_STACK_LIMIT},
+  {id:'mana-greater',kind:'mana',name:'Великое зелье маны',price:300,restore:1500,cooldown:4,stackLimit:CONSUMABLE_STACK_LIMIT}
+];
+const catalogDefinitions=[CONSUMABLES.hp,...additionalConsumables.filter(def=>def.kind==='hp'),CONSUMABLES.mana,...additionalConsumables.filter(def=>def.kind==='mana')];
+export const CONSUMABLE_CATALOG:Readonly<Record<string,ConsumableDefinition>>=Object.freeze(Object.fromEntries(catalogDefinitions.map(def=>[def.id,Object.freeze(def)])));
 export const consumable=(kind:unknown)=>kind==='hp'||kind==='mana'?CONSUMABLES[kind]:undefined;
 export const consumableDefinition=(id:unknown)=>typeof id==='string'&&Object.hasOwn(CONSUMABLE_CATALOG,id)?CONSUMABLE_CATALOG[id]:undefined;
 export const isQuickSlot=(slot:unknown):slot is QuickSlot=>slot==='q'||slot==='w';

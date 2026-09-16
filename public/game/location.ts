@@ -1,3 +1,4 @@
+import {travelSafe} from './travel.js';
 import {fieldBalance} from './field-balance.js';
 import {baseExperience} from './progression-curve.js';
 import {LATE_SPAWNS,LATE_MOB_TYPES,LATE_ELITE_TYPES,lateSafe} from './late-world.js';
@@ -71,7 +72,7 @@ export const SPAWNS:readonly Readonly<Position & {type:MobType;spotId?:AfkSpotId
   ...LATE_SPAWNS as readonly (Position & {type:MobType;spotId?:AfkSpotId;eliteId?:string})[],
   ...DUNGEON_SPAWNS,
 ]);
-export const safe=(p:Position)=>lateSafe(p)||dungeonSafe(p)||campSafe(p)||stadiumSafe(p)||snowSafe(p)||wastelandSafe(p);
+export const safe=(p:Position)=>travelSafe(p)||lateSafe(p)||dungeonSafe(p)||campSafe(p)||stadiumSafe(p)||snowSafe(p)||wastelandSafe(p);
 
 export const stand=(x:number,z:number,r=.29)=>Number.isFinite(x)&&Number.isFinite(z)&&canOccupy(x,z,nearbyObstacles(x,z,r),r,boundsForPosition({x,z}));
 export const distance=(a:Position,b:Position)=>Math.hypot(a.x-b.x,a.z-b.z);

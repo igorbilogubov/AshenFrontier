@@ -1,3 +1,5 @@
+import {travelPortalById,travelCost} from './public/game/travel.js';
+import {findWalkPath,walkSegment} from './public/game/navigation.js';
 import {MAX_LEVEL,mobExperience} from './public/game/progression-curve.js';
 import {DUNGEONS,dungeonAt,dungeonById,dungeonSafe,DUNGEON_RESET_SECONDS,DUNGEON_ABANDON_SECONDS,inBossTelegraph} from './public/game/dungeons.js';
 import {lateRegionAt} from './public/game/late-world.js';
@@ -148,7 +150,7 @@ export class World{
   players: Map<string,Hero>;
   events: WorldEvent[];
   projectiles: Projectile[];
-  pendingAreas: {skillId:'archer-rain'|'mage-meteor';caster:string;attackId:number;yaw:number;x:number;z:number;at:number;damage:number;automatic:boolean}[];
+  pendingAreas: {skillId:'archer-rain'|'archer-arrow-storm'|'mage-meteor';caster:string;attackId:number;yaw:number;x:number;z:number;at:number;damage:number;automatic:boolean}[];
   mobs: Mob[];
   dungeonRuns=new Map<string,{resetAt:number;lastOccupied:number}>();
   bossTurns=new Map<number,number>();
@@ -178,8 +180,10 @@ export class World{
     }
     return true;
   }
-  stopInteraction(p:Hero){
-    if(!p.interactionTarget)return false;
+  stopInteraction(p:Hero,keepNavigation=false){
+    const active=!!(p.interactionTarget||p.travelPortalId||!keepNavigation&&(p.navigation||p.attackTargetId!==undefined));
+    if(!keepNavigation){delete p.navigation;delete p.attackTargetId;delete p.attackRepathAt;}delete p.travelPortalId;
+    if(!active)return false;
     p.interactionTarget=null;p.input={...p.input,x:0,z:0,aim:null};p.vx=p.vz=0;return true;
   }
   refreshCombat(p:Hero){
@@ -263,6 +267,86 @@ export class World{
     if(!item)return false;
     p.stash.push(item.id);return true;
   }
+  pickupNearest(p:Hero){
+    this.stopAfk(p);this.stopInteraction(p);
+    const drop=this.groundLoot.filter(d=>d.owner===p.id&&d.expiresAt>this.t&&sameLocation(p,d)&&distance(p,d)<=6&&clearPath(p,d))
+      .sort((a,b)=>distance(p,a)-distance(p,b)||a.id.localeCompare(b.id))[0];
+    if(drop)return this.startPickup(p,drop.id);
+    this.notice(p,'Рядом нет доступной личной добычи');return false;
+  }
+  startMove(p:Hero,target:unknown){
+    if(!isRecord(target)||typeof target.x!=='number'||typeof target.z!=='number'||!Number.isFinite(target.x)||!Number.isFinite(target.z)||!p.connected||p.dead)return false;
+    const goal={x:target.x,z:target.z};if(!sameLocation(p,goal)||distance(p,goal)>250)return false;
+    if(this.t<(p.navigationPlanAt??0))return false;p.navigationPlanAt=this.t+150;
+    this.stopAfk(p);this.stopInteraction(p);this.stopChannel(p);this.removeEffect(p,'archer-focus');p.shopActive=false;p.stashActive=false;p.input={...p.input,x:0,z:0,aim:null};
+    const path=findWalkPath(p,goal);if(!path){this.notice(p,'К этой точке нет прохода');return false;}
+    p.navigation={target:goal,path,startedAt:this.t};return true;
+  }
+  startAttackApproach(p:Hero,targetId:unknown){
+    if(!Number.isSafeInteger(targetId)||p.dead||!p.connected)return false;
+    const target=this.mobs.find(m=>m.id===targetId);
+    if(!target||!liveMob(target)||!sameLocation(p,target)||safe(target)||distance(p,target)>40)return false;
+    if(p.attackTargetId===target.id)return true;
+    this.stopAfk(p);this.stopInteraction(p);this.stopChannel(p);p.shopActive=false;p.stashActive=false;p.input={...p.input,x:0,z:0,aim:null};
+    p.attackTargetId=target.id;p.attackRepathAt=0;return true;
+  }
+  navigationInput(p:Hero){
+    const idle={x:0,z:0,aim:null};
+    if(!p.connected||p.dead){this.stopInteraction(p);return idle;}
+    if(p.attackTargetId!==undefined){
+      const target=this.mobs.find(m=>m.id===p.attackTargetId);
+      if(!target||!liveMob(target)||safe(target)||!sameLocation(p,target)||distance(p,target)>40){this.stopInteraction(p);return idle;}
+      const range=(p.classId==='warrior'?WEAPONS[p.weapon].range:stats(p).range)+mobConfig(target).radius;
+      if(distance(p,target)<=range-.08&&!safe(p)&&clearPath(p,target)){
+        delete p.navigation;p.vx=p.vz=0;this.attack(p,Math.atan2(target.x-p.x,target.z-p.z),false,target.id);return idle;
+      }
+      if(p.attack)return idle;
+      if(!p.navigation||this.t>=(p.attackRepathAt??0)&&distance(p.navigation.target,target)>.65){
+        if(this.t<(p.navigationPlanAt??0))return idle;p.navigationPlanAt=this.t+150;
+        const path=findWalkPath(p,target);p.attackRepathAt=this.t+500;
+        if(!path){this.stopInteraction(p);this.notice(p,'К цели нет прохода');return idle;}
+        p.navigation={target:{x:target.x,z:target.z},path,startedAt:this.t};
+      }
+    }
+    const route=p.navigation;if(!route)return idle;
+    if(this.t-route.startedAt>120000||!sameLocation(p,route.target)){this.stopInteraction(p);return idle;}
+    if(p.attack)return idle;
+    while(route.path.length&&distance(p,route.path[0])<.12)route.path.shift();
+    const next=route.path[0];if(!next){delete p.navigation;p.vx=p.vz=0;return idle;}
+    const d=distance(p,next),scale=Math.min(1,d/.45),yaw=Math.atan2(next.x-p.x,next.z-p.z);
+    // The full static route was checked once; only validate the next body-width step each tick.
+    const reach=Math.min(1,d);if(!walkSegment(p,{x:p.x+Math.sin(yaw)*reach,z:p.z+Math.cos(yaw)*reach})){this.stopInteraction(p);return idle;}
+    return {x:Math.sin(yaw)*scale,z:Math.cos(yaw)*scale,aim:yaw};
+  }
+  travelAvailable(p:Hero,id:unknown){
+    const gate=travelPortalById(id);
+    return !!gate&&sameLocation(p,gate)&&distance(p,gate)<=gate.range&&clearPath(p,gate)&&this.portalAvailable(p);
+  }
+  openTravel(p:Hero,id:unknown){
+    const gate=travelPortalById(id);if(!gate||!this.travelAvailable(p,id))return false;
+    this.stopInteraction(p);p.travelPortalId=gate.id;this.emit('travelOpened',{portalId:gate.id},p.id);return true;
+  }
+  startTravel(p:Hero,id:unknown){
+    const gate=travelPortalById(id);
+    if(!gate||!sameLocation(p,gate)||!this.portalAvailable(p))return false;
+    this.stopAfk(p);this.stopInteraction(p);p.shopActive=false;p.stashActive=false;
+    if(distance(p,gate)<=gate.range)return this.openTravel(p,id);
+    if(!clearPath(p,gate)){this.notice(p,'К порталу нет прямого прохода');return false;}
+    p.interactionTarget={kind:'travel',id:gate.id};return true;
+  }
+  travel(p:Hero,sourceId:unknown,destinationId:unknown){
+    const source=travelPortalById(sourceId),destination=travelPortalById(destinationId);
+    if(!source||!destination||source.id===destination.id||p.travelPortalId!==source.id||!this.travelAvailable(p,source.id))return false;
+    if(p.level<destination.minLevel){this.notice(p,`Нужен ${destination.minLevel} уровень`);return false;}
+    const fee=travelCost(source,destination);
+    if(p.gold<fee){this.notice(p,`Недостаточно золота: нужно ${fee}`);return false;}
+    if(!stand(destination.x,destination.z))return false;
+    this.stopCampReturn(p);this.stopAfk(p);this.stopInteraction(p);this.clearSkillRuntime(p);p.shopActive=false;p.stashActive=false;
+    this.projectiles=this.projectiles.filter(b=>b.owner!==p.id);this.pendingAreas=this.pendingAreas.filter(a=>a.caster!==p.id);
+    p.gold-=fee;delete p.navigationPlanAt;
+    Object.assign(p,{x:destination.x,z:destination.z,yaw:Math.PI,targetYaw:Math.PI,vx:0,vz:0,attack:null,moveBlend:0,runBlend:0,gait:0,inputAt:0,input:{...p.input,x:0,z:0,aim:null}});
+    this.emit('portal',{portalId:destination.id,location:locationAt(p)},p.id);return true;
+  }
   portalAvailable(p:Hero){
     this.settleSafe(p);
     this.refreshCombat(p);
@@ -276,7 +360,7 @@ export class World{
     this.stopAfk(p);this.stopInteraction(p);this.clearSkillRuntime(p);p.shopActive=false;
     this.projectiles=this.projectiles.filter(projectile=>projectile.owner!==p.id);
     this.pendingAreas=this.pendingAreas.filter(area=>area.caster!==p.id);
-    Object.assign(p,{...portal.destination,yaw:Math.PI,targetYaw:Math.PI,vx:0,vz:0,attack:null,moveBlend:0,runBlend:0,gait:0,inputAt:0,input:{...p.input,x:0,z:0,aim:null}});
+    delete p.navigationPlanAt;Object.assign(p,{...portal.destination,yaw:Math.PI,targetYaw:Math.PI,vx:0,vz:0,attack:null,moveBlend:0,runBlend:0,gait:0,inputAt:0,input:{...p.input,x:0,z:0,aim:null}});
     this.emit('portal',{portalId:portal.id,location:locationAt(p)},p.id);return true;
   }
   startPortal(p:Hero,id:unknown){
@@ -331,12 +415,12 @@ export class World{
   interactionInput(p:Hero){
     const target=p.interactionTarget;if(!target)return {x:0,z:0,aim:null};
     const chestGoal=!inChestRoom(p)?distance(p,CHEST_DOOR_OUTSIDE)>.55?CHEST_DOOR_OUTSIDE:CHEST_DOOR_INSIDE:CHEST_APPROACH;
-    const point=target.kind==='vendor'?SHOP:target.kind==='portal'?portalById(target.id):target.kind==='chest'?chestGoal:this.groundDrop(p,target.id);
+    const point=target.kind==='vendor'?SHOP:target.kind==='portal'?portalById(target.id):target.kind==='travel'?travelPortalById(target.id):target.kind==='chest'?chestGoal:this.groundDrop(p,target.id);
     if(!point||!p.connected||p.dead||p.attack||(target.kind!=='chest'&&!clearPath(p,point))){this.stopInteraction(p);return {x:0,z:0,aim:null};}
-    if(target.kind==='portal'&&(!sameLocation(p,point)||!this.portalAvailable(p))){this.stopInteraction(p);return {x:0,z:0,aim:null};}
-    const limit=target.kind==='vendor'?SHOP.range:target.kind==='portal'?portalById(target.id)!.range:target.kind==='chest'?.12:PICKUP_RANGE,d=distance(p,point);
+    if((target.kind==='portal'||target.kind==='travel')&&(!sameLocation(p,point)||!this.portalAvailable(p))){this.stopInteraction(p);return {x:0,z:0,aim:null};}
+    const limit=target.kind==='vendor'?SHOP.range:target.kind==='portal'?portalById(target.id)!.range:target.kind==='travel'?travelPortalById(target.id)!.range:target.kind==='chest'?.12:PICKUP_RANGE,d=distance(p,point);
     if(target.kind==='chest'&&this.chestAvailable(p)){this.openStash(p);return {x:0,z:0,aim:null};}
-    if(d<=limit){if(target.kind==='vendor')this.openShop(p);else if(target.kind==='portal')this.usePortal(p,target.id);else if(target.kind!=='chest')this.pickUp(p,target.id);return {x:0,z:0,aim:null};}
+    if(d<=limit){if(target.kind==='vendor')this.openShop(p);else if(target.kind==='portal')this.usePortal(p,target.id);else if(target.kind==='travel')this.openTravel(p,target.id);else if(target.kind!=='chest')this.pickUp(p,target.id);return {x:0,z:0,aim:null};}
     const yaw=Math.atan2(point.x-p.x,point.z-p.z);
     return {x:Math.sin(yaw),z:Math.cos(yaw),aim:yaw};
   }
@@ -383,7 +467,7 @@ export class World{
   }
   updateBuild(p:Hero,msg:Record<string,unknown>){
     const reply=(ok:boolean,message?:string)=>this.emit('buildResult',{ok,revision:p.buildRevision,...(message?{message}:{})},p.id);
-    if(!p.connected||p.dead||!safe(p)){reply(false,'Сборка меняется только в безопасной зоне');return;}
+    if(!p.connected||p.dead){reply(false,'Сборка недоступна после смерти или отключения');return;}
     if(msg.type==='buildSavePreset'){
       if(!Number.isInteger(msg.index)||Number(msg.index)<0||Number(msg.index)>2){reply(false,'Неверный пресет');return;}
       p.skillPresets[Number(msg.index)]=structuredClone(p.skillBuild);reply(true,'Сборка сохранена');return;
@@ -391,7 +475,8 @@ export class World{
     if(msg.revision!==p.buildRevision||p.buildRevision>=Number.MAX_SAFE_INTEGER){reply(false,'Сборка уже изменилась. Обновите окно');return;}
     const raw=msg.type==='buildLoadPreset'&&Number.isInteger(msg.index)&&Number(msg.index)>=0&&Number(msg.index)<=2?p.skillPresets[Number(msg.index)]:msg.type==='buildApply'?msg.build:undefined;
     const build=parseSkillBuild(raw,p.classId,p.level);
-    if(!build){reply(false,'Проверьте уровень, четыре слота и доступные очки талантов');return;}
+    if(!build){reply(false,'Проверьте уровень, слоты и доступные очки талантов');return;}
+    if(p.attack)p.actionRecoveryUntil=Math.max(p.actionRecoveryUntil??0,this.t+Math.max(0,p.attack.duration-p.attack.age)*1000);
     this.stopAfk(p);this.stopInteraction(p);this.clearSkillRuntime(p);p.attack=null;p.input={...p.input,x:0,z:0,aim:null};p.vx=p.vz=0;
     this.projectiles=this.projectiles.filter(b=>b.owner!==p.id);this.pendingAreas=this.pendingAreas.filter(a=>a.caster!==p.id);
     p.skillBuild=build;p.buildRevision++;
@@ -554,7 +639,7 @@ export class World{
   }
   command(p: Hero,msg: unknown){
     if(!isRecord(msg)||!p.connected)return;
-    if(typeof msg.type==='string'&&['attack','skill','afk','portal','pickup','interact','stashOpen','buildApply','buildLoadPreset','resetStats','weapon'].includes(msg.type))this.stopCampReturn(p);
+    if(typeof msg.type==='string'&&['moveTo','travelOpen','travel','pickupNearest','attack','skill','afk','portal','pickup','interact','stashOpen','buildApply','buildLoadPreset','resetStats','weapon'].includes(msg.type))this.stopCampReturn(p);
     if(msg.type==='buildApply'||msg.type==='buildSavePreset'||msg.type==='buildLoadPreset'){this.updateBuild(p,msg);return;}
     if(msg.type==='skillStop'){this.stopChannel(p);return;}
     if(msg.type==='class'){this.notice(p,'Класс выбирается при создании героя и не меняется');return;}
@@ -577,11 +662,16 @@ export class World{
       if(Math.hypot(msg.x,msg.z)>.01){this.stopCampReturn(p);this.stopChannel(p);this.removeEffect(p,'archer-focus');this.stopAfk(p);this.stopInteraction(p);p.stashActive=false;}
       p.input={x:msg.x,z:msg.z,aim:msg.aim,seq:msg.seq};p.inputAt=this.t;return;
     }
+    if(msg.type==='moveTo'){this.startMove(p,msg.target);return;}
+    if(msg.type==='pickupNearest'){this.pickupNearest(p);return;}
+    if(msg.type==='travelOpen'){this.startTravel(p,msg.portalId);return;}
+    if(msg.type==='travel'){this.travel(p,msg.portalId,msg.destinationId);return;}
+    if(msg.type==='attack'&&msg.approach===true&&!msg.special){this.startAttackApproach(p,msg.targetId);return;}
     if(msg.type==='attack'){this.stopAfk(p);this.stopInteraction(p);p.stashActive=false;if(typeof msg.yaw==='number'&&Number.isFinite(msg.yaw))this.attack(p,msg.yaw,msg.special===true,msg.targetId);return;}
     if(msg.type==='skill'){this.stopAfk(p);this.stopInteraction(p);p.stashActive=false;if(typeof msg.yaw==='number'&&Number.isFinite(msg.yaw)&&typeof msg.skillId==='string'&&Object.hasOwn(SKILLS,msg.skillId))this.castSkill(p,msg.skillId as SkillId,msg.yaw,msg.targetId,msg.target);return;}
     if(msg.type==='assignConsumable'){this.assignConsumable(p,msg.slot,msg.definitionId);return;}
-    if(msg.type==='useConsumable'){if(isQuickSlot(msg.slot)){this.stopInteraction(p);this.useConsumable(p,msg.slot);}return;}
-    if(msg.type==='potion'){this.stopInteraction(p);if(msg.kind===undefined||msg.kind==='hp'||msg.kind==='mana')this.potion(p,msg.kind??'hp');return;}
+    if(msg.type==='useConsumable'){if(isQuickSlot(msg.slot)){this.stopInteraction(p,true);this.useConsumable(p,msg.slot);}return;}
+    if(msg.type==='potion'){this.stopInteraction(p,true);if(msg.kind===undefined||msg.kind==='hp'||msg.kind==='mana')this.potion(p,msg.kind??'hp');return;}
     if(msg.type==='pickup'){this.startPickup(p,msg.id);return;}
     if(msg.type==='interact'){if(msg.npcId===PERSONAL_CHEST.id)this.startChest(p,msg.npcId);else this.startVendor(p,msg.npcId);return;}
     if(msg.type==='stashOpen'){this.openStash(p);return;}
@@ -624,7 +714,7 @@ export class World{
   attack(p: Hero,yaw: number,special=false,targetId?:unknown){
     if(special)return this.castSkill(p,legacySkillId(p.classId),yaw,targetId);
     if(!Number.isFinite(yaw))return false;
-    if(p.dead||p.attack)return false;
+    if(p.dead||p.attack||(p.actionRecoveryUntil??0)>this.t)return false;
     if(safe(p)){this.emit('safe',{},p.id);return false;}
     const aimed=this.aimedMob(p,targetId,p.classId==='warrior'?WEAPONS[p.weapon].range:stats(p).range);
     if(aimed===null)return false;
@@ -640,14 +730,14 @@ export class World{
     const skill=Object.hasOwn(SKILLS,skillId)?effectiveSkill(p,skillId):undefined;
     if(!skill||skill.classId!==p.classId||!equippedSkills(p).some(s=>s.id===skillId)||!Number.isFinite(yaw)||p.dead||!p.connected)return false;
     if(skill.kind==='channel'&&p.channel?.skillId===skillId){p.channel.heldUntil=this.t+400;p.channel.yaw=yaw;if(Number.isSafeInteger(targetId))p.channel.targetId=Number(targetId);return true;}
-    if(p.attack||p.channel)return false;
+    if(p.attack||p.channel||(p.actionRecoveryUntil??0)>this.t)return false;
     const utility=['defense','support'].includes(skill.kind),mobility=skill.kind==='mobility';
     if(p.afk&&mobility)return false;
     if(safe(p)){this.emit('safe',{},p.id);return false;}
     const aimed=utility||mobility?undefined:this.aimedMob(p,targetId,skill.range);
     if(aimed===null)return false;
     if(aimed)yaw=Math.atan2(aimed.x-p.x,aimed.z-p.z);
-    const areaSkill=skillId==='archer-rain'||skillId==='mage-meteor'||mobility||skillId==='archer-trap';
+    const areaSkill=skillId==='archer-rain'||skillId==='archer-arrow-storm'||skillId==='mage-meteor'||mobility||skillId==='archer-trap';
     let center:Point|undefined;
     if(target!==undefined){
       if(!areaSkill||!validPoint(target)||!sameLocation(p,target)){this.notice(p,'Неверная точка навыка');return false;}
@@ -718,7 +808,7 @@ export class World{
   }
   camp(p: Hero,respawn: boolean){
     this.stopCampReturn(p);this.stopInteraction(p);p.shopActive=false;p.stashActive=false;this.stopAfk(p);this.clearSkillRuntime(p);
-    Object.assign(p,{...CAMP_SPAWN,yaw:Math.PI*.25,targetYaw:Math.PI*.25,vx:0,vz:0,dead:0,attack:null,moveBlend:0,runBlend:0,gait:0,input:{...p.input,x:0,z:0,aim:null}});
+    delete p.navigationPlanAt;Object.assign(p,{...CAMP_SPAWN,yaw:Math.PI*.25,targetYaw:Math.PI*.25,vx:0,vz:0,dead:0,attack:null,moveBlend:0,runBlend:0,gait:0,input:{...p.input,x:0,z:0,aim:null}});
     if(respawn){p.hp=stats(p).maxHp;p.mana=stats(p).maxMana;}
     this.emit('camp',{},p.id);
   }
@@ -792,12 +882,12 @@ export class World{
       }
       if(a.targetId!==undefined&&!targets.some(m=>m.id===a.targetId))this.notice(p,'Навык не коснулся выбранной цели');
       if(skillId)this.emit('skillImpact',{x:p.x,z:p.z,skillId,caster:p.id,attackId:a.id,yaw});
-    }else if(skillId==='mage-frost'||skillId==='mage-seals'){
+    }else if(skillId==='mage-frost'||skillId==='mage-seals'||skillId==='mage-arcane-nova'){
       const targets=this.mobs.filter(m=>liveMob(m)&&sameLocation(p,m)&&bodyStrike(p,m,yaw,skill!.range,Math.PI))
         .sort((left,right)=>distance(p,left)-distance(p,right)||left.id-right.id).slice(0,skill!.maxTargets);
       for(const m of targets){
         if(a.automatic&&!p.afk)break;
-        if(this.strikeMob(p,m,attackPower*skill!.damageScale,a.automatic===true,skillId)&&m.state!=='dead'){if(skillId==='mage-seals')this.rootMob(p,m,1.5);else this.slowMob(p,m,2,skillId);}
+        if(this.strikeMob(p,m,attackPower*skill!.damageScale,a.automatic===true,skillId)&&m.state!=='dead'){if(skillId==='mage-seals')this.rootMob(p,m,1.5);else if(skillId==='mage-frost')this.slowMob(p,m,2,skillId);}
       }
       if(a.targetId!==undefined&&!targets.some(m=>m.id===a.targetId))this.notice(p,'Навык не коснулся выбранной цели');
       this.emit('skillImpact',{x:p.x,z:p.z,skillId,caster:p.id,attackId:a.id,yaw});
@@ -817,12 +907,12 @@ export class World{
         source=next;
       }
       if(a.targetId!==undefined&&!hitIds.has(a.targetId))this.notice(p,'Молния не коснулась выбранной цели');
-    }else if(skillId==='archer-rain'||skillId==='mage-meteor'){
+    }else if(skillId==='archer-rain'||skillId==='archer-arrow-storm'||skillId==='mage-meteor'){
       const distanceAhead=skill!.range*.75,center=a.target??{x:p.x+Math.sin(yaw)*distanceAhead,z:p.z+Math.cos(yaw)*distanceAhead};
       if(!stand(center.x,center.z,0)||safe(center)||!clearPath(p,center)){
         this.emit('skillImpact',{x:p.x,z:p.z,skillId,caster:p.id,attackId:a.id,yaw});return;
       }
-      const delay=skillId==='archer-rain'?.45:.7;
+      const delay=skillId==='archer-rain'?.45:skillId==='archer-arrow-storm'?.55:.7;
       this.pendingAreas.push({skillId,caster:p.id,attackId:a.id,yaw,...center,at:this.t+delay*1000,damage:attackPower*skill!.damageScale,automatic:a.automatic===true});
       this.emit('skillImpact',{...center,skillId,caster:p.id,attackId:a.id,yaw,phase:'warning',delay,radius:skill!.radius});
     }else{
@@ -879,7 +969,7 @@ export class World{
       if(!equippedSkills(p).some(s=>s.id===skill.id)||skill.kind==='mobility'||(utility&&!this.utilityNeeded(p,skill.id)))continue;
       if(!skill||skill.classId!==p.classId||(!utility&&d>skill.range+body)||p.mana<skill.manaCost||
         Math.max(p.skillCooldowns?.[skill.id]??0,skill.id===legacySkillId(p.classId)?p.specialCooldown:0)>0)continue;
-      const area=skill.id==='archer-rain'||skill.id==='mage-meteor';
+      const area=skill.id==='archer-rain'||skill.id==='archer-arrow-storm'||skill.id==='mage-meteor';
       if(this.castSkill(p,skill.id,yaw,utility?undefined:target.id,area?{x:target.x,z:target.z}:undefined)){
         p.afk.skillCursor=(index+1)%order.length;return true;
       }
@@ -950,7 +1040,8 @@ export class World{
         if(prefs.hpPotion.enabled&&p.hp/s.maxHp*100<prefs.hpPotion.belowPercent)this.potion(p,'hp');
         if(prefs.manaPotion.enabled&&p.mana/s.maxMana*100<prefs.manaPotion.belowPercent)this.potion(p,'mana');
       }
-      const input=p.afk?this.driveAfk(p):p.interactionTarget?this.interactionInput(p):p.connected&&this.t-p.inputAt<350?p.input:{x:0,z:0,aim:null};
+      if(p.travelPortalId&&!this.travelAvailable(p,p.travelPortalId))delete p.travelPortalId;
+      const input=p.afk?this.driveAfk(p):p.interactionTarget?this.interactionInput(p):p.navigation||p.attackTargetId!==undefined?this.navigationInput(p):p.connected&&this.t-p.inputAt<350?p.input:{x:0,z:0,aim:null};
       this.tickSkillRuntime(p,dt);
       const s=stats(p),before={gait:p.gait,x:p.x,z:p.z};p.speedScale=s.speedScale;if(!p.mobility)moveHero(p,dt,input);p.ack=p.input.seq;
       if(!p.afk&&!p.dead&&Math.hypot(input.x??0,input.z??0)>.01){
@@ -1091,6 +1182,6 @@ export class World{
   snapshot(forId: string): WorldSnapshot{
     const p=this.players.get(forId);
     const dungeon=p?dungeonAt(p):undefined,run=dungeon?this.dungeonRuns.get(dungeon.id):undefined;
-    return {dungeon:dungeon?{id:dungeon.id,guardsRemaining:this.mobs.filter(m=>m.dungeonId===dungeon.id&&!m.bossId&&m.state!=='dead').length,bossDefeated:this.mobs.some(m=>m.bossId===dungeon.id&&m.state==='dead'),resetIn:run?.resetAt?Math.max(0,(run.resetAt-this.t)/1000):0}:undefined,t:this.t,skillZones:this.skillZones.filter(z=>!p||sameLocation(p,z)).map(({budget,attackId,yaw,damage,automatic,...z})=>z),players:[...this.players.values()].filter(other=>!p||sameLocation(p,other)).map(p=>({id:p.id,name:p.name,classId:p.classId,x:p.x,z:p.z,yaw:p.yaw,weapon:p.weapon,hp:p.hp,maxHp:stats(p).maxHp,level:p.level,dead:p.dead,hurt:p.hurt,attack:p.attack,moveBlend:p.moveBlend,runBlend:p.runBlend,gait:p.gait,vx:p.vx,vz:p.vz,connected:p.connected,effects:p.effects,appearance:equipmentAppearance(p)})),onlinePlayers:[...this.players.values()].filter(player=>player.connected).map(player=>({id:player.id,name:player.name,classId:player.classId,level:player.level,location:locationAt(player)})),mobs:this.mobs.filter(m=>!p||sameLocation(p,m)).map(({contributors,patrol,slowUntil,rootUntil,rootImmunityUntil,dots,slow,...m})=>({...m,slow:Math.max(0,((slowUntil??0)-this.t)/1000)})),projectiles:this.projectiles.filter(b=>!p||sameLocation(p,b)).map(({damage,aoe,maxTargets,hitIds,pierce,damageScaleOnPierce,slowMs,automatic,dot,rootMs,...b})=>b),groundLoot:this.groundLoot.filter(drop=>drop.owner===forId&&(!p||sameLocation(p,drop))).map(({owner,...drop})=>drop),self:p?{...stats(p),...persistentHero(p),campReturnRemaining:p.campReturn?Math.max(0,(p.campReturn.until-this.t)/1000):0,appearance:equipmentAppearance(p),attackPower:stats(p).attack,targetYaw:p.targetYaw,vx:p.vx,vz:p.vz,hurt:p.hurt,gait:p.gait,moveBlend:p.moveBlend,runBlend:p.runBlend,ack:p.ack,afk:p.afk,afkRadius:this.afkRadius(p),interactionTarget:p.interactionTarget,shopActive:p.shopActive,stashActive:p.stashActive}:null,events:this.events.filter(e=>(!e.owner||e.owner===forId)&&(!p||!('x' in e&&'z' in e)||sameLocation(p,e)))};
+    return {dungeon:dungeon?{id:dungeon.id,guardsRemaining:this.mobs.filter(m=>m.dungeonId===dungeon.id&&!m.bossId&&m.state!=='dead').length,bossDefeated:this.mobs.some(m=>m.bossId===dungeon.id&&m.state==='dead'),resetIn:run?.resetAt?Math.max(0,(run.resetAt-this.t)/1000):0}:undefined,t:this.t,skillZones:this.skillZones.filter(z=>!p||sameLocation(p,z)).map(({budget,attackId,yaw,damage,automatic,...z})=>z),players:[...this.players.values()].filter(other=>!p||sameLocation(p,other)).map(p=>({id:p.id,name:p.name,classId:p.classId,x:p.x,z:p.z,yaw:p.yaw,weapon:p.weapon,hp:p.hp,maxHp:stats(p).maxHp,level:p.level,dead:p.dead,hurt:p.hurt,attack:p.attack,moveBlend:p.moveBlend,runBlend:p.runBlend,gait:p.gait,vx:p.vx,vz:p.vz,connected:p.connected,effects:p.effects,appearance:equipmentAppearance(p)})),onlinePlayers:[...this.players.values()].filter(player=>player.connected).map(player=>({id:player.id,name:player.name,classId:player.classId,level:player.level,location:locationAt(player)})),mobs:this.mobs.filter(m=>!p||sameLocation(p,m)).map(({contributors,patrol,slowUntil,rootUntil,rootImmunityUntil,dots,slow,...m})=>({...m,slow:Math.max(0,((slowUntil??0)-this.t)/1000)})),projectiles:this.projectiles.filter(b=>!p||sameLocation(p,b)).map(({damage,aoe,maxTargets,hitIds,pierce,damageScaleOnPierce,slowMs,automatic,dot,rootMs,...b})=>b),groundLoot:this.groundLoot.filter(drop=>drop.owner===forId&&(!p||sameLocation(p,drop))).map(({owner,...drop})=>drop),self:p?{...stats(p),...persistentHero(p),navigationTarget:p.navigation?.target??null,attackTargetId:p.attackTargetId??null,travelPortalId:p.travelPortalId,campReturnRemaining:p.campReturn?Math.max(0,(p.campReturn.until-this.t)/1000):0,appearance:equipmentAppearance(p),attackPower:stats(p).attack,targetYaw:p.targetYaw,vx:p.vx,vz:p.vz,hurt:p.hurt,gait:p.gait,moveBlend:p.moveBlend,runBlend:p.runBlend,ack:p.ack,afk:p.afk,afkRadius:this.afkRadius(p),interactionTarget:p.interactionTarget,shopActive:p.shopActive,stashActive:p.stashActive}:null,events:this.events.filter(e=>(!e.owner||e.owner===forId)&&(!p||!('x' in e&&'z' in e)||sameLocation(p,e)))};
   }
 }

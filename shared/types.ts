@@ -43,9 +43,11 @@ export interface PersistentHero extends Point {
 }
 export interface AfkState { anchor:Point; spotId?:string; targetId:number|null; skillCursor:number }
 export interface GroundDrop extends Point { id:string; kind:'item'|'gold'; item?:Item; amount?:number; expiresAt:number }
-export interface InteractionTarget { kind:'loot'|'vendor'|'portal'|'chest'; id:string }
+export interface InteractionTarget { kind:'loot'|'vendor'|'portal'|'chest'|'travel'; id:string }
 export interface Hero extends PersistentHero {
   campReturn?:Point & {until:number};
+  actionRecoveryUntil?:number;navigationPlanAt?:number;
+  navigation?:{target:Point;path:Point[];startedAt:number};attackTargetId?:number;attackRepathAt?:number;travelPortalId?:string;
   targetYaw: number; vx: number; vz: number; hurt: number; gait: number; moveBlend: number; runBlend: number;
   input: HeroInput; inputAt: number; ack: number; connected: boolean; disconnectAt: number; speedScale?: number; afk: AfkState | null;
   interactionTarget:InteractionTarget|null; shopActive:boolean; stashActive:boolean;
@@ -71,7 +73,7 @@ export interface PublicProjectile extends Point { id: string; owner: string; yaw
 export interface Projectile extends PublicProjectile { damage: number; aoe: number; maxTargets?: number; hitIds?: number[]; pierce?: boolean; damageScaleOnPierce?: number; slowMs?: number; automatic?: boolean; targetId?:number; dot?:{skillId:SkillId;damage:number;duration:number};rootMs?:number }
 export type PublicPlayer = Pick<Hero, 'id' | 'name' | 'classId' | 'x' | 'z' | 'yaw' | 'weapon' | 'hp' | 'level' | 'dead' | 'hurt' | 'attack' | 'moveBlend' | 'runBlend' | 'gait' | 'vx' | 'vz' | 'connected'> & { maxHp: number; effects?:SkillEffect[]; appearance?:ItemAppearance };
 export type OnlinePlayer = Pick<Hero,'id'|'name'|'classId'|'level'> & {location:LocationId};
-export type SelfSnapshot = PersistentHero & {campReturnRemaining?:number;appearance?:ItemAppearance;afk?:AfkState|null;afkRadius?:number;interactionTarget?:InteractionTarget|null;shopActive?:boolean;stashActive?:boolean} & Omit<CharacterStats, 'attack'> & Pick<Hero, 'targetYaw' | 'vx' | 'vz' | 'hurt' | 'gait' | 'moveBlend' | 'runBlend' | 'ack'>;
+export type SelfSnapshot = PersistentHero & {navigationTarget?:Point|null;attackTargetId?:number|null;travelPortalId?:string;campReturnRemaining?:number;appearance?:ItemAppearance;afk?:AfkState|null;afkRadius?:number;interactionTarget?:InteractionTarget|null;shopActive?:boolean;stashActive?:boolean} & Omit<CharacterStats, 'attack'> & Pick<Hero, 'targetYaw' | 'vx' | 'vz' | 'hurt' | 'gait' | 'moveBlend' | 'runBlend' | 'ack'>;
 export interface EventPayloads {
   buildResult:{ok:boolean;revision:number;message?:string};
   notice: { text: string }; statResult: { ok: boolean; revision: number; message?: string }; preferencesSaved:{ok:boolean;message?:string};
@@ -81,6 +83,7 @@ export interface EventPayloads {
   kill: { id: number; name: string; xp: number }; loot: Point & { id: number; amount: number };
   shopOpen:{npcId:string};
   stashOpened:{npcId:string};
+  travelOpened:{portalId:string};
   portal:{portalId:string;location:LocationId};
   skillImpact: Point & { skillId: SkillId; caster: string; attackId: number; yaw: number; phase?: 'warning' | 'impact' | 'start' | 'end'; delay?: number; radius?: number; from?: Point };
 }
@@ -90,7 +93,7 @@ export interface WorldSnapshot { dungeon?:DungeonProgress; t: number; players: P
 export interface ChatEntry { name: string; text: string; t: number }
 export type ClientCommand =
   | {type:'buildApply';revision:number;build:SkillBuild} | {type:'buildSavePreset';index:0|1|2} | {type:'buildLoadPreset';revision:number;index:0|1|2} | {type:'skillStop'}
-  | ({ type: 'input' } & HeroInput) | { type: 'attack'; yaw: number; special?: boolean; targetId?:number } | { type: 'skill'; skillId: SkillId; yaw: number; targetId?:number; target?:Point } | { type: 'afk'; enabled: boolean } | {type:'afkPreferences';preferences:AfkPreferences}
+  | ({ type: 'input' } & HeroInput) | { type: 'attack'; yaw: number; special?: boolean; targetId?:number;approach?:boolean } | { type: 'skill'; skillId: SkillId; yaw: number; targetId?:number; target?:Point } | { type: 'afk'; enabled: boolean } | {type:'afkPreferences';preferences:AfkPreferences}
   | { type: 'potion'; kind?:'hp'|'mana' } | {type:'camp'|'claim'|'stashOpen'|'stashClose'} | {type:'stashDeposit'|'stashWithdraw';id:string} | { type: 'run'; running: boolean } | { type: 'weapon'; weapon: WeaponId }
   | { type: 'equip' | 'unequip' | 'sell'; id: string } | { type: 'allocateStats'; revision: number; points: Partial<Attributes> }
   | {type:'pickup';id:string} | {type:'interact';npcId:string} | {type:'cancelInteraction'}
@@ -99,6 +102,7 @@ export type ClientCommand =
   | {type:'buyConsumable';kind:'hp'|'mana';requestId?:string}
   | {type:'assignConsumable';slot:QuickSlot;definitionId:string|null} | {type:'useConsumable';slot:QuickSlot}
   | {type:'portal';portalId:string}
+  | {type:'moveTo';target:Point} | {type:'pickupNearest'} | {type:'travelOpen';portalId:string} | {type:'travel';portalId:string;destinationId:string}
   | { type: 'resetStats'; revision: number };
 export type ClientMessage = ClientCommand | { type: 'join'; protocol: 3; heroId: string } | { type: 'chat'; text: string } | { type: 'ping'; t: number };
 export type ServerMessage =

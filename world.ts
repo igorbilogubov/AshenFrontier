@@ -508,7 +508,8 @@ export class World{
     this.skillZones=this.skillZones.filter(z=>z.remaining>0);
   }
   patrol(m: Mob,dt: number,speedScale=1){
-    const cfg=mobConfig(m),spot=m.spotId?AFK_SPOTS.find(candidate=>candidate.id===m.spotId):null,route=m.patrol??={goal:null,pause:.8+m.id*.17,leg:0,speed:0,age:0};
+    // Stagger initial steps within a bounded window, independent of population.
+    const cfg=mobConfig(m),spot=m.spotId?AFK_SPOTS.find(candidate=>candidate.id===m.spotId):null,route=m.patrol??={goal:null,pause:.8+(m.id%12)*.17,leg:0,speed:0,age:0};
     if(route.pause>0){route.pause=Math.max(0,route.pause-dt);return;}
     const rest=()=>{route.goal=null;route.speed=0;route.pause=1.1+(m.id+route.leg)%4*.3;};
     if(!route.goal){

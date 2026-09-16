@@ -20,7 +20,7 @@ test('undisturbed animals walk in sustained bouts and rest, without tick-by-tick
     }
   }
   for(const [i,s] of samples.entries()){
-    assert(s.walks.length>=(MOB_TYPES[world.mobs[i].type].speed<=1.4?3:5),`animal ${world.mobs[i].type}#${i} in ${locationAt(world.mobs[i])} did not patrol: ${s.walks.length}`);
+    assert(s.walks.length>=5,`animal ${world.mobs[i].type}#${i} in ${locationAt(world.mobs[i])} did not patrol: ${s.walks.length}`);
     assert(s.walks.every(seconds=>seconds>=1),'short movement bursts make the walk clip flicker');
     assert(s.rests.every(seconds=>seconds>=.5),'pauses must be visible, not single-tick stops');
     assert(s.changes/2<30,'too many Walk/Idle transitions per minute');

@@ -161,9 +161,9 @@ export class World{
     for(const d of DUNGEONS)this.dungeonRuns.set(d.id,{resetAt:0,lastOccupied:this.t});
     this.mobs=SPAWNS.map((s,id)=>({...s,id,homeX:s.x,homeZ:s.z,hp:mobConfig(s).hp,state:'idle',timer:1,yaw:Math.PI,targetYaw:Math.PI,age:0,gait:0,speed:0,flash:0,target:null,contributors:new Map()}));
   }
-  add(p: Hero){this.stopAfk(p);this.stopInteraction(p);this.players.set(p.id,p);p.connected=true;p.disconnectAt=0;p.afk=null;p.shopActive=false;p.stashActive=false;}
+  add(p: Hero){this.stopCampReturn(p);this.stopAfk(p);this.stopInteraction(p);this.players.set(p.id,p);p.connected=true;p.disconnectAt=0;p.afk=null;p.shopActive=false;p.stashActive=false;}
   emit<K extends keyof EventPayloads>(type: K,data: EventPayloads[K],owner?: string){this.events.push({type,...data,...(owner?{owner}:{})} as WorldEvent);}
-  remove(id: string){const p=this.players.get(id);if(p){this.stopAfk(p);this.stopInteraction(p);this.clearSkillRuntime(p);p.shopActive=false;p.stashActive=false;}this.players.delete(id);this.purchaseReceipts.delete(id);}
+  remove(id: string){const p=this.players.get(id);if(p){this.stopCampReturn(p);this.stopAfk(p);this.stopInteraction(p);this.clearSkillRuntime(p);p.shopActive=false;p.stashActive=false;}this.players.delete(id);this.purchaseReceipts.delete(id);}
   notice(p: Hero,text: string){this.emit('notice',{text},p.id);}
   /** Crossing the authored safe boundary ends the local fight before interactions. */
   settleSafe(p:Hero){
@@ -362,7 +362,8 @@ export class World{
   clampResources(p: Hero){const s=stats(p);p.hp=Math.min(p.hp,s.maxHp);p.mana=Math.min(p.mana,s.maxMana);}
   updateStats(p: Hero,msg: Record<string,unknown>){
     const reply=(ok: boolean,message?: string)=>this.emit('statResult',{ok,revision:p.statRevision,...(message?{message}:{})},p.id);
-    if(!safe(p)||p.dead||p.attack||p.combatUntil>this.t){reply(false,'Характеристики меняются у костра, вне боя');return;}
+    if(!p.connected||p.dead){reply(false,'Характеристики меняются только у живого героя');return;}
+    if(msg.type==='resetStats'&&(!safe(p)||p.attack||p.channel||p.combatUntil>this.t)){reply(false,'Сброс характеристик доступен у костра, вне боя');return;}
     if(!Number.isSafeInteger(msg.revision)||msg.revision!==p.statRevision||p.statRevision>=Number.MAX_SAFE_INTEGER){reply(false,'Характеристики изменились. Проверьте распределение ещё раз');return;}
     if(msg.type==='resetStats'){
       if(!STAT_KEYS.some(key=>p.allocatedStats[key]>0)){reply(false,'Пока нет распределённых очков');return;}
@@ -552,7 +553,8 @@ export class World{
     if(step>.001&&moved<step*.25)rest();
   }
   command(p: Hero,msg: unknown){
-    if(!isRecord(msg))return;
+    if(!isRecord(msg)||!p.connected)return;
+    if(typeof msg.type==='string'&&['attack','skill','afk','portal','pickup','interact','stashOpen','buildApply','buildLoadPreset','resetStats','weapon'].includes(msg.type))this.stopCampReturn(p);
     if(msg.type==='buildApply'||msg.type==='buildSavePreset'||msg.type==='buildLoadPreset'){this.updateBuild(p,msg);return;}
     if(msg.type==='skillStop'){this.stopChannel(p);return;}
     if(msg.type==='class'){this.notice(p,'Класс выбирается при создании героя и не меняется');return;}
@@ -572,7 +574,7 @@ export class World{
     }
     if(msg.type==='input'){
       if(typeof msg.x!=='number'||typeof msg.z!=='number'||!Number.isFinite(msg.x)||!Number.isFinite(msg.z)||Math.abs(msg.x)>1||Math.abs(msg.z)>1||(msg.aim!==null&&(typeof msg.aim!=='number'||!Number.isFinite(msg.aim)))||typeof msg.seq!=='number'||!Number.isSafeInteger(msg.seq)||msg.seq<=p.input.seq)return;
-      if(Math.hypot(msg.x,msg.z)>.01){this.stopChannel(p);this.removeEffect(p,'archer-focus');this.stopAfk(p);this.stopInteraction(p);p.stashActive=false;}
+      if(Math.hypot(msg.x,msg.z)>.01){this.stopCampReturn(p);this.stopChannel(p);this.removeEffect(p,'archer-focus');this.stopAfk(p);this.stopInteraction(p);p.stashActive=false;}
       p.input={x:msg.x,z:msg.z,aim:msg.aim,seq:msg.seq};p.inputAt=this.t;return;
     }
     if(msg.type==='attack'){this.stopAfk(p);this.stopInteraction(p);p.stashActive=false;if(typeof msg.yaw==='number'&&Number.isFinite(msg.yaw))this.attack(p,msg.yaw,msg.special===true,msg.targetId);return;}
@@ -598,13 +600,11 @@ export class World{
     if(msg.type==='run'&&typeof msg.running==='boolean'&&!p.dead){p.running=msg.running;return;}
     if(msg.type==='weapon'&&isWeaponId(msg.weapon)&&!p.attack&&!p.dead){const weapon=p.items.find(item=>item.id===p.equipment.weapon);if(weapon?.definitionId){this.notice(p,'Вид оружия определяется надетым предметом');return;}p.weapon=msg.weapon;return;}
     if(msg.type==='camp'){
-      this.stopAfk(p);this.stopInteraction(p);p.shopActive=false;p.stashActive=false;
-      this.settleSafe(p);
-      if(p.dead||p.combatUntil>this.t||this.mobs.some(m=>m.target===p.id&&['chase','windup','recover'].includes(m.state))){this.notice(p,'Сначала оторвитесь от врагов');return;}
-      this.camp(p,false);return;
+      this.startCampReturn(p);return;
     }
     if(typeof msg.type==='string'&&['equip','unequip','sell','claim'].includes(msg.type)){
-      if(!safe(p)||p.dead||p.attack||p.combatUntil>this.t){this.notice(p,'Снаряжение меняется у костра, вне боя');return;}
+      if(p.dead)return;
+      if((msg.type==='sell'||msg.type==='claim')&&(!safe(p)||p.attack||p.combatUntil>this.t)){this.notice(p,'Это действие доступно у костра, вне боя');return;}
       if(msg.type==='claim'){while(p.pendingItems.length&&backpackUsage(p)<BAG_CAPACITY)p.items.push(p.pendingItems.shift()!);return;}
       const item=backpackItems(p).find(i=>i.id===msg.id)??(msg.type==='unequip'?p.items.find(i=>i.id===msg.id&&p.equipment[i.slot]===i.id):undefined);if(!item)return;
       if(msg.type==='equip'&&canEquip(p,item)){p.equipment[item.slot]=item.id;if(item.definitionId&&item.slot==='weapon')p.weapon='sword';this.clampResources(p);}
@@ -697,14 +697,34 @@ export class World{
     for(const slot of ['q','w'] as const)if(assignedConsumable(p,slot)?.kind===kind&&this.useConsumable(p,slot))return true;
     return false;
   }
+  stopCampReturn(p:Hero){delete p.campReturn;}
+  campReturnAvailable(p:Hero){
+    this.refreshCombat(p);
+    return p.connected&&!p.dead&&!p.attack&&!p.channel&&!p.mobility&&p.combatUntil<=this.t
+      &&!this.mobs.some(m=>liveMob(m)&&sameLocation(p,m)&&m.target===p.id&&['chase','windup','recover'].includes(m.state))
+      &&!this.projectiles.some(b=>b.owner===p.id)&&!this.pendingAreas.some(a=>a.caster===p.id);
+  }
+  startCampReturn(p:Hero){
+    if(p.campReturn){this.stopCampReturn(p);return;}
+    this.stopAfk(p);this.stopInteraction(p);p.shopActive=false;p.stashActive=false;
+    if(!this.campReturnAvailable(p)){this.notice(p,'Возврат в город доступен только вне боя');return;}
+    p.input={...p.input,x:0,z:0,aim:null};p.vx=p.vz=p.moveBlend=p.runBlend=0;
+    p.campReturn={x:p.x,z:p.z,until:this.t+5000};
+  }
+  tickCampReturn(p:Hero){
+    const pending=p.campReturn;if(!pending)return;
+    if(!this.campReturnAvailable(p)||p.afk||p.interactionTarget||distance(p,pending)>.01){this.stopCampReturn(p);return;}
+    if(this.t>=pending.until)this.camp(p,false);
+  }
   camp(p: Hero,respawn: boolean){
-    this.stopAfk(p);this.clearSkillRuntime(p);
+    this.stopCampReturn(p);this.stopInteraction(p);p.shopActive=false;p.stashActive=false;this.stopAfk(p);this.clearSkillRuntime(p);
     Object.assign(p,{...CAMP_SPAWN,yaw:Math.PI*.25,targetYaw:Math.PI*.25,vx:0,vz:0,dead:0,attack:null,moveBlend:0,runBlend:0,gait:0,input:{...p.input,x:0,z:0,aim:null}});
     if(respawn){p.hp=stats(p).maxHp;p.mana=stats(p).maxMana;}
     this.emit('camp',{},p.id);
   }
   damagePlayer(p: Hero,amount: number){
     if(p.dead||safe(p))return;
+    this.stopCampReturn(p);
     const defense=Math.max(this.hasEffect(p,'warrior-guard')?.3:0,this.hasEffect(p,'mage-ward')?.18:0,this.inSkillZone(p,'warrior-banner',p.id)?.2:0);
     let damage=Math.max(1,Math.round(amount*(1-stats(p).damageReduction)*(1-defense)*(this.hasEffect(p,'warrior-berserk')?1.2:1)));
     if(this.hasEffect(p,'mage-mana-shield')&&p.mana>0&&(p.shieldBudget??0)>0){const absorbed=Math.min(damage*.35,p.mana,p.shieldBudget!);p.mana-=absorbed;p.shieldBudget!-=absorbed;damage=Math.max(0,damage-Math.floor(absorbed));} 
@@ -714,6 +734,7 @@ export class World{
   hurtMob(p: Hero,m: Mob,amount: number,automatic=false){
     if(p.dead||safe(p)||m.state==='dead'||m.bossLocked||safe(m)||!sameLocation(p,m)||!clearPath(p,m))return false;
     const dealt=Math.min(m.hp,Math.max(0,Math.round(amount)));if(!dealt)return false;
+    this.stopCampReturn(p);
     const earlier=m.contributors.get(p.id);
     m.hp-=dealt;m.flash=.2;p.combatUntil=this.t+15000;m.contributors.set(p.id,{at:this.t,damage:(earlier?.damage||0)+dealt,automatic:(earlier?.automatic??automatic)&&automatic});
     this.emit('hit',{x:m.x,z:m.z,amount:dealt,id:m.id});
@@ -915,6 +936,7 @@ export class World{
     this.groundLoot=this.groundLoot.filter(drop=>drop.expiresAt>this.t);
     for(const p of this.players.values()){
       this.refreshCombat(p);
+      if(p.campReturn&&(!this.campReturnAvailable(p)||p.dead))this.stopCampReturn(p);
       if(p.shopActive&&!this.vendorAvailable(p))p.shopActive=false;
       if(p.stashActive&&!this.chestAvailable(p))p.stashActive=false;
       p.hurt=Math.max(0,p.hurt-dt);p.potionCooldown=Math.max(0,p.potionCooldown-dt);p.manaPotionCooldown=Math.max(0,p.manaPotionCooldown-dt);
@@ -1063,10 +1085,12 @@ export class World{
       }
       this.emit('skillImpact',{x:area.x,z:area.z,skillId:area.skillId,caster:area.caster,attackId:area.attackId,yaw:area.yaw,phase:'impact',radius:skill.radius});
     }
+    // Finish after all hostile work: fresh aggro or damage on the deadline must win.
+    for(const p of this.players.values())this.tickCampReturn(p);
   }
   snapshot(forId: string): WorldSnapshot{
     const p=this.players.get(forId);
     const dungeon=p?dungeonAt(p):undefined,run=dungeon?this.dungeonRuns.get(dungeon.id):undefined;
-    return {dungeon:dungeon?{id:dungeon.id,guardsRemaining:this.mobs.filter(m=>m.dungeonId===dungeon.id&&!m.bossId&&m.state!=='dead').length,bossDefeated:this.mobs.some(m=>m.bossId===dungeon.id&&m.state==='dead'),resetIn:run?.resetAt?Math.max(0,(run.resetAt-this.t)/1000):0}:undefined,t:this.t,skillZones:this.skillZones.filter(z=>!p||sameLocation(p,z)).map(({budget,attackId,yaw,damage,automatic,...z})=>z),players:[...this.players.values()].filter(other=>!p||sameLocation(p,other)).map(p=>({id:p.id,name:p.name,classId:p.classId,x:p.x,z:p.z,yaw:p.yaw,weapon:p.weapon,hp:p.hp,maxHp:stats(p).maxHp,level:p.level,dead:p.dead,hurt:p.hurt,attack:p.attack,moveBlend:p.moveBlend,runBlend:p.runBlend,gait:p.gait,vx:p.vx,vz:p.vz,connected:p.connected,effects:p.effects,appearance:equipmentAppearance(p)})),mobs:this.mobs.filter(m=>!p||sameLocation(p,m)).map(({contributors,patrol,slowUntil,rootUntil,rootImmunityUntil,dots,slow,...m})=>({...m,slow:Math.max(0,((slowUntil??0)-this.t)/1000)})),projectiles:this.projectiles.filter(b=>!p||sameLocation(p,b)).map(({damage,aoe,maxTargets,hitIds,pierce,damageScaleOnPierce,slowMs,automatic,dot,rootMs,...b})=>b),groundLoot:this.groundLoot.filter(drop=>drop.owner===forId&&(!p||sameLocation(p,drop))).map(({owner,...drop})=>drop),self:p?{...stats(p),...persistentHero(p),appearance:equipmentAppearance(p),attackPower:stats(p).attack,targetYaw:p.targetYaw,vx:p.vx,vz:p.vz,hurt:p.hurt,gait:p.gait,moveBlend:p.moveBlend,runBlend:p.runBlend,ack:p.ack,afk:p.afk,afkRadius:this.afkRadius(p),interactionTarget:p.interactionTarget,shopActive:p.shopActive,stashActive:p.stashActive}:null,events:this.events.filter(e=>(!e.owner||e.owner===forId)&&(!p||!('x' in e&&'z' in e)||sameLocation(p,e)))};
+    return {dungeon:dungeon?{id:dungeon.id,guardsRemaining:this.mobs.filter(m=>m.dungeonId===dungeon.id&&!m.bossId&&m.state!=='dead').length,bossDefeated:this.mobs.some(m=>m.bossId===dungeon.id&&m.state==='dead'),resetIn:run?.resetAt?Math.max(0,(run.resetAt-this.t)/1000):0}:undefined,t:this.t,skillZones:this.skillZones.filter(z=>!p||sameLocation(p,z)).map(({budget,attackId,yaw,damage,automatic,...z})=>z),players:[...this.players.values()].filter(other=>!p||sameLocation(p,other)).map(p=>({id:p.id,name:p.name,classId:p.classId,x:p.x,z:p.z,yaw:p.yaw,weapon:p.weapon,hp:p.hp,maxHp:stats(p).maxHp,level:p.level,dead:p.dead,hurt:p.hurt,attack:p.attack,moveBlend:p.moveBlend,runBlend:p.runBlend,gait:p.gait,vx:p.vx,vz:p.vz,connected:p.connected,effects:p.effects,appearance:equipmentAppearance(p)})),mobs:this.mobs.filter(m=>!p||sameLocation(p,m)).map(({contributors,patrol,slowUntil,rootUntil,rootImmunityUntil,dots,slow,...m})=>({...m,slow:Math.max(0,((slowUntil??0)-this.t)/1000)})),projectiles:this.projectiles.filter(b=>!p||sameLocation(p,b)).map(({damage,aoe,maxTargets,hitIds,pierce,damageScaleOnPierce,slowMs,automatic,dot,rootMs,...b})=>b),groundLoot:this.groundLoot.filter(drop=>drop.owner===forId&&(!p||sameLocation(p,drop))).map(({owner,...drop})=>drop),self:p?{...stats(p),...persistentHero(p),campReturnRemaining:p.campReturn?Math.max(0,(p.campReturn.until-this.t)/1000):0,appearance:equipmentAppearance(p),attackPower:stats(p).attack,targetYaw:p.targetYaw,vx:p.vx,vz:p.vz,hurt:p.hurt,gait:p.gait,moveBlend:p.moveBlend,runBlend:p.runBlend,ack:p.ack,afk:p.afk,afkRadius:this.afkRadius(p),interactionTarget:p.interactionTarget,shopActive:p.shopActive,stashActive:p.stashActive}:null,events:this.events.filter(e=>(!e.owner||e.owner===forId)&&(!p||!('x' in e&&'z' in e)||sameLocation(p,e)))};
   }
 }

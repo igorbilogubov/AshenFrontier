@@ -42,7 +42,7 @@ test('saved rolls reject forged/out-of-range data and legacy items are preserved
   assert.deepEqual(restored.allocatedStats,p.allocatedStats);assert.equal(restored.mana,p.mana);assert.equal(restored.hp,p.hp);
 });
 
-test('gear applies each roll once, honors class and camp restrictions, and publishes only appearance',()=>{
+test('gear applies each roll once, honors class restrictions outside camp, and publishes only appearance',()=>{
   const p=newHero(),other=newHero('Наблюдатель'),world=new World();world.add(p);world.add(other);
   const base=stats(p),item=rollEquipment('wanderer-armor','armor',()=>1-Number.EPSILON);p.items.push(item);
   assert.equal(canEquip({classId:'mage',level:1},item),false);
@@ -52,8 +52,7 @@ test('gear applies each roll once, honors class and camp restrictions, and publi
   const snapshot=world.snapshot(other.id).players.find(player=>player.id===p.id);
   assert.equal(snapshot.appearance.armor,'wanderer-armor');assert(!('items' in snapshot));assert(!('rolls' in snapshot));
   const saved=JSON.stringify(p.items);for(let i=0;i<20;i++)world.snapshot(p.id);assert.equal(JSON.stringify(p.items),saved);
-  p.x=10;world.command(p,{type:'unequip',id:item.id});assert.equal(p.equipment.armor,item.id);
-  p.x=.5;world.command(p,{type:'unequip',id:item.id});assert.equal(p.equipment.armor,null);
+  p.x=10;world.command(p,{type:'unequip',id:item.id});assert.equal(p.equipment.armor,null);
   assert.equal(equipmentAppearance(p).armor,null);
   // Legacy common armor stays usable by other classes.
   assert(canEquip({classId:'mage'},makeLoot('warrior',1,0,'armor')));

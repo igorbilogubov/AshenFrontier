@@ -65,13 +65,13 @@ test('malformed, overspent, empty and replayed stat requests never alter the poi
   assert.equal(stats(p).unspentPoints,2);
 });
 
-test('allocation and reset require a living, idle character at camp outside combat',()=>{
-  for(const change of [{x:8,z:2},{dead:2},{attack:{id:1}},{combatUntil:Infinity}]){
+test('allocation works in combat; reset still requires a living idle hero at camp',()=>{
+  for(const change of [{x:8,z:2},{attack:{id:1}},{combatUntil:Infinity}]){
     const {w,p}=fixture();allocate(w,p,{strength:1});Object.assign(p,change);
-    const before=persistentHero(p);
-    allocate(w,p,{vitality:1});assert.equal(result(w).ok,false);
-    reset(w,p);assert.equal(result(w).ok,false);assert.deepEqual(persistentHero(p),before);
+    allocate(w,p,{vitality:1});assert.equal(result(w).ok,true);
+    const before=persistentHero(p);reset(w,p);assert.equal(result(w).ok,false);assert.deepEqual(persistentHero(p),before);
   }
+  const {w,p}=fixture();p.dead=2;const before=persistentHero(p);allocate(w,p,{strength:1});reset(w,p);assert.equal(result(w).ok,false);assert.deepEqual(persistentHero(p),before);
 });
 
 test('allocation and reset clamp resources without healing or changing earned progress',()=>{
@@ -187,10 +187,11 @@ test('ranged projectiles also use server accuracy at collision and disappear on 
 });
 
 test('vitality regenerates at one-third speed in combat; mana and camp recovery remain unchanged',()=>{
-  const {w,p}=fixture('mage');allocate(w,p,{vitality:2,energy:3});w.mobs=[];
+  const {w,p}=fixture('mage');allocate(w,p,{vitality:2,energy:3});const m=w.mobs[0];w.mobs=[m];
   Object.assign(p,{x:8,z:2,hp:20,mana:0,combatUntil:w.t+1000});const s=stats(p);
+  Object.assign(m,{x:8,z:5,homeX:8,homeZ:5,target:p.id,state:'chase',rootUntil:w.t+10000});
   step(w,10);assert(Math.abs(p.hp-(20+s.hpRegen*.5/3))<1e-9);assert(Math.abs(p.mana-s.manaRegen*.5)<1e-9);
-  p.hp=20;
+  p.hp=20;w.mobs=[];
   p.combatUntil=0;const mana=p.mana;step(w,10);
   assert(Math.abs(p.hp-(20+s.hpRegen*.5))<1e-9);assert(Math.abs(p.mana-(mana+s.manaRegen*.5))<1e-9);
   const hp=p.hp,mp=p.mana;w.camp(p,false);assert.equal(p.hp,hp);assert.equal(p.mana,mp);

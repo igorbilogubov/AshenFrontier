@@ -60,7 +60,7 @@ test('quest payout and level advancement are persistent and not repeatable on re
   const {w,p}=setup();Object.assign(p,{questKills:5,boss:true,xp:64});step(w);assert.equal(p.gold,50);assert(p.questClaimed);
   const restored=safeHero(persistentHero(p));w.remove(p.id);w.add(restored);step(w,20);assert.equal(restored.gold,50);
 });
-test('six slots equip only owned class-compatible items at camp; sale cannot destroy equipped gear',()=>{
+test('six slots equip only owned class-compatible items; sale cannot destroy equipped gear',()=>{
   const {w,p}=setup();for(const slot of Object.keys(EQUIPMENT_SLOTS)){const item=makeLoot(p.classId,3,1,slot);p.items.push(item);w.command(p,{type:'equip',id:item.id});}
   assert.equal(Object.values(p.equipment).filter(Boolean).length,6);const before=structuredClone(p.equipment),count=p.items.length;
   for(const id of Object.values(p.equipment))w.command(p,{type:'sell',id});assert.deepEqual(p.equipment,before);assert.equal(p.items.length,count);

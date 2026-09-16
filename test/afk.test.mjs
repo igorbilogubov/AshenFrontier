@@ -61,8 +61,8 @@ test('stationary AFK waits for distant mobs and attacks nearby roaming or return
 test('real potion threshold and finite supply govern automatic survival; death and disconnect end it',()=>{
   const {w,p}=fixture();w.mobs=[];toggle(w,p,true);
   p.hp=stats(p).maxHp*.34;setBottles(p,'hp',2);p.potionCooldown=0;p.combatUntil=w.t+15000;
-  const hp=p.hp;step(w);assert.equal(p.potions,1);assert.equal(p.hp,hp+45);assert(p.potionCooldown>0);
-  p.hp=stats(p).maxHp*.2;setBottles(p,'hp',0);p.potionCooldown=0;const dry=p.hp;step(w);assert.equal(p.hp,dry);assert.equal(p.potions,0);
+  const hp=p.hp;step(w);assert.equal(p.potions,1);assert.equal(p.hp,hp+45+stats(p).hpRegen*.05);assert(p.potionCooldown>0);
+  p.hp=stats(p).maxHp*.2;setBottles(p,'hp',0);p.potionCooldown=0;const dry=p.hp;step(w);assert.equal(p.hp,dry+stats(p).hpRegen*.05);assert.equal(p.potions,0);
   w.damagePlayer(p,10000);assert.equal(p.afk,null);assert(p.dead>0);
   const next=fixture();toggle(next.w,next.p,true);next.p.connected=false;step(next.w);assert.equal(next.p.afk,null);
 });

@@ -219,7 +219,7 @@ function release(ws: WebSocket){
   commands.delete(ws);
   const entry=connections.get(ws);if(!entry)return;
   connections.delete(ws);if(entry.ws!==ws)return;
-  entry.ws=null;entry.p.connected=false;world.stopAfk(entry.p);world.clearSkillRuntime(entry.p);entry.p.input={...entry.p.input,x:0,z:0,aim:null};
+  entry.ws=null;entry.p.connected=false;world.stopCampReturn(entry.p);world.stopAfk(entry.p);world.clearSkillRuntime(entry.p);entry.p.input={...entry.p.input,x:0,z:0,aim:null};
   entry.p.disconnectAt=Math.max(Date.now()+1000,entry.p.combatUntil);
 }
 wss.on('connection',(ws,req)=>{

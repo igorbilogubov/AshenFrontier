@@ -22,6 +22,7 @@ export const dungeonSafe=(p:Point)=>{const d=dungeonAt(p);return !!d&&p.x<d.boun
 export const dungeonById=(id:string|undefined)=>DUNGEONS.find(d=>d.id===id);
 export const DUNGEON_PASSAGES=Object.freeze(DUNGEONS.flatMap(d=>[
  {id:`enter-${d.id}`,name:`${d.name} · ур. ${d.minLevel}`,...d.entrance,range:1.8,destination:d.entry,destinationName:d.name,minLevel:d.minLevel},
+ {id:`exit-${d.id}-end`,name:'Выход из подземелья',x:d.bounds.maxX-5,z:0,range:1.8,destination:{x:d.entrance.x,z:d.entrance.z+3},destinationName:'Открытый мир',minLevel:1},
  {id:`exit-${d.id}`,name:'Выход из подземелья',x:d.entry.x-4,z:0,range:1.8,destination:{x:d.entrance.x,z:d.entrance.z+3},destinationName:'Открытый мир',minLevel:1},
 ]));
 export const DUNGEON_SPAWNS=Object.freeze(DUNGEONS.flatMap(d=>[

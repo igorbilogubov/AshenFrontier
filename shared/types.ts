@@ -45,6 +45,7 @@ export interface AfkState { anchor:Point; spotId?:string; targetId:number|null; 
 export interface GroundDrop extends Point { id:string; kind:'item'|'gold'; item?:Item; amount?:number; expiresAt:number }
 export interface InteractionTarget { kind:'loot'|'vendor'|'portal'|'chest'; id:string }
 export interface Hero extends PersistentHero {
+  campReturn?:Point & {until:number};
   targetYaw: number; vx: number; vz: number; hurt: number; gait: number; moveBlend: number; runBlend: number;
   input: HeroInput; inputAt: number; ack: number; connected: boolean; disconnectAt: number; speedScale?: number; afk: AfkState | null;
   interactionTarget:InteractionTarget|null; shopActive:boolean; stashActive:boolean;
@@ -69,7 +70,7 @@ export interface Mob extends PublicMob {
 export interface PublicProjectile extends Point { id: string; owner: string; yaw: number; remaining: number; speed: number; kind: 'archer' | 'mage'; skillId?: SkillId; attackId?: number }
 export interface Projectile extends PublicProjectile { damage: number; aoe: number; maxTargets?: number; hitIds?: number[]; pierce?: boolean; damageScaleOnPierce?: number; slowMs?: number; automatic?: boolean; targetId?:number; dot?:{skillId:SkillId;damage:number;duration:number};rootMs?:number }
 export type PublicPlayer = Pick<Hero, 'id' | 'name' | 'classId' | 'x' | 'z' | 'yaw' | 'weapon' | 'hp' | 'level' | 'dead' | 'hurt' | 'attack' | 'moveBlend' | 'runBlend' | 'gait' | 'vx' | 'vz' | 'connected'> & { maxHp: number; effects?:SkillEffect[]; appearance?:ItemAppearance };
-export type SelfSnapshot = PersistentHero & {appearance?:ItemAppearance;afk?:AfkState|null;afkRadius?:number;interactionTarget?:InteractionTarget|null;shopActive?:boolean;stashActive?:boolean} & Omit<CharacterStats, 'attack'> & Pick<Hero, 'targetYaw' | 'vx' | 'vz' | 'hurt' | 'gait' | 'moveBlend' | 'runBlend' | 'ack'>;
+export type SelfSnapshot = PersistentHero & {campReturnRemaining?:number;appearance?:ItemAppearance;afk?:AfkState|null;afkRadius?:number;interactionTarget?:InteractionTarget|null;shopActive?:boolean;stashActive?:boolean} & Omit<CharacterStats, 'attack'> & Pick<Hero, 'targetYaw' | 'vx' | 'vz' | 'hurt' | 'gait' | 'moveBlend' | 'runBlend' | 'ack'>;
 export interface EventPayloads {
   buildResult:{ok:boolean;revision:number;message?:string};
   notice: { text: string }; statResult: { ok: boolean; revision: number; message?: string }; preferencesSaved:{ok:boolean;message?:string};

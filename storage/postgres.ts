@@ -316,7 +316,7 @@ class PostgresHeroStore implements HeroStore{
       const result=await client.query<{locked?:boolean}> (this.writer?lockHealthSql:'SELECT 1 AS ok');
       if(this.writer&&!result.rows[0]?.locked){this.lost=true;return false;}
       const schema=await client.query<{version:number}>('SELECT max(version)::integer AS version FROM schema_migrations');
-      return !!result.rowCount&&schema.rows[0]?.version===5;
+      return !!result.rowCount&&schema.rows[0]?.version===6;
     });}catch{if(this.writer)this.lost=true;return false;}
   }
   async schemaVersion():Promise<number>{

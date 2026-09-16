@@ -3,14 +3,14 @@ import * as T from '../dist/public/game/vendor/three.module.js';import {GLTFLoad
 import {createAnimatedWarrior} from '../dist/public/game/character.js';import {SKILLS} from '../dist/public/game/skills.js';import {createSkillEffects} from '../dist/public/game/skill-effects.js';import {skillMotionSample} from '../dist/public/game/skill-motion.js';import {BOW_GRIP} from '../dist/public/game/bow-presentation.js';
 async function load(name){const bytes=await fs.readFile(new URL('../public/game/characters/'+name,import.meta.url)),loader=new GLTFLoader();loader.register(()=>({name:'NoTextures',loadTexture:()=>Promise.resolve(new T.Texture())}));return loader.parseAsync(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),'');}
 const asset=await load('ashen-archer-equipment-v1.glb'),library=await load('class-combat-v1.glb');
-test('twelve motion accents have finite continuous endpoints and distinct authored poses',()=>{
+test('thirty-six motion accents have finite continuous endpoints and distinct authored poses',()=>{
  for(const skill of Object.values(SKILLS)){
   let previous;for(let frame=0;frame<=240;frame++){const values=Object.values(skillMotionSample(skill.id,frame/240,skill.hitFraction));assert(values.every(Number.isFinite));if(previous)assert(Math.max(...values.map((v,i)=>Math.abs(v-previous[i])))<.2,skill.id+' discontinuity');if(frame===0||frame===240)assert(values.every(v=>Math.abs(v)<1e-8),skill.id+' terminal offset');previous=values;}
  }
 });
 test('all archer skills preserve physical grip/string/release and produce different hand poses',()=>{
  const poses=[];
- for(const collection of ['ranger','sentinel'])for(const skill of [null,...Object.values(SKILLS).filter(s=>s.classId==='archer')]){
+ for(const collection of ['ranger','sentinel'])for(const skill of [null,...Object.values(SKILLS).filter(s=>s.classId==='archer'&&s.kind==='attack')]){
   const character=createAnimatedWarrior({...asset,scene:clone(asset.scene)},'archer',library.animations),left=character.model.getObjectByName('mixamorigLeftHand'),right=character.model.getObjectByName('mixamorigRightHand'),bow=character.model.getObjectByName(collection+'-bow'),arrow=character.model.getObjectByName('Bow_NockedArrow');
   const hero={weapon:'sword',classId:'archer',appearance:{weapon:collection+'-bow'},dead:0,hurt:0,moveBlend:0,runBlend:0,gait:0,attack:null};let previous;
   for(let frame=0;frame<=120;frame++){
@@ -45,4 +45,12 @@ test('warrior thrust extends the actual sword forward at authoritative contact a
  for(let frame=0;frame<=120;frame++){hero.attack={id:1,age:frame/120,duration:1,skillId:skill.id};character.animate(1/120,hero);character.root.updateMatrixWorld(true);const point=hand.getWorldPosition(new T.Vector3());if(previous)assert(point.distanceTo(previous)<.16,'thrust hand snapped');previous=point;}
  for(const yaw of [0,Math.PI/2,Math.PI,-Math.PI/2]){character.root.rotation.y=yaw;hero.attack={id:2,age:skill.hitFraction,duration:1,skillId:skill.id};character.animate(1/60,hero);character.root.updateMatrixWorld(true);const blade=new T.Vector3(1,0,0).applyQuaternion(hand.getWorldQuaternion(new T.Quaternion())),forward=new T.Vector3(0,0,1).applyQuaternion(character.root.quaternion);assert(blade.dot(forward)>.999,'thrust blade does not point down the attack lane');}
  hero.attack=null;for(let i=0;i<90;i++)character.animate(1/60,hero);assert(character.weights.Idle>.99);character.disposeExtras();
+});
+
+test('persistent server effects and beams are bounded and clear on world changes',async()=>{
+ const {createPersistentSkillEffects}=await import('../dist/public/game/persistent-skill-effects.js');const scene=new T.Scene(),effects=createPersistentSkillEffects(scene);
+ const zones=Array.from({length:100},(_,i)=>({id:String(i),owner:'hero',skillId:i%2?'mage-mana-source':'archer-trap',x:i,z:0,radius:2,remaining:5}));
+ const players=Array.from({length:20},(_,i)=>({id:String(i),x:0,z:i,dead:0,attack:{skillId:'mage-beam',target:{x:3,z:i},targetId:undefined},effects:[]}));
+ effects.sync(players,[],zones,1);assert.deepEqual(effects.stats(),{capacity:64,active:64,beamCapacity:12,beams:12});scene.updateMatrixWorld(true);scene.traverse(o=>assert(o.matrixWorld.elements.every(Number.isFinite)));
+ effects.clear();assert(scene.children.every(c=>!c.visible));effects.sync([],[],[],2);assert.equal(effects.stats().active,0);effects.dispose();assert.equal(scene.children.length,0);
 });

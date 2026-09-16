@@ -15,7 +15,7 @@ export function createCharacterSkillCharge(model:T.Object3D){
     const attack=hero.attack,skill:string=attack?.skillId||'';root.visible=!!attack&&!hero.dead&&!!skill&&!skill.startsWith('archer');if(!root.visible||!attack||!attack.skillId)return;
     const contact=SKILLS[attack.skillId].hitFraction,p=T.MathUtils.clamp(attack.age/attack.duration,0,1),charge=T.MathUtils.smoothstep(p,0,contact),fade=1-T.MathUtils.smoothstep(p,contact,Math.min(1,contact+.16)),power=charge*fade;
     root.visible=power>.01;if(!root.visible)return;
-    const frost=skill==='mage-frost',lightning=skill==='mage-lightning',meteor=skill==='mage-meteor',warrior=skill.startsWith('warrior');
+    const frost=skill==='mage-frost'||skill==='mage-ice-lance'||skill==='mage-ice-step',lightning=skill==='mage-lightning'||skill==='mage-beam'||skill==='mage-teleport'||skill==='mage-ward'||skill==='mage-mana-source',meteor=skill==='mage-meteor',warrior=skill.startsWith('warrior');
     const color=frost?'#8edfff':lightning?'#c8b9ff':warrior?'#ffe2a0':'#ffa35a';
     model.updateWorldMatrix(true,true);if(hand)model.worldToLocal(hand.getWorldPosition(center));else center.set(0,1.1,0);
     if(meteor)center.set(0,2.55,0);if(frost)center.set(0,1.1,0);

@@ -42,7 +42,7 @@ export function createBowPresentation(model:T.Object3D){
   return {dispose(){geometry.dispose();string.material.dispose();arrow.geometry.dispose();tip.geometry.dispose();arrowMaterial.dispose();tipMaterial.dispose();glow.geometry.dispose();glow.material.dispose();for(const geometry of ownedGeometry)geometry.dispose();},update(hero:WarriorPose,dt=1/60){
     const active=sentinel?.visible?sentinel:ranger,armed=bows.some(bow=>bow.visible);string.visible=armed;arrow.visible=false;glow.visible=false;for(const extra of fanArrows)extra.visible=false;if(!armed)return;
     model.updateWorldMatrix(true,true);
-    const attacking=!!hero.attack&&!hero.dead,phase=hero.attack?hero.attack.age/hero.attack.duration:1,contact=hero.attack?.skillId?SKILLS[hero.attack.skillId].hitFraction:.49,draw=attacking&&phase<contact;
+    const attacking=!!hero.attack&&!hero.dead&&(!hero.attack.skillId||SKILLS[hero.attack.skillId].kind==='attack'),phase=hero.attack?hero.attack.age/hero.attack.duration:1,contact=hero.attack?.skillId?SKILLS[hero.attack.skillId].hitFraction:.49,draw=attacking&&phase<contact;
     drawWeight+=((attacking?1:0)-drawWeight)*(1-Math.exp(-Math.max(0,dt)*24));
     if(attacking){
       left.worldToLocal(right.localToWorld(rightLocal.set(0,7,2)));
@@ -63,12 +63,12 @@ export function createBowPresentation(model:T.Object3D){
       model.worldToLocal(right.localToWorld(nock.set(0,7,2)));model.worldToLocal(active.localToWorld(grip.copy(sourceGrip)));
       direction.copy(grip).sub(nock);const arrowLength=Math.max(.9,direction.length()+.18);direction.normalize();
       arrow.scale.y=arrowLength;arrow.position.copy(nock).addScaledVector(direction,arrowLength/2);arrow.quaternion.setFromUnitVectors(up,direction);arrow.visible=true;
-      const skill:string=hero.attack?.skillId||'',frost=skill==='archer-frost-shot',charge=T.MathUtils.clamp(phase/contact,0,1);
-      arrowMaterial.emissive.set(frost?'#5cbaf3':skill===''?'#000000':'#d7a746');arrowMaterial.emissiveIntensity=skill===''?0:.3+charge*.7;
+      const skill:string=hero.attack?.skillId||'',frost=skill==='archer-frost-shot',poison=skill==='archer-poison',charge=T.MathUtils.clamp(phase/contact,0,1);
+      arrowMaterial.emissive.set(poison?'#74d754':frost?'#5cbaf3':skill===''?'#000000':'#d7a746');arrowMaterial.emissiveIntensity=skill===''?0:.3+charge*.7;
       tipMaterial.emissive.copy(arrowMaterial.emissive);tipMaterial.emissiveIntensity=arrowMaterial.emissiveIntensity;
       tip.scale.setScalar(frost?1.8:1);
       if(skill==='archer-volley')fanArrows.forEach((extra,i)=>{const spread=(i===0?-1:1)*.16;offset.copy(direction).applyAxisAngle(up,spread);extra.scale.copy(arrow.scale);extra.position.copy(nock).addScaledVector(offset,arrowLength/2);extra.quaternion.setFromUnitVectors(up,offset);extra.visible=true;});
-      if(skill==='archer-piercing'||frost){glow.position.copy(nock).addScaledVector(direction,arrowLength-.05);glow.scale.setScalar(.4+charge*.9);glow.rotation.set(phase*9,phase*14,0);glow.material.color.set(frost?'#97e5ff':'#ffe8a0');glow.material.opacity=.2+charge*.55;glow.visible=true;}
+      if(skill==='archer-piercing'||skill==='archer-aimed'||poison||frost){glow.position.copy(nock).addScaledVector(direction,arrowLength-.05);glow.scale.setScalar(.4+charge*.9);glow.rotation.set(phase*9,phase*14,0);glow.material.color.set(poison?'#93e567':frost?'#97e5ff':'#ffe8a0');glow.material.opacity=.2+charge*.55;glow.visible=true;}
     }
     a.toArray(points,0);nock.toArray(points,3);b.toArray(points,6);geometry.attributes.position.needsUpdate=true;
   }};

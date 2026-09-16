@@ -157,12 +157,14 @@ export function createAnimatedWarrior(gltf:{scene:T.Object3D;animations:T.Animat
       if(!wasDead)deathAge=0;
       deathAge+=dt;actions.Death.time=Math.min(deathAge,clips.Death.duration);
       target.Death=1;state='Death';
+    }else if(hero.attack?.skillId&&['mobility','defense','support','control'].includes(SKILLS[hero.attack.skillId].kind)&&hero.classId!=='mage'){
+      actions.Idle.time=0;target.Idle=1;state='Idle';
     }else if(hero.attack&&hero.classId!=='warrior'&&hero.classId&&combat.available){
       state='Attack_Sword_1'; // Existing workshop state name; motion comes from the class library.
     }else if(hero.attack){
       if((hero.attack.id??hero.attack)!==(lastAttack?.id??lastAttack)){
         const skill:string=hero.attack.skillId||'';
-        attackName=skill==='warrior-cleave'||skill==='warrior-shockwave'?'Attack_Sword_2':skill==='warrior-whirlwind'||skill==='warrior-thrust'?'Attack_Sword_1':hero.weapon==='axe'?'Attack_Sword_2':`Attack_Sword_${1+(attackIndex++%2)}` as AttackClip;
+        attackName=skill==='warrior-heavy'||skill==='warrior-cleave'||skill==='warrior-shockwave'?'Attack_Sword_2':skill==='warrior-whirlwind'||skill==='warrior-thrust'?'Attack_Sword_1':hero.weapon==='axe'?'Attack_Sword_2':`Attack_Sword_${1+(attackIndex++%2)}` as AttackClip;
         actions[attackName].time=0;
       }
       // Align the blade's forward crossing with gameplay's 49% damage event.

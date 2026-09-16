@@ -79,6 +79,12 @@ test('large-area skills discard historical saved cooldowns, reject parallel cast
   settle(f);assert.equal(f.p.skillCooldowns[id],0);assert(castArea(),`${id} must repeat as soon as its animation recovers`);
  }
 });
+test('loading a large-area skill without a saved cooldown does not create a cooldown entry',()=>{
+ for(const [classId,id] of [['warrior','warrior-earthquake'],['archer','archer-arrow-storm'],['mage','mage-arcane-nova']]){
+  const f=fixture(classId,[id]),restored=safeHero(persistentHero(f.p));
+  assert.equal(Object.hasOwn(restored.skillCooldowns,id),false,`${id} was not saved with a cooldown`);
+ }
+});
 test('new self-centred area casts ignore a distant hovered enemy without moving or extending reach',()=>{
  for(const [classId,id] of [['warrior','warrior-earthquake'],['mage','mage-arcane-nova']]){
   const f=fixture(classId,[id]);Object.assign(f.m,{x:25,z:1.8});const before={x:f.p.x,z:f.p.z};

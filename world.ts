@@ -105,7 +105,7 @@ export function safeHero(saved: unknown): Hero{
   const yaw=finite(raw.yaw,Math.PI*.25),legacyId=legacySkillId(classId),specialCooldown=legacy?0:nonnegative(raw.specialCooldown);
   const skillCooldowns: SkillCooldowns={};
   if(isRecord(raw.skillCooldowns))for(const skill of Object.values(SKILLS))if(skill.classId===classId&&Object.hasOwn(raw.skillCooldowns,skill.id))skillCooldowns[skill.id]=nonnegative(raw.skillCooldowns[skill.id]);
-  for(const id of ['warrior-earthquake','archer-arrow-storm','mage-arcane-nova'] as const)if(SKILLS[id].classId===classId)skillCooldowns[id]=0;
+  for(const id of ['warrior-earthquake','archer-arrow-storm','mage-arcane-nova'] as const)if(SKILLS[id].classId===classId&&Object.hasOwn(skillCooldowns,id))skillCooldowns[id]=0;
   skillCooldowns[legacyId]=Math.max(specialCooldown,skillCooldowns[legacyId]??0);
   const restoredAttack=legacy?null:savedAttack(raw.attack,classId);
   const oldConsumables=raw.consumableInventory===undefined;

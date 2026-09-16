@@ -5,7 +5,7 @@ import {World,newHero,safeHero,persistentHero,makeLoot,stats} from '../dist/worl
 import {AFK_SPOTS,MOB_TYPES,withinSpot,afkSpotAt,clearPath,stand,safe,distance} from '../dist/public/game/location.js';
 import {CLASS_ITEMS,rollEquipment} from '../dist/public/game/equipment-items.js';
 import {skillsForClass} from '../dist/public/game/skills.js';
-import {PICKUP_RANGE} from '../dist/public/game/loot-rules.js';
+import {AFK_PICKUP_RANGE,PICKUP_RANGE} from '../dist/public/game/loot-rules.js';
 import {STADIUM_PENS,STADIUM_HUB} from '../dist/public/game/stadium.js';
 const setBottles=(p,kind,quantity)=>{const id=kind==='hp'?'hp-basic':'mana-basic';p.consumableInventory=p.consumableInventory.filter(stack=>stack.definitionId!==id);if(quantity)p.consumableInventory.push({id:crypto.randomUUID(),definitionId:id,quantity});p[kind==='hp'?'potions':'manaPotions']=quantity;};
 
@@ -106,8 +106,8 @@ test('full backpack and pending queue leave items on ground while AFK keeps hunt
   while(p.items.length<18)p.items.push(makeLoot(p.classId,1,0,'ring'));
   p.pendingItems=Array.from({length:16},()=>makeLoot(p.classId,1,0,'amulet'));
   toggle(w,p,true);assert(p.afk);
-  w.addGroundDrop(p.id,{id:'full-gold',kind:'gold',x:p.x,z:p.z,amount:8,expiresAt:w.t+10000});
-  w.addGroundDrop(p.id,{id:'full-item',kind:'item',x:p.x,z:p.z,item:makeLoot(p.classId,1,0,'ring'),expiresAt:w.t+10000});
+  w.addGroundDrop(p.id,{id:'full-gold',kind:'gold',x:p.x+2,z:p.z,amount:8,expiresAt:w.t+10000});
+  w.addGroundDrop(p.id,{id:'full-item',kind:'item',x:p.x+2,z:p.z,item:makeLoot(p.classId,1,0,'ring'),expiresAt:w.t+10000});
   step(w,20);assert(p.afk);assert.equal(p.gold,8);assert.equal(p.pendingItems.length,16);
   assert.equal(w.snapshot(p.id).groundLoot.length,1);assert.equal(w.snapshot(p.id).groundLoot[0].kind,'item');
 });
@@ -160,7 +160,7 @@ test('AFK stays anchored through three empty waves and respawns',()=>{
 test('AFK collects owned gold and rolled item, ignores foreign/outside loot and keeps rolls exact',()=>{
   const {w,p,spot}=fixture();w.mobs=[];toggle(w,p,true);
   const item=rollEquipment(CLASS_ITEMS[p.classId][0].id,'owned-rolled',()=>.37);
-  const near={x:spot.x+.8,z:spot.z};
+  const near={x:spot.x+2,z:spot.z};
   w.addGroundDrop(p.id,{id:'owned-gold',kind:'gold',...near,amount:11,expiresAt:w.t+10000});
   w.addGroundDrop(p.id,{id:'owned-item',kind:'item',...near,item,expiresAt:w.t+10000});
   w.addGroundDrop('someone-else',{id:'foreign',kind:'gold',...near,amount:99,expiresAt:w.t+10000});
@@ -173,12 +173,26 @@ test('AFK collects owned gold and rolled item, ignores foreign/outside loot and 
   assert.deepEqual(safeHero(persistentHero(p)).items.find(found=>found.id===item.id),item);
 });
 
-test('AFK collects only drops within normal pickup reach and never approaches distant loot',()=>{
+test('AFK collects through its four metre boundary, including beyond manual reach, without moving',()=>{
   const {w,p,spot}=fixture();w.mobs=[];toggle(w,p,true);const anchor={x:p.x,z:p.z};
-  w.addGroundDrop(p.id,{id:'near-gold',kind:'gold',x:p.x+PICKUP_RANGE-.01,z:p.z,amount:7,expiresAt:w.t+10000});
-  w.addGroundDrop(p.id,{id:'far-gold',kind:'gold',x:p.x+PICKUP_RANGE+.01,z:p.z,amount:13,expiresAt:w.t+10000});
+  assert.equal(PICKUP_RANGE,1.4);assert.equal(AFK_PICKUP_RANGE,4);
+  w.addGroundDrop(p.id,{id:'one-step-beyond-manual',kind:'gold',x:p.x+PICKUP_RANGE+.4,z:p.z,amount:7,expiresAt:w.t+10000});
+  w.addGroundDrop(p.id,{id:'at-afk-boundary',kind:'gold',x:p.x+AFK_PICKUP_RANGE,z:p.z,amount:13,expiresAt:w.t+10000});
+  w.addGroundDrop(p.id,{id:'past-afk-boundary',kind:'gold',x:p.x+AFK_PICKUP_RANGE+.01,z:p.z,amount:17,expiresAt:w.t+10000});
   for(let i=0;i<100;i++){step(w);assert(p.afk);assert.deepEqual({x:p.x,z:p.z},anchor);}
-  assert.equal(p.gold,7);assert.deepEqual(w.snapshot(p.id).groundLoot.map(drop=>drop.id),['far-gold']);
+  assert.equal(p.gold,20);assert.deepEqual(w.snapshot(p.id).groundLoot.map(drop=>drop.id),['past-afk-boundary']);
+});
+
+test('AFK pickup radius does not cross walls or mix locations',()=>{
+  const {w,p,spot}=fixture();w.mobs=[];const pen=STADIUM_PENS[0];Object.assign(p,{x:pen.x,z:pen.z-6.5});
+  const blocked={x:pen.x,z:pen.z-9.5};assert(stand(p.x,p.z));assert(stand(blocked.x,blocked.z,0));assert(!clearPath(p,blocked));
+  toggle(w,p,true);const anchor={x:p.x,z:p.z};
+  w.addGroundDrop(p.id,{id:'behind-wall',kind:'gold',...blocked,amount:11,expiresAt:w.t+10000});
+  w.addGroundDrop(p.id,{id:'different-location',kind:'gold',x:spot.x,z:spot.z,amount:19,expiresAt:w.t+10000});
+  step(w,20);
+  assert.equal(p.gold,0);assert.deepEqual({x:p.x,z:p.z},anchor);
+  assert.deepEqual(w.snapshot(p.id).groundLoot.map(drop=>drop.id),['behind-wall']);
+  assert.deepEqual(w.groundLoot.map(drop=>drop.id).sort(),['behind-wall','different-location']);
 });
 
 test('AFK leaves town safe and quiet, refuses targets behind walls and never mixes locations',()=>{
@@ -212,7 +226,7 @@ test('every class and enabled skill rotates and deals real damage without leavin
 
 test('AFK activation cancels an approach and repeated enable does not reset its anchor or skill order',()=>{
   const {w,p}=fixture();w.mobs=[];
-  w.addGroundDrop(p.id,{id:'approach',kind:'gold',x:p.x+3,z:p.z,amount:10,expiresAt:w.t+10000});
+  w.addGroundDrop(p.id,{id:'approach',kind:'gold',x:p.x+AFK_PICKUP_RANGE+1,z:p.z,amount:10,expiresAt:w.t+10000});
   assert(w.startPickup(p,'approach'));assert(p.interactionTarget);
   toggle(w,p,true);assert.equal(p.interactionTarget,null);const active=p.afk;active.skillCursor=1;
   toggle(w,p,true);assert.equal(p.afk,active);assert.equal(p.afk.skillCursor,1);step(w,20);assert.equal(p.gold,0);

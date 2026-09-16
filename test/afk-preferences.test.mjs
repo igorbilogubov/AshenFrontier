@@ -57,9 +57,9 @@ test('AFK respects gold and rarity filters without destroying ignored personal d
   const {w,p}=fixture();w.mobs=[];
   w.command(p,{type:'afkPreferences',preferences:{...p.afkPreferences,pickupGold:false,pickupRarities:[2]}});
   const common=makeLoot('warrior',1,0,'ring'),rare=makeLoot('warrior',1,2,'ring');
-  w.addGroundDrop(p.id,{id:'skip-gold',kind:'gold',x:p.x,z:p.z,amount:8,expiresAt:w.t+10000});
-  w.addGroundDrop(p.id,{id:'skip-common',kind:'item',x:p.x,z:p.z,item:common,expiresAt:w.t+10000});
-  w.addGroundDrop(p.id,{id:'take-rare',kind:'item',x:p.x,z:p.z,item:rare,expiresAt:w.t+10000});
+  w.addGroundDrop(p.id,{id:'skip-gold',kind:'gold',x:p.x+2,z:p.z,amount:8,expiresAt:w.t+10000});
+  w.addGroundDrop(p.id,{id:'skip-common',kind:'item',x:p.x+2,z:p.z,item:common,expiresAt:w.t+10000});
+  w.addGroundDrop(p.id,{id:'take-rare',kind:'item',x:p.x+2,z:p.z,item:rare,expiresAt:w.t+10000});
   step(w,5);
   assert(p.afk);assert.equal(p.gold,0);assert(p.items.some(item=>item.id===rare.id));
   assert(!p.items.some(item=>item.id===common.id));

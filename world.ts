@@ -12,7 +12,7 @@ import {CLASSES,EQUIPMENT_SLOTS,BAG_CAPACITY,backpackItems,classFor,canEquip,STA
 import {BOUNDS,CAMP,SPAWNS,mobConfig,WEAPONS,AFK_SPOTS,afkSpotAt,withinSpot,safe as pointIsSafe,stand,clearPath,distance,translate,moveHero} from './public/game/location.js';
 import {angleDelta,turnTowards,inStrike} from './public/game/motion.js';
 import {SKILLS,skillsForClass,legacySkillId} from './public/game/skills.js';
-import {LOOT_TTL_MS,MAX_GROUND_DROPS_PER_HERO,PICKUP_RANGE,gearRarity} from './public/game/loot-rules.js';
+import {LOOT_TTL_MS,MAX_GROUND_DROPS_PER_HERO,PICKUP_RANGE,AFK_PICKUP_RANGE,gearRarity} from './public/game/loot-rules.js';
 import {portalById,ALL_PASSAGES} from './public/game/stadium.js';
 import {locationAt as pointLocation,fieldRegionAt} from './public/game/world-layout.js';
 import {SHOP,shopPrice,sellPrice} from './public/game/shop.js';
@@ -191,10 +191,10 @@ export class World{
     this.groundLoot.push({...drop,owner});
   }
   groundDrop(p:Hero,id:unknown){return typeof id==='string'?this.groundLoot.find(drop=>drop.id===id&&drop.owner===p.id&&drop.expiresAt>this.t):undefined;}
-  pickUp(p:Hero,id:unknown){
+  private collectDrop(p:Hero,id:unknown,maxRange:number){
     const drop=this.groundDrop(p,id);
     if(!drop||!p.connected||p.dead||p.attack){this.stopInteraction(p);return false;}
-    if(distance(p,drop)>PICKUP_RANGE||!clearPath(p,drop))return false;
+    if(distance(p,drop)>maxRange||!clearPath(p,drop))return false;
     if(drop.kind==='item'){
       if(!drop.item)return false;
       if(backpackUsage(p)>=BAG_CAPACITY){this.notice(p,'Рюкзак полон. Вещь остаётся на земле');this.stopInteraction(p);return false;}
@@ -209,6 +209,7 @@ export class World{
     }
     this.stopInteraction(p);return true;
   }
+  pickUp(p:Hero,id:unknown){return this.collectDrop(p,id,PICKUP_RANGE);}
   startPickup(p:Hero,id:unknown){
     this.stopAfk(p);
     const drop=this.groundDrop(p,id);
@@ -810,20 +811,20 @@ export class World{
       distance(p.afk!.anchor,m)<=reach+mobConfig(m).radius&&clearPath(p,m))
       .sort((left,right)=>distance(p,left)-distance(p,right)||left.id-right.id);
   }
-  /** Only personal filtered drops within ordinary pickup reach; AFK never approaches. */
+  /** Only personal filtered drops within stationary AFK pickup reach; AFK never approaches. */
   afkDrop(p:Hero){
     if(!p.afk||!p.connected||p.dead)return undefined;
     const room=backpackUsage(p)<BAG_CAPACITY,prefs=p.afkPreferences;
 
     return this.groundLoot.filter(drop=>drop.owner===p.id&&drop.expiresAt>this.t&&
       (drop.kind==='gold'?prefs.pickupGold:room&&!!drop.item&&prefs.pickupRarities.includes(drop.item.rarity))&&sameLocation(p,drop)&&
-      distance(p,drop)<=PICKUP_RANGE&&stand(drop.x,drop.z,0)&&clearPath(p,drop))
+      distance(p,drop)<=AFK_PICKUP_RANGE&&stand(drop.x,drop.z,0)&&clearPath(p,drop))
       .sort((left,right)=>(left.kind==='gold'?0:1)-(right.kind==='gold'?0:1)||distance(p,left)-distance(p,right)||left.id.localeCompare(right.id))[0];
   }
   afkPickup(p:Hero){
     if(!p.afk||p.attack)return false;
     const drop=this.afkDrop(p);
-    return !!drop&&this.pickUp(p,drop.id);
+    return !!drop&&this.collectDrop(p,drop.id,AFK_PICKUP_RANGE);
   }
   driveAfk(p: Hero){
     if(!p.afk)return {x:0,z:0,aim:null};

@@ -65,7 +65,18 @@ test('level-20 large-area skills hit distant packs up to their cap while respect
   assert(started,id);assert.equal(f.p.mana,mana-skill.manaCost);advance(f.w,3);
   assert.equal(pack.filter(m=>m.hp<10000).length,skill.maxTargets,id);
   assert.equal(far.hp,10000,`${id} exceeded its five-metre radius`);assert.equal(protectedMob.hp,10000,`${id} damaged safe ground`);
-  assert(f.p.skillCooldowns[id]>=skill.cooldown-3-1e-8&&f.p.skillCooldowns[id]<=skill.cooldown);
+  assert.equal(f.p.skillCooldowns[id],0);
+ }
+});
+test('large-area skills discard historical saved cooldowns, reject parallel casts and repeat after recovery',()=>{
+ for(const [classId,id] of [['warrior','warrior-earthquake'],['archer','archer-arrow-storm'],['mage','mage-arcane-nova']]){
+  const f=fixture(classId,[id]),skill=SKILLS[id];
+  const restored=safeHero({...persistentHero(f.p),skillCooldowns:{[id]:13}});f.w.players.clear();f.w.add(restored);f.p=restored;f.p.mana=stats(f.p).maxMana;
+  assert.equal(f.p.skillCooldowns[id],0,`${id} must not retain its old saved cooldown`);
+  const castArea=()=>id==='archer-arrow-storm'?f.w.castSkill(f.p,id,east,undefined,{x:f.p.x,z:f.p.z}):cast(f,id);
+  const mana=f.p.mana;assert(castArea(),id);const attackId=f.p.attack.id;
+  assert.equal(f.p.mana,mana-skill.manaCost);assert.equal(castArea(),false,`${id} must not start a parallel attack`);assert.equal(f.p.attack.id,attackId);assert.equal(f.p.mana,mana-skill.manaCost);
+  settle(f);assert.equal(f.p.skillCooldowns[id],0);assert(castArea(),`${id} must repeat as soon as its animation recovers`);
  }
 });
 test('new self-centred area casts ignore a distant hovered enemy without moving or extending reach',()=>{

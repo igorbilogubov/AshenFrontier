@@ -10,7 +10,7 @@ const largeAreas={
   mage:'mage-arcane-nova'
 };
 
-test('every class has a level-20 large-area skill with a deliberately low per-target ceiling',()=>{
+test('every class has a level-20 large-area skill with a deliberately low per-target ceiling and no cooldown',()=>{
   assert.equal(Object.keys(SKILLS).length,39);
   for(const classId of classes){
     const skills=skillsForClass(classId),skill=SKILLS[largeAreas[classId]];
@@ -20,9 +20,10 @@ test('every class has a level-20 large-area skill with a deliberately low per-ta
     assert.equal(skill.unlockLevel,20);
     assert(skill.maxTargets>=10,`${skill.id} must feel massive`);
     assert(skill.damageScale<=.6,`${skill.id} must trade per-target damage for reach`);
-    assert(skill.manaCost>=26&&skill.cooldown>=12,`${skill.id} must have a meaningful resource window`);
+    assert(skill.manaCost>=26,`${skill.id} must have a meaningful mana cost`);
+    assert.equal(skill.cooldown,0,`${skill.id} must be limited by animation and mana, not a timer`);
     assert(skill.damageScale*skill.maxTargets>=5,`${skill.id} must reward a genuinely large pack`);
-    assert(skill.damageScale*skill.maxTargets/(skill.durationScale+skill.cooldown)<.5,`${skill.id} total ceiling is too high`);
+    assert(skill.damageScale*skill.maxTargets<=6,`${skill.id} total ceiling is too high`);
   }
   assert(SKILLS['warrior-earthquake'].range>=5);
   assert(SKILLS['archer-arrow-storm'].radius>=5);

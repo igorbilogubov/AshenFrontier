@@ -5,6 +5,7 @@ import {actionIcon} from './action-icons.js';
 import {bindInventoryInteractions} from './inventory-interactions.js';
 import {CLASSES,EQUIPMENT_SLOTS,BAG_CAPACITY,backpackItems,itemBonus,STAT_KEYS,STAT_DEFINITIONS,CLASS_PROGRESSION,characterStats} from '../rules.js';
 import {backpackUsage,consumableDefinition} from './consumables.js';
+import {consumableArtwork,consumableTier} from './consumable-ui.js';
 import {safe} from './location.js';
 import {itemIcon,itemArtwork,itemArtKey,heroSilhouette} from './item-icons.js';
 import {element as $} from './ui-types.js';
@@ -70,10 +71,11 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
   }
   const derivedDefinitions:[DerivedStat,string,(value:number)=>string][]=[
     ['attack','Урон',format],['attackSpeed','Ускорение атак',percent],['armor','Защита',format],['hitChance','Шанс попадания',percent],['damageReduction','Снижение урона',percent],
-    ['maxHp','Здоровье',format],['hpRegen','HP вне боя',value=>`${displayRegen.format(value)} / с`],['maxMana','Мана',format],['manaRegen','Реген. маны',value=>`${displayRegen.format(value)} / с`]
+    ['maxHp','Здоровье',format],['hpRegen','Реген. HP',value=>`${displayRegen.format(value)} / с`],['maxMana','Мана',format],['manaRegen','Реген. маны',value=>`${displayRegen.format(value)} / с`]
   ];
   for(const [key,label,formatter] of derivedDefinitions){
     const cell=document.createElement('div'),term=document.createElement('dt'),value=document.createElement('dd');cell.className='derived-stat';term.textContent=label;
+    if(key==='hpRegen')cell.title='Вне боя действует показанная скорость восстановления HP. В бою здоровье восстанавливается в 3 раза медленнее.';
     const before=document.createElement('span'),arrow=document.createElement('span'),after=document.createElement('span');arrow.className='arrow';arrow.textContent='→';after.className='after';value.append(before,arrow,after);cell.append(term,value);$('derived-stats').append(cell);derivedNodes.set(key,{before,arrow,after,formatter});
   }
   $('stat-cancel').onclick=()=>{if(!pending){clearDraft();updateStats();}};
@@ -172,7 +174,7 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
       nodes.button.dataset.itemId=item?.id||'';nodes.button.dataset.consumableId=stack?.id||'';nodes.button.dataset.consumableDefinition=stack?.definitionId||'';
       nodes.button.className=`bag-cell${item?' rarity-'+(item.rarity||0):stack?' consumable-cell':' empty'}`;
       nodes.button.setAttribute('aria-label',item?`${item.name}, ${itemBonus(item)}`:stack?`${definition?.name||'Зелье'}, ${stack.quantity} шт. Перетащите на Q или W`:`Пустая ячейка ${index+1}`);nodes.button.disabled=false;
-      if(item){nodes.icon.hidden=false;setIcon(nodes.icon,item.slot,item.classId||p.classId,item);}else if(stack){nodes.icon.hidden=false;nodes.icon.dataset.icon='';nodes.icon.innerHTML=`<span class="potion-icon"></span><b class="stack-count"></b>`;nodes.icon.querySelector('.potion-icon')!.innerHTML=actionIcon(definition?.kind==='mana'?'mana-potion':'potion');nodes.icon.querySelector('.stack-count')!.textContent=String(stack.quantity);}else{nodes.icon.hidden=true;nodes.icon.dataset.icon='';}
+      if(item){nodes.icon.hidden=false;setIcon(nodes.icon,item.slot,item.classId||p.classId,item);}else if(stack&&definition){const tier=consumableTier(definition.id);nodes.icon.hidden=false;nodes.icon.dataset.icon='';nodes.icon.innerHTML=`<span class="potion-icon consumable-tier-${tier.rank}"></span><b class="stack-count"></b>`;nodes.icon.querySelector('.potion-icon')!.innerHTML=consumableArtwork(definition);nodes.icon.querySelector('.stack-count')!.textContent=String(stack.quantity);}else{nodes.icon.hidden=true;nodes.icon.dataset.icon='';}
     });
     $('claim-items').hidden=!p.pendingItems?.length;write($('claim-items'),`Забрать ожидающие вещи · ${p.pendingItems?.length||0}`);$('claim-items').disabled=!editable||usage>=BAG_CAPACITY;
   }

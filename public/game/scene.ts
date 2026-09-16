@@ -14,6 +14,7 @@ import {createMob,loadMobAssets,type MobAssets} from './mobs.js';
 import {createEnvironment} from './environment.js';
 import {assignedConsumable,consumableQuantity} from './consumables.js';
 import {actionIcon} from './action-icons.js';
+import {consumableArtwork,consumableTier} from './consumable-ui.js';
 import {createWorldInteractions} from './world-interactions.js';
 import {drawWorldMapBackdrop} from './minimap-world.js';
 import {WORLD_CLEARINGS,boundsForPosition,locationAt,sameLocation} from './world-layout.js';
@@ -247,7 +248,9 @@ function updateUI(){
   for(const [slot,id,countId] of [['q','potion','potions'],['w','mana-potion','mana-potions']] as const){
     const button=$(id) as HTMLButtonElement,definition=assignedConsumable(hero,slot),count=definition?consumableQuantity(hero,definition.id):0;
     $(countId).textContent=String(count);button.classList.toggle('quick-empty',!definition);button.classList.toggle('quick-unavailable',!game.connected||!!hero.dead||!definition||count===0||!!(definition?.kind==='mana'?hero.manaPotionCooldown:hero.potionCooldown)||!!definition&&(definition.kind==='mana'?hero.mana>=hero.maxMana:hero.hp>=hero.maxHp));
-    const art=button.querySelector<HTMLElement>('.potion-icon')!;const iconKey=definition?definition.kind==='mana'?'mana-potion':'potion':'empty';if(art.dataset.icon!==iconKey){art.innerHTML=definition?actionIcon(iconKey):'<svg viewBox="0 0 64 64" aria-hidden="true" focusable="false"><path d="M25 8h14v13c0 5 13 14 13 24 0 18-40 18-40 0 0-10 13-19 13-24Z" fill="none" stroke="#a8afa5" stroke-width="3" stroke-dasharray="4 3"/><path d="M23 6h18v9H23Z" fill="none" stroke="#a8afa5" stroke-width="3"/></svg>';art.dataset.icon=iconKey;}
+    const art=button.querySelector<HTMLElement>('.potion-icon')!,tier=definition?consumableTier(definition.id):undefined,iconKey=definition?definition.id:'empty';
+    if(art.dataset.icon!==iconKey){art.innerHTML=definition?consumableArtwork(definition):'<svg viewBox="0 0 64 64" aria-hidden="true" focusable="false"><path d="M25 8h14v13c0 5 13 14 13 24 0 18-40 18-40 0 0-10 13-19 13-24Z" fill="none" stroke="#a8afa5" stroke-width="3" stroke-dasharray="4 3"/><path d="M23 6h18v9H23Z" fill="none" stroke="#a8afa5" stroke-width="3"/></svg>';art.dataset.icon=iconKey;}
+    button.dataset.consumableTier=tier?.label||'';
     button.querySelector('.action-name')!.textContent=definition?definition.kind==='hp'?'HP':'MP':'Пусто';
     button.querySelector('small')!.textContent=definition?definition.name:'Зелье';
     button.title=definition?`${definition.name} · ${count} шт. · восстановить ${definition.restore} ${definition.kind==='hp'?'HP':'MP'} · ${slot.toUpperCase()} · перетащите другое зелье для замены`:`${slot.toUpperCase()}: пустой слот · перетащите зелье из рюкзака`;

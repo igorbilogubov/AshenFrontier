@@ -1,3 +1,119 @@
-#afk-settings-toggle{pointer-events:auto;border:1px solid #af9a6659;background:#14251fdd;color:#e0c58f;border-radius:3px;padding:2px 7px;font-size:15px;line-height:1;min-height:23px}#afk-settings-toggle:hover,#afk-settings-toggle[aria-expanded='true']{background:#4b4732;border-color:#e4bf78}#afk-settings-toggle:focus-visible,.afk-settings-panel button:focus-visible,.afk-settings-panel input:focus-visible{outline:2px solid #f2d38d;outline-offset:2px}
-.afk-settings-panel{position:fixed;right:18px;bottom:196px;z-index:35;width:min(365px,calc(100vw - 36px));max-height:min(68dvh,590px);display:flex;flex-direction:column;overflow:hidden;background:linear-gradient(145deg,#2f392d,#0c1715 70%);border:1px solid #b8a06b;box-shadow:0 0 0 3px #07110f,0 16px 50px #000b;color:#dfdfcb;font:11px/1.45 system-ui}.afk-settings-panel[hidden]{display:none}.afk-settings-heading{display:flex;align-items:start;justify-content:space-between;padding:13px 16px 8px;border-bottom:1px solid #bba47055}.afk-settings-heading .eyebrow{margin:0;font-size:7px}.afk-settings-heading h2{font:23px/1.2 Georgia,serif;color:#f0dfb8;margin:1px 0}.afk-settings-close{background:transparent;border:0;color:#d5c69d;font-size:24px;line-height:1;padding:0 3px}.afk-settings-scroll{overflow:auto;padding:4px 16px 10px}.afk-settings-panel section{padding:10px 0;border-bottom:1px solid #ad976a36}.afk-settings-panel section:last-child{border-bottom:0}.afk-settings-panel h3{font:15px/1.2 Georgia,serif;color:#e4c898;margin:0 0 7px}.afk-settings-panel label{cursor:pointer}.afk-settings-panel input[type=checkbox]{accent-color:#c5a66a;vertical-align:middle}.afk-settings-panel input[type=number]{width:50px;padding:3px 4px;background:#172923;border:1px solid #8c9b765c;border-radius:2px;color:#e9dfca;font:11px system-ui}.afk-settings-panel input[type=range]{accent-color:#c5a66a;flex:1;min-width:0}.afk-settings-panel small,.afk-help{display:block;color:#aebaa8;font-size:9px;line-height:1.5;margin:6px 0 0}.afk-check{display:block;margin:6px 0}.afk-rarities{display:flex;gap:11px;flex-wrap:wrap;margin:7px 0}.afk-rarities .rarity-filter-1{color:#aacb96}.afk-rarities .rarity-filter-2{color:#8ac5e9}.afk-rarities .rarity-filter-3{color:#e3b84f}.afk-rarities .rarity-filter-4{color:#c58aeb}.afk-threshold{display:flex;align-items:center;gap:6px;margin:6px 0}.afk-threshold label{flex:1}.afk-skill-order{display:flex;flex-direction:column;gap:4px;margin:8px 0 10px}.afk-skill-row{display:flex;align-items:center;gap:4px;background:#1d3026a8;border:1px solid #80966b35;padding:4px 5px}.afk-skill-row label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.afk-order-actions{display:flex;gap:2px}.afk-order-actions button{background:#2a3d2f;border:1px solid #b39c6470;padding:1px 7px;color:#dcc99e}.afk-order-actions button:disabled{opacity:.3}.afk-radius{display:flex;align-items:center;gap:9px}.afk-radius output{width:42px;text-align:right;font-variant-numeric:tabular-nums;color:#e8cf9a}.afk-settings-footer{padding:8px 16px 12px;border-top:1px solid #bba47055;display:flex;align-items:center;gap:10px}.afk-settings-footer p{flex:1;font-size:9px;color:#b9c5ad;margin:0;min-height:24px}.afk-settings-footer button{border:1px solid #c7a76c;background:#6c6139;color:#f8e7bb;padding:6px 10px;font-size:10px}.afk-settings-footer button:disabled{opacity:.45}
-@media(max-width:600px){.afk-settings-panel{right:10px;left:10px;width:auto;bottom:255px;max-height:calc(100dvh - 278px)}.afk-settings-heading{padding:9px 12px 6px}.afk-settings-scroll{padding:4px 12px 8px}.afk-settings-footer{padding:6px 12px 9px}.afk-settings-panel section{padding:7px 0}}
+#afk-settings-toggle {
+  pointer-events: auto;
+  border: 1px solid #af9a6659;
+  background: #14251fdd;
+  color: #e0c58f;
+  border-radius: 3px;
+  padding: 2px 7px;
+  font-size: 15px;
+  line-height: 1;
+  min-height: 23px;
+}
+
+#afk-settings-toggle:hover,
+#afk-settings-toggle[aria-expanded='true'] {
+  background: #4b4732;
+  border-color: #e4bf78;
+}
+
+#afk-settings-toggle:focus-visible,
+.afk-settings-panel button:focus-visible,
+.afk-settings-panel input:focus-visible {
+  outline: 2px solid #f2d38d;
+  outline-offset: 2px;
+}
+
+.afk-settings-panel {
+  position: fixed;
+  right: 18px;
+  bottom: 196px;
+  z-index: 35;
+  width: min(365px, calc(100vw - 36px));
+  max-height: min(68dvh, 590px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: linear-gradient(145deg, #2f392d, #0c1715 70%);
+  border: 1px solid #b8a06b;
+  box-shadow: 0 0 0 3px #07110f, 0 16px 50px #000b;
+  color: #dfdfcb;
+  font: 11px/1.45 system-ui;
+}
+
+.afk-settings-panel[hidden] { display: none; }
+.afk-settings-heading { display: flex; align-items: start; justify-content: space-between; padding: 13px 16px 8px; border-bottom: 1px solid #bba47055; }
+.afk-settings-heading .eyebrow { margin: 0; font-size: 7px; }
+.afk-settings-heading h2 { font: 23px/1.2 Georgia, serif; color: #f0dfb8; margin: 1px 0; }
+.afk-settings-close { background: transparent; border: 0; color: #d5c69d; font-size: 24px; line-height: 1; padding: 0 3px; }
+.afk-settings-scroll { overflow: auto; min-height: 0; overscroll-behavior: contain; padding: 4px 16px 10px; }
+.afk-settings-panel section { padding: 10px 0; border-bottom: 1px solid #ad976a36; }
+.afk-settings-panel section:last-child { border-bottom: 0; }
+.afk-settings-panel h3 { font: 15px/1.2 Georgia, serif; color: #e4c898; margin: 0 0 7px; }
+.afk-settings-panel label { cursor: pointer; }
+
+/* scene.css gives every input width:100% and form-field padding. AFK checkboxes
+   are compact controls and must opt out so their text remains on the same row. */
+.afk-settings-panel input[type='checkbox'] {
+  box-sizing: border-box;
+  flex: 0 0 14px;
+  width: 14px;
+  height: 14px;
+  min-width: 14px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  accent-color: #c5a66a;
+}
+
+.afk-settings-panel input[type='number'] { width: 50px; padding: 3px 4px; background: #172923; border: 1px solid #8c9b765c; border-radius: 2px; color: #e9dfca; font: 11px system-ui; }
+.afk-settings-panel input[type='range'] { accent-color: #c5a66a; flex: 1; min-width: 0; }
+.afk-settings-panel small,
+.afk-help { display: block; color: #aebaa8; font-size: 9px; line-height: 1.5; margin: 6px 0 0; }
+
+.afk-check,
+.afk-rarities label,
+.afk-threshold label,
+.afk-skill-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.afk-check { margin: 6px 0; }
+.afk-rarities { display: flex; gap: 8px 11px; flex-wrap: wrap; margin: 7px 0; }
+.afk-rarities .rarity-filter-1 { color: #aacb96; }
+.afk-rarities .rarity-filter-2 { color: #8ac5e9; }
+.afk-rarities .rarity-filter-3 { color: #e3b84f; }
+.afk-rarities .rarity-filter-4 { color: #c58aeb; }
+.afk-threshold { display: flex; align-items: center; gap: 6px; margin: 6px 0; }
+.afk-threshold label { flex: 1; }
+.afk-skill-order { display: flex; flex-direction: column; gap: 4px; margin: 8px 0 10px; }
+.afk-skill-row { display: flex; align-items: center; gap: 7px; background: #1d3026a8; border: 1px solid #80966b35; padding: 4px 5px; }
+.afk-skill-row label { flex: 1; min-width: 0; }
+.afk-skill-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.afk-skills-empty { margin: 8px 0 10px; padding: 8px; border: 1px solid #80966b35; color: #aebaa8; font-size: 9px; line-height: 1.5; }
+.afk-order-actions { display: flex; flex: 0 0 auto; gap: 2px; }
+.afk-order-actions button { background: #2a3d2f; border: 1px solid #b39c6470; padding: 1px 7px; color: #dcc99e; }
+.afk-order-actions button:disabled { opacity: .3; }
+.afk-radius { display: flex; align-items: center; gap: 9px; }
+.afk-radius output { width: 42px; text-align: right; font-variant-numeric: tabular-nums; color: #e8cf9a; }
+.afk-settings-footer { flex: 0 0 auto; padding: 8px 16px 12px; border-top: 1px solid #bba47055; display: flex; align-items: center; gap: 10px; }
+.afk-settings-footer p { flex: 1 1 150px; font-size: 9px; color: #b9c5ad; margin: 0; min-height: 24px; overflow-wrap: anywhere; }
+.afk-settings-footer button { flex: 0 0 auto; border: 1px solid #c7a76c; background: #6c6139; color: #f8e7bb; padding: 6px 10px; font-size: 10px; }
+.afk-settings-footer button:disabled { opacity: .45; }
+
+@media (max-width: 600px) {
+  .afk-settings-panel { right: 10px; left: 10px; width: auto; bottom: 255px; max-height: calc(100dvh - 278px); }
+  .afk-settings-heading { padding: 9px 12px 6px; }
+  .afk-settings-scroll { padding: 4px 12px 8px; }
+  .afk-settings-footer { padding: 6px 12px 9px; }
+  .afk-settings-panel section { padding: 7px 0; }
+}
+
+@media (max-width: 380px) {
+  .afk-settings-footer { align-items: stretch; flex-wrap: wrap; }
+  .afk-settings-footer p { min-height: 0; }
+  .afk-settings-footer button { margin-left: auto; }
+}

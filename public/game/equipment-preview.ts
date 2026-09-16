@@ -1,6 +1,7 @@
 import * as T from './vendor/three.module.js';
 import {loadWarrior,CLIP_NAMES,type WarriorClip} from './character.js';
-import {CLASS_ITEMS,EQUIPMENT_ITEMS,rollEquipment,equipmentAppearance,itemDefinition} from './equipment-items.js';
+import {regionalEquipment,CLASS_ITEMS,EQUIPMENT_ITEMS,rollEquipment,equipmentAppearance,itemDefinition} from './equipment-items.js';
+import {REGIONAL_COLLECTIONS,type GearRegion} from './regional-equipment.js';
 import {renderItemRolls} from './item-details.js';
 import {characterStats,EQUIPMENT_SLOTS} from '../rules.js';
 import {itemArtwork} from './item-icons.js';
@@ -19,17 +20,18 @@ const rim=new T.Mesh(new T.TorusGeometry(1.23,.006,4,80),new T.MeshStandardMater
 const random=()=>crypto.getRandomValues(new Uint32Array(1))[0]/4294967296;
 const samples=new Map<string,Item>(EQUIPMENT_ITEMS.map(definition=>[definition.id,rollEquipment(definition.id,crypto.randomUUID(),random)]));
 const wardrobes:Record<ClassId,Equipment>={warrior:{},archer:{},mage:{}};let equipment=wardrobes.warrior;let selected='watch-armor',warrior:Awaited<ReturnType<typeof loadWarrior>>,clip:WarriorClip='Idle',elapsed=0,last=0,paused=false,feedback='';
-let previewClass:ClassId='warrior',loadSequence=0;
+let previewClass:ClassId='warrior',loadSequence=0;let previewRegion:GearRegion='forest',previewRarity:1|2=1;
+const previewItems=()=>regionalEquipment(previewClass,previewRegion,previewRarity);
 const models=new Map<ClassId,Awaited<ReturnType<typeof loadWarrior>>>();
 const buttons=new Map<string,HTMLButtonElement>();
-const source=()=>({classId:previewClass,level:1,items:[...samples.values()],equipment});
+const source=()=>({classId:previewClass,level:previewRegion==='forest'?1:REGIONAL_COLLECTIONS[previewRegion].level,items:[...samples.values()],equipment});
 const shortNames:Record<string,string>={weapon:'МЕЧ',armor:'ДОСПЕХ',helmet:'ГОЛОВА',boots:'САПОГИ',ring:'КОЛЬЦО',amulet:'АМУЛЕТ'};
 const classNames:Record<ClassId,string>={warrior:'Воин',archer:'Лучник',mage:'Маг'};
 const collections:Record<ClassId,readonly [string,string,string,string]>={warrior:['wanderer','watch','Странник','Дозорный'],archer:['ranger','sentinel','Следопыт','Лесной страж'],mage:['acolyte','runekeeper','Послушник','Хранитель рун']};
 function catalog(){
   $('catalog').replaceChildren();buttons.clear();
-  for(const definition of CLASS_ITEMS[previewClass]){const button=document.createElement('button');button.innerHTML=itemArtwork(samples.get(definition.id)!,previewClass);const label=document.createElement('small');label.textContent=definition.slot==='weapon'?(previewClass==='archer'?'ЛУК':previewClass==='mage'?'ПОСОХ':'МЕЧ'):shortNames[definition.slot];button.append(label);button.title=definition.name;button.setAttribute('aria-label',definition.name);button.onclick=()=>{selected=definition.id;feedback='';update();};$('catalog').append(button);buttons.set(definition.id,button);}
-  $('wear-light').textContent=collections[previewClass][2];$('wear-heavy').textContent=collections[previewClass][3];$('wardrobe-class').textContent=classNames[previewClass].toUpperCase()+' · УРОВЕНЬ 1';
+  for(const definition of previewItems()){const button=document.createElement('button');button.innerHTML=itemArtwork(samples.get(definition.id)!,previewClass);const label=document.createElement('small');label.textContent=definition.slot==='weapon'?(previewClass==='archer'?'ЛУК':previewClass==='mage'?'ПОСОХ':'МЕЧ'):shortNames[definition.slot];button.append(label);button.title=definition.name;button.setAttribute('aria-label',definition.name);button.onclick=()=>{selected=definition.id;feedback='';update();};$('catalog').append(button);buttons.set(definition.id,button);}
+  $('wear-light').textContent=previewRegion==='forest'?collections[previewClass][2]:REGIONAL_COLLECTIONS[previewRegion][previewClass][1];$('wear-heavy').textContent=collections[previewClass][3];$('wear-heavy').hidden=previewRegion!=='forest';$('wardrobe-class').textContent=classNames[previewClass].toUpperCase()+' · УРОВЕНЬ '+source().level;
 }
 catalog();
 function fit(){const {width,height}=canvas.getBoundingClientRect();renderer.setSize(width,height,false);camera.aspect=width/height;camera.updateProjectionMatrix();}
@@ -37,7 +39,7 @@ new ResizeObserver(fit).observe(canvas);fit();
 function update(){
   const item=samples.get(selected)!,definition=itemDefinition(selected)!,worn=equipment[item.slot]===item.id;
   for(const [id,button] of buttons){button.classList.toggle('selected',id===selected);button.classList.toggle('worn',Object.values(equipment).includes(samples.get(id)!.id));button.setAttribute('aria-pressed',String(id===selected));}
-  $('sample-icon').innerHTML=itemArtwork(item,previewClass);$('sample-kind').textContent='НЕОБЫЧНЫЙ · '+EQUIPMENT_SLOTS[item.slot].name.toUpperCase();$('sample-name').textContent=item.name;$('sample-worn').textContent=worn?'◆ Надето на манекен':classNames[previewClass]+' · от '+definition.level+'-го уровня';
+  $('sample-icon').innerHTML=itemArtwork(item,previewClass);$('sample-kind').textContent=(item.rarity===2?'РЕДКИЙ · ':'НЕОБЫЧНЫЙ · ')+EQUIPMENT_SLOTS[item.slot].name.toUpperCase();$('sample-name').textContent=item.name;$('sample-worn').textContent=worn?'◆ Надето на манекен':classNames[previewClass]+' · от '+definition.level+'-го уровня';
   renderItemRolls($('sample-rolls'),item,[...samples.values()].find(other=>other.id===equipment[item.slot]));
   $('sample-equip').textContent=worn?'Снять':'Надеть';$('sample-feedback').textContent=feedback||'Каждая находка получает свои значения в указанном диапазоне.';
   const stats=characterStats(source()),values:[string,string][]=[['Урон',stats.attack.toFixed(1)],['Защита',stats.armor.toFixed(1)],['Здоровье',String(stats.maxHp)],['Мана',String(stats.maxMana)],['Попадание',(stats.hitChance*100).toFixed(1)+'%'],['Скорость атак','+'+Math.round(stats.attackSpeed*100)+'%']];
@@ -46,7 +48,7 @@ function update(){
 }
 function preset(kind:'wanderer'|'watch'|'none'){
   for(const key of Object.keys(equipment) as (keyof Equipment)[])delete equipment[key];
-  if(kind!=='none')for(const definition of CLASS_ITEMS[previewClass])if(definition.id.startsWith(collections[previewClass][kind==='wanderer'?0:1])||definition.slot==='ring'||definition.slot==='amulet')equipment[definition.slot]=samples.get(definition.id)!.id;
+  if(kind!=='none')for(const definition of previewItems())if(previewRegion!=='forest'||definition.id.startsWith(collections[previewClass][kind==='wanderer'?0:1])||definition.slot==='ring'||definition.slot==='amulet')equipment[definition.slot]=samples.get(definition.id)!.id;
   for(const [id,value] of [['wear-light','wanderer'],['wear-heavy','watch'],['wear-none','none']])$(id).classList.toggle('active',value===kind);
   feedback='';update();
 }
@@ -63,7 +65,7 @@ try{await selectClass('warrior');$('class-preview').removeAttribute('disabled');
 }catch(error){$('render-status').textContent=errorMessage(error);console.error(error);}
 
 async function selectClass(classId:ClassId){
-  const sequence=++loadSequence;previewClass=classId;equipment=wardrobes[classId];selected=CLASS_ITEMS[classId].find(item=>item.slot==='armor')!.id;catalog();($('class-preview') as HTMLSelectElement).value=classId;
+  const sequence=++loadSequence;previewClass=classId;equipment=wardrobes[classId];selected=previewItems().find(item=>item.slot==='armor')!.id;catalog();($('class-preview') as HTMLSelectElement).value=classId;
   $('render-status').textContent='Загружаем модель…';
   try{
     const model=models.get(classId)??await loadWarrior(classId);models.set(classId,model);
@@ -79,3 +81,6 @@ async function selectClass(classId:ClassId){
 }
 $('class-preview').onchange=()=>{const value=($('class-preview') as HTMLSelectElement).value;if(value==='warrior'||value==='archer'||value==='mage')void selectClass(value);};
 $('back-to-warrior').onclick=()=>void selectClass('warrior');
+
+function selectCollection(){previewRegion=($('region-preview') as HTMLSelectElement).value as GearRegion;previewRarity=Number(($('rarity-preview') as HTMLSelectElement).value) as 1|2;selected=previewItems().find(item=>item.slot==='armor')!.id;catalog();preset('wanderer');}
+$('region-preview').onchange=selectCollection;$('rarity-preview').onchange=selectCollection;

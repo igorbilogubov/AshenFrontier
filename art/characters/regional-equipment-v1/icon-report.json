@@ -1,0 +1,258 @@
+{
+  "generator": "Blender 5.2.1 LTS",
+  "size": 256,
+  "icons": [
+    {
+      "id": "frostguard-weapon-v1",
+      "parts": [
+        "Weapon_WatchSword"
+      ],
+      "bytes": 33508
+    },
+    {
+      "id": "frostguard-armor-v1",
+      "parts": [
+        "IconTorso_frostguard"
+      ],
+      "bytes": 68099
+    },
+    {
+      "id": "frostguard-helmet-v1",
+      "parts": [
+        "Helmet"
+      ],
+      "bytes": 58857
+    },
+    {
+      "id": "frostguard-boots-v1",
+      "parts": [
+        "Boots"
+      ],
+      "bytes": 44129
+    },
+    {
+      "id": "frostguard-ring-v1",
+      "parts": [
+        "Copper_Ring"
+      ],
+      "bytes": 42426
+    },
+    {
+      "id": "frostguard-amulet-v1",
+      "parts": [
+        "Ember_Amulet"
+      ],
+      "bytes": 39664
+    },
+    {
+      "id": "snowhunter-weapon-v1",
+      "parts": [
+        "sentinel-bow"
+      ],
+      "bytes": 35084
+    },
+    {
+      "id": "snowhunter-armor-v1",
+      "parts": [
+        "IconTorso_snowhunter"
+      ],
+      "bytes": 61269
+    },
+    {
+      "id": "snowhunter-helmet-v1",
+      "parts": [
+        "sentinel-hood"
+      ],
+      "bytes": 56810
+    },
+    {
+      "id": "snowhunter-boots-v1",
+      "parts": [
+        "sentinel-boots"
+      ],
+      "bytes": 62053
+    },
+    {
+      "id": "snowhunter-ring-v1",
+      "parts": [
+        "hawk-ring"
+      ],
+      "bytes": 43661
+    },
+    {
+      "id": "snowhunter-amulet-v1",
+      "parts": [
+        "leaf-amulet"
+      ],
+      "bytes": 36885
+    },
+    {
+      "id": "winterweaver-weapon-v1",
+      "parts": [
+        "runekeeper-staff"
+      ],
+      "bytes": 31460
+    },
+    {
+      "id": "winterweaver-armor-v1",
+      "parts": [
+        "IconTorso_winterweaver"
+      ],
+      "bytes": 62468
+    },
+    {
+      "id": "winterweaver-helmet-v1",
+      "parts": [
+        "runekeeper-crown"
+      ],
+      "bytes": 41359
+    },
+    {
+      "id": "winterweaver-boots-v1",
+      "parts": [
+        "runekeeper-boots"
+      ],
+      "bytes": 61931
+    },
+    {
+      "id": "winterweaver-ring-v1",
+      "parts": [
+        "rune-ring"
+      ],
+      "bytes": 44663
+    },
+    {
+      "id": "winterweaver-amulet-v1",
+      "parts": [
+        "moon-amulet"
+      ],
+      "bytes": 38086
+    },
+    {
+      "id": "obsidian-weapon-v1",
+      "parts": [
+        "Weapon_WatchSword"
+      ],
+      "bytes": 32606
+    },
+    {
+      "id": "obsidian-armor-v1",
+      "parts": [
+        "IconTorso_obsidian"
+      ],
+      "bytes": 65342
+    },
+    {
+      "id": "obsidian-helmet-v1",
+      "parts": [
+        "Helmet"
+      ],
+      "bytes": 57890
+    },
+    {
+      "id": "obsidian-boots-v1",
+      "parts": [
+        "Boots"
+      ],
+      "bytes": 42801
+    },
+    {
+      "id": "obsidian-ring-v1",
+      "parts": [
+        "Copper_Ring"
+      ],
+      "bytes": 43389
+    },
+    {
+      "id": "obsidian-amulet-v1",
+      "parts": [
+        "Ember_Amulet"
+      ],
+      "bytes": 39767
+    },
+    {
+      "id": "ashranger-weapon-v1",
+      "parts": [
+        "sentinel-bow"
+      ],
+      "bytes": 35195
+    },
+    {
+      "id": "ashranger-armor-v1",
+      "parts": [
+        "IconTorso_ashranger"
+      ],
+      "bytes": 61157
+    },
+    {
+      "id": "ashranger-helmet-v1",
+      "parts": [
+        "sentinel-hood"
+      ],
+      "bytes": 56668
+    },
+    {
+      "id": "ashranger-boots-v1",
+      "parts": [
+        "sentinel-boots"
+      ],
+      "bytes": 61975
+    },
+    {
+      "id": "ashranger-ring-v1",
+      "parts": [
+        "hawk-ring"
+      ],
+      "bytes": 44441
+    },
+    {
+      "id": "ashranger-amulet-v1",
+      "parts": [
+        "leaf-amulet"
+      ],
+      "bytes": 37014
+    },
+    {
+      "id": "ashseer-weapon-v1",
+      "parts": [
+        "runekeeper-staff"
+      ],
+      "bytes": 31559
+    },
+    {
+      "id": "ashseer-armor-v1",
+      "parts": [
+        "IconTorso_ashseer"
+      ],
+      "bytes": 61128
+    },
+    {
+      "id": "ashseer-helmet-v1",
+      "parts": [
+        "runekeeper-crown"
+      ],
+      "bytes": 41181
+    },
+    {
+      "id": "ashseer-boots-v1",
+      "parts": [
+        "runekeeper-boots"
+      ],
+      "bytes": 61305
+    },
+    {
+      "id": "ashseer-ring-v1",
+      "parts": [
+        "rune-ring"
+      ],
+      "bytes": 44579
+    },
+    {
+      "id": "ashseer-amulet-v1",
+      "parts": [
+        "moon-amulet"
+      ],
+      "bytes": 37832
+    }
+  ]
+}

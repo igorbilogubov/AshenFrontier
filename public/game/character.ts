@@ -1,4 +1,5 @@
 import {createBowPresentation} from './bow-presentation.js';
+import {createRegionalEquipmentVisuals} from './regional-equipment-visuals.js';
 import {createSkillMotion} from './skill-motion.js';
 import {createCharacterSkillCharge} from './character-skill-charge.js';
 import {createCombatAnimator,loadCombatClips} from './combat-clips.js';
@@ -101,8 +102,10 @@ export function createAnimatedWarrior(gltf:{scene:T.Object3D;animations:T.Animat
   const weights=Object.fromEntries(CLIP_NAMES.map(n=>[n,n==='Idle'?1:0]));
   const parts=Object.fromEntries(['Base_Body','Base_Head','Base_Feet','Traveller_Armor','Traveller_Hood','Traveller_Boots','Traveller_Limbs','Traveller_Coif','Traveller_Cape','Weapon_WatchSword','Copper_Ring','Ember_Amulet','Armor_Body','Helmet','Boots','Cape','Class_Base_Body','Class_Base_Head','Class_Base_Boots','Class_Base_Hair',...CLASS_ITEMS.archer.map(item=>item.appearance),...CLASS_ITEMS.mage.map(item=>item.appearance)].map(name=>[name,model.getObjectByName(name)]));
   let appearanceKey='';
-  function equipment(weapon:WeaponId,classId:ClassId='warrior',appearance?:ItemAppearance){
-    const key=JSON.stringify([weapon,classId,appearance]);if(key===appearanceKey)return;appearanceKey=key;
+  const regionalVisuals=createRegionalEquipmentVisuals(model);
+  function equipment(weapon:WeaponId,classId:ClassId='warrior',rawAppearance?:ItemAppearance){
+    const key=JSON.stringify([weapon,classId,rawAppearance]);if(key===appearanceKey)return;appearanceKey=key;
+    const appearance=regionalVisuals(rawAppearance,classId);
     const show=(name:string,visible:boolean)=>{if(parts[name])parts[name]!.visible=visible;};
     if(classId!=='warrior'&&parts.Class_Base_Body){
       const catalog=CLASS_ITEMS[classId];

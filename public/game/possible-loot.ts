@@ -1,4 +1,4 @@
-import {CLASS_ITEMS,RARE_CLASS_ITEMS,rollEquipment} from './equipment-items.js';
+import {regionalEquipment,rollEquipment} from './equipment-items.js';
 import {mobConfig} from './location.js';
 import {GEAR_CHANCE,ELITE_GEAR_CHANCE,ELITE_RARE_CHANCE} from './loot-rules.js';
 import type {EquipmentSlot,MobType} from '../../shared/types.js';
@@ -16,6 +16,7 @@ export interface PossibleLoot {
   itemChance:number;
   categories:readonly PossibleLootCategory[];
 }
+export const lootRegionForType=(type:MobType)=>['ash-jackal','scorpion','monitor-lizard','scarab'].includes(type)?'wasteland':['lynx','yak','frost-spider','ice-golem'].includes(type)?'snow':'forest';
 
 const GROUPS:Readonly<Record<Exclude<LootCategoryId,'gold'>,readonly EquipmentSlot[]>>=Object.freeze({
   weapon:['weapon'],armor:['armor','helmet','boots'],accessory:['ring','amulet']
@@ -28,7 +29,7 @@ const LABELS:Readonly<Record<LootCategoryId,string>>=Object.freeze({
 export function possibleLoot(type:MobType,eliteId?:string):PossibleLoot{
   const categories:PossibleLootCategory[]=[{id:'gold',name:LABELS.gold,rarity:'gold',slots:[]}];
   for(const id of ['weapon','armor','accessory'] as const){
-    const slots=GROUPS[id],definitions=[...Object.values(CLASS_ITEMS).flat(),...(eliteId?Object.values(RARE_CLASS_ITEMS).flat():[])].filter(item=>slots.includes(item.slot));
+    const slots=GROUPS[id],region=lootRegionForType(type),definitions=(['warrior','archer','mage'] as const).flatMap(classId=>[...regionalEquipment(classId,region,1),...(eliteId?regionalEquipment(classId,region,2):[])]).filter(item=>slots.includes(item.slot));
     if(!definitions.length)continue;
     // The actual server roll establishes today's rarity. Keep the badge tied to
     // that result rather than promising a future rarity not in the drop table.

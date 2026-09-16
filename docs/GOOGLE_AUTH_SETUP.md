@@ -27,6 +27,6 @@
 
 ## Изолированные проверки
 
-`test/google-auth.test.mjs` использует настоящие RSA-подписи и локальный JWKS без Google-аккаунтов/production-БД. Покрыты выдача/повтор OAuth-состояния, отсутствие cookie-привязки, nonce, email verification, authorized party, audience, issuer, expiry, выход/CSRF, отсутствие настройки, дубликаты cookie и истечение сессии. Полная интеграционная проверка выполняется координатором после объединения модуля с HTTP/WS и PostgreSQL.
+`test/google-auth.test.mjs` использует настоящие RSA-подписи и локальный JWKS без Google-аккаунтов/production-БД. Покрыты выдача/повтор OAuth-состояния, отсутствие cookie-привязки, nonce, email verification, authorized party, audience, issuer, expiry, неверная подпись, выход/CSRF, отсутствие настройки, дубликаты cookie и истечение сессии. Полная интеграционная проверка выполняется координатором после объединения модуля с HTTP/WS и PostgreSQL.
 
 Основа протокола: [Google OpenID Connect](https://developers.google.com/identity/openid-connect/openid-connect), [jose](https://github.com/panva/jose).

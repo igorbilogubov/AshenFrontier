@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {createLocalJWKSet, exportJWK, generateKeyPair, SignJWT} from 'jose';
 import {createGoogleAuth} from '../dist/auth/google.js';
 const {privateKey,publicKey}=await generateKeyPair('RS256');
+const {privateKey:wrongPrivateKey}=await generateKeyPair('RS256');
 const jwk=await exportJWK(publicKey);jwk.kid='test';
 const keys=createLocalJWKSet({keys:[jwk]});
 const response=()=>({headers:{},status:0,body:'',getHeader(k){return this.headers[k];},setHeader(k,v){this.headers[k]=v;},writeHead(s,h){this.status=s;Object.assign(this.headers,h);},end(body=''){this.body=body;}});
@@ -12,7 +13,7 @@ function fixture(overrides={}) {
  const auth=createGoogleAuth(store,{publicOrigin:'https://game.example.com',clientId:'test-client',clientSecret:'private',provider:{keys,fetch:async(_url,opts)=>{
    assert.equal(opts.body.get('grant_type'),'authorization_code');
    assert.equal(opts.body.get('redirect_uri'),'https://game.example.com/auth/google/callback');
-   const token=await new SignJWT({nonce:flow.searchParams.get('nonce'),email:'test@example.com',email_verified:true,name:'Test',...claims}).setProtectedHeader({alg:'RS256',kid:'test'}).setIssuer(claims.iss??'https://accounts.google.com').setAudience(claims.aud??'test-client').setSubject('google-subject').setIssuedAt().setExpirationTime(claims.exp??'5m').sign(privateKey);
+   const token=await new SignJWT({nonce:flow.searchParams.get('nonce'),email:'test@example.com',email_verified:true,name:'Test',...claims}).setProtectedHeader({alg:'RS256',kid:'test'}).setIssuer(claims.iss??'https://accounts.google.com').setAudience(claims.aud??'test-client').setSubject('google-subject').setIssuedAt().setExpirationTime(claims.exp??'5m').sign(claims.badSignature?wrongPrivateKey:privateKey);
    return new Response(JSON.stringify({id_token:token}),{status:200});
  }},...overrides});
  return {auth,sessions,accounts,setClaims(v){claims=v;},async start(){const res=response();await auth.handle({url:'/auth/google',method:'GET',headers:{}},res);flow=new URL(res.headers.Location);return {state:flow.searchParams.get('state'),cookie:res.headers['Set-Cookie'][0].split(';')[0],url:flow};},async callback(start,headers={}){const res=response();await auth.handle({url:'/auth/google/callback?code=test-code&state='+start.state,method:'GET',headers:{cookie:start.cookie,...headers}},res);return res;}};
@@ -28,7 +29,7 @@ test('Google flow validates signed identity, binds browser and issues persistent
 test('Callback without browser binding is rejected without consuming legitimate flow',async()=>{
  const f=fixture(),start=await f.start();assert.equal((await f.callback(start,{cookie:''})).headers.Location,'/?auth_error=invalid_state');assert.equal(f.accounts.length,0);assert.equal((await f.callback(start)).headers.Location,'/');
 });
-for(const [name,claims] of [['nonce',{nonce:'forged'}],['email verification',{email_verified:false}],['authorized party',{azp:'other-client'}],['audience',{aud:'other-client'}],['issuer',{iss:'https://evil.example'}],['expiry',{exp:1}]])test('Rejects invalid '+name,async()=>{
+for(const [name,claims] of [['nonce',{nonce:'forged'}],['email verification',{email_verified:false}],['authorized party',{azp:'other-client'}],['audience',{aud:'other-client'}],['issuer',{iss:'https://evil.example'}],['expiry',{exp:1}],['signature',{badSignature:true}]])test('Rejects invalid '+name,async()=>{
  const f=fixture();f.setClaims(claims);assert.equal((await f.callback(await f.start())).headers.Location,'/?auth_error=login_failed');assert.equal(f.sessions.size,0);
 });
 test('Logout requires same origin and revokes session',async()=>{

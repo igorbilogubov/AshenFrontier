@@ -17,6 +17,7 @@
     "stress:report": "node scripts/performance-report.mjs"
   },
   "dependencies": {
+    "jose": "^6.1.3",
     "pg": "^8.23.0",
     "ws": "^8.18.3"
   },

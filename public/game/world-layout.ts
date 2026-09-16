@@ -1,12 +1,13 @@
+import {SNOW_BOUNDS,inSnow} from './snow.js';
 import type {Position} from './motion.js';
 import type {MobType} from '../../shared/types.js';
 import {STADIUM_BOUNDS,inStadium} from './stadium.js';
 
 /** Shared metres: terrain, server bounds, roads and minimap read this layout. */
 export const WORLD_BOUNDS=Object.freeze({minX:-37,maxX:73,minZ:-45,maxZ:45});
-export type LocationId='forest'|'stadium';
-export const locationAt=(point:Position):LocationId=>inStadium(point)?'stadium':'forest';
-export const boundsForPosition=(point:Position)=>inStadium(point)?STADIUM_BOUNDS:WORLD_BOUNDS;
+export type LocationId='forest'|'stadium'|'snow';
+export const locationAt=(point:Position):LocationId=>inSnow(point)?'snow':inStadium(point)?'stadium':'forest';
+export const boundsForPosition=(point:Position)=>inSnow(point)?SNOW_BOUNDS:inStadium(point)?STADIUM_BOUNDS:WORLD_BOUNDS;
 export const sameLocation=(a:Position,b:Position)=>locationAt(a)===locationAt(b);
 export interface WorldClearing extends Position {readonly id:string;readonly name:string;readonly radius:number;readonly tint:string}
 export const WORLD_CLEARINGS:readonly Readonly<WorldClearing>[]=Object.freeze([
@@ -30,7 +31,7 @@ export const WORLD_ROADS:readonly Readonly<WorldRoad>[]=Object.freeze([
   road('southern-loop',5.8,[[.5,4],[-2.5,5.5],[-5,13],[-12,25],[5,30],[23,24],[32,16],[32,7],[30,1.85]]),
   road('western-crossing',4.8,[[-25,5],[-26,18],[-12,25]]),
   road('northern-frontier',5.4,[[4,-26],[25,-33],[48,-25],[63,-13],[59,5],[49,23],[23,24]]),
-  road('eastern-crossing',5.6,[[35,1],[46,1],[59,5]]),
+  road('eastern-crossing',5.6,[[35,1],[46,1],[59,5],[69,5]]),
   road('ridge-approach',5,[[35,1],[38,-11],[48,-25]]),
   road('wolf-approach',3.8,[[11.4,1.26],[12.7,-4.8],[12.7,-8.2]]),
   road('boar-approach',3.8,[[21,.23],[22.2,5.7],[23,9.3],[26,14],[23,24]]),

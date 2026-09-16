@@ -1,3 +1,4 @@
+import {SNOW_OBSTACLES} from './snow.js';
 import {CAMP_OBSTACLES,campSafe,insideHouse} from './camp-layout.js';
 import {STADIUM_OBSTACLES} from './stadium.js';
 import type { Obstacle } from './motion.js';
@@ -64,6 +65,7 @@ export const OBSTACLES:readonly Readonly<Obstacle>[]=Object.freeze([
   ...[[8.5,-8,.85],[14,10,.9],[18.5,6.5,.65],[20,-10,1.1],[29,8,.8],[10,-11,.6]].map(([x,z,r])=>({x,z,r:r*.8})),
   ...LANDMARK_OBSTACLES,
   ...STADIUM_OBSTACLES,
+  ...SNOW_OBSTACLES,
   ...trees.filter(t=>t.solid).map(({x,z})=>({x,z,r:.32}))
 ].map(o=>Object.freeze(o)));
 

@@ -8,7 +8,7 @@ import {OBSTACLES,TREE_POSITIONS} from '../dist/public/game/terrain.js';
 
 test('the region grows to 9900 square metres and every creature has a body-safe home',()=>{
   assert.equal((BOUNDS.maxX-BOUNDS.minX)*(BOUNDS.maxZ-BOUNDS.minZ),9900);
-  assert.equal(SPAWNS.filter(p=>locationAt(p)==='forest').length,71);assert.equal(ROAMING_SPAWNS.length,10);assert.equal(EXTRA_ROAMING_SPAWNS.length,24);
+  assert.equal(SPAWNS.filter(p=>locationAt(p)==='forest').length,72);assert.equal(ROAMING_SPAWNS.length,10);assert.equal(EXTRA_ROAMING_SPAWNS.length,24);
   for(const spawn of SPAWNS)assert(stand(spawn.x,spawn.z,MOB_TYPES[spawn.type].radius),`blocked spawn ${spawn.x},${spawn.z}`);
   assert(TREE_POSITIONS.length<=370,'vegetation budget grew without a bound');
   for(const tree of TREE_POSITIONS.filter(t=>!t.solid))assert(tree.x<BOUNDS.minX||tree.x>BOUNDS.maxX||tree.z<BOUNDS.minZ||tree.z>BOUNDS.maxZ,'old edge forest blocks the expanded view');

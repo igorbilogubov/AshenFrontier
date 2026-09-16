@@ -44,10 +44,10 @@ export interface Hero extends PersistentHero {
   input: HeroInput; inputAt: number; ack: number; connected: boolean; disconnectAt: number; speedScale?: number; afk: AfkState | null;
   interactionTarget:InteractionTarget|null; shopActive:boolean; stashActive:boolean;
 }
-export type MobType = 'wolf' | 'boar' | 'alpha' | 'bear';
+export type MobType = 'wolf' | 'boar' | 'alpha' | 'bear' | 'lynx' | 'yak' | 'frost-spider' | 'ice-golem';
 export type MobState = 'idle' | 'chase' | 'windup' | 'recover' | 'return' | 'dead';
 export interface PublicMob extends Point {
-  type: MobType; id: number; homeX: number; homeZ: number; hp: number; state: MobState; timer: number;
+  type: MobType; eliteId?:string; id: number; homeX: number; homeZ: number; hp: number; state: MobState; timer: number;
   yaw: number; targetYaw: number; age: number; gait: number; speed: number; flash: number; target: string | null; slow?: number; spotId?: string;
 }
 export interface Mob extends PublicMob {
@@ -67,7 +67,7 @@ export interface EventPayloads {
   kill: { id: number; name: string; xp: number }; loot: Point & { id: number; amount: number };
   shopOpen:{npcId:string};
   stashOpened:{npcId:string};
-  portal:{portalId:string;location:'forest'|'stadium'};
+  portal:{portalId:string;location:'forest'|'stadium'|'snow'};
   skillImpact: Point & { skillId: SkillId; caster: string; attackId: number; yaw: number; phase?: 'warning' | 'impact'; delay?: number; radius?: number; from?: Point };
 }
 export type WorldEvent = { [K in keyof EventPayloads]: { type: K; owner?: string } & EventPayloads[K] }[keyof EventPayloads];

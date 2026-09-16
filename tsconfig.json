@@ -14,5 +14,5 @@
     "outDir": "dist",
     "sourceMap": true
   },
-  "include": ["server.ts", "world.ts", "shared/**/*.ts", "public/**/*.ts", "stress/**/*.ts", "storage/**/*.ts"]
+  "include": ["server.ts", "world.ts", "shared/**/*.ts", "public/**/*.ts", "stress/**/*.ts", "storage/**/*.ts", "auth/**/*.ts"]
 }

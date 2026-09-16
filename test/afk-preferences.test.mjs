@@ -12,6 +12,7 @@ import {AFK_SPOTS} from '../dist/public/game/location.js';
 import {defaultAfkPreferences,parseAfkPreferences,afkCombatRadius} from '../dist/public/game/afk-preferences.js';
 import {createTestDatabase,hasTestDatabase} from './helpers/postgres.mjs';
 import {openHeroStore} from '../dist/storage/postgres.js';
+import {testPlayer} from './helpers/network.mjs';
 import {startTestServer,stopTestServer,until} from './helpers/network.mjs';
 const setBottles=(p,kind,quantity)=>{const id=kind==='hp'?'hp-basic':'mana-basic';p.consumableInventory=p.consumableInventory.filter(stack=>stack.definitionId!==id);if(quantity)p.consumableInventory.push({id:crypto.randomUUID(),definitionId:id,quantity});p[kind==='hp'?'potions':'manaPotions']=quantity;};
 
@@ -132,25 +133,26 @@ test('schema 3 migration keeps a schema 2 hero, stash, potions and class-specifi
 
 test('WebSocket settings save reaches PostgreSQL and survives reconnect without restarting AFK',
   {skip:!hasTestDatabase},async()=>{
-  const db=await createTestDatabase(),token='a'.repeat(48),spot=AFK_SPOTS[0],hero=newHero('Настроенный');
-  Object.assign(hero,{x:spot.x,z:spot.z});await db.seed(token,persistentHero(hero));
+  const db=await createTestDatabase(),fixture='a'.repeat(48),spot=AFK_SPOTS[0],hero=newHero('Настроенный');
+  Object.assign(hero,{x:spot.x,z:spot.z});await db.seed(fixture,persistentHero(hero));
   let server,ws;
   try{
     server=await startTestServer(db);
-    ws=new WebSocket(server.url.replace('http:','ws:')+'/ws',{origin:server.url});
+    const login=await testPlayer(server,{fixture});
+    ws=new WebSocket(server.url.replace('http:','ws:')+'/ws',{origin:server.url,headers:login.headers});
     let state;ws.on('message',data=>{const message=JSON.parse(data);if(message.type==='state')state=message;});
-    await once(ws,'open');ws.send(JSON.stringify({type:'join',protocol:2,token}));await until(()=>state?.self);
+    await once(ws,'open');ws.send(JSON.stringify({type:'join',protocol:3,heroId:login.heroId}));await until(()=>state?.self);
     ws.send(JSON.stringify({type:'afk',enabled:true}));await until(()=>state.self.afk);
     const preferences={...defaultAfkPreferences('warrior'),pickupGold:false,skillOrder:['warrior-thrust'],radiusPercent:50};
     ws.send(JSON.stringify({type:'afkPreferences',preferences}));
     await until(()=>state?.self.afkPreferences.pickupGold===false);
     assert(state.self.afk);
-    for(let i=0;i<40;i++){const saved=(await db.load(token)).hero;if(saved.afkPreferences.pickupGold===false)break;await delay(50);if(i===39)assert.fail('Preferences did not reach PostgreSQL');}
+    for(let i=0;i<40;i++){const saved=(await db.load(fixture)).hero;if(saved.afkPreferences.pickupGold===false)break;await delay(50);if(i===39)assert.fail('Preferences did not reach PostgreSQL');}
     const closed=once(ws,'close');ws.close();await closed;ws=null;
     await stopTestServer(server);server=await startTestServer(db);
-    ws=new WebSocket(server.url.replace('http:','ws:')+'/ws',{origin:server.url});state=null;
+    ws=new WebSocket(server.url.replace('http:','ws:')+'/ws',{origin:server.url,headers:login.headers});state=null;
     ws.on('message',data=>{const message=JSON.parse(data);if(message.type==='state')state=message;});
-    await once(ws,'open');ws.send(JSON.stringify({type:'join',protocol:2,token}));await until(()=>state?.self);
+    await once(ws,'open');ws.send(JSON.stringify({type:'join',protocol:3,heroId:login.heroId}));await until(()=>state?.self);
     assert.deepEqual(state.self.afkPreferences,preferences);assert.equal(state.self.afk,null);
   }finally{if(ws?.readyState===WebSocket.OPEN){const closed=once(ws,'close');ws.close();await closed;}await stopTestServer(server);await db.close();}
 });

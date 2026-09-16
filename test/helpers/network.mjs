@@ -18,7 +18,7 @@ export async function startTestServer(database,{dataDir,environment={}}={}){
   const temporaryDir=dataDir?null:await mkdtemp(path.join(tmpdir(),'ashen-network-'));
   const child=spawn(process.execPath,['server.mjs'],{
     cwd:new URL('../..',import.meta.url),
-    env:{...process.env,PORT:'0',GAME_HOST:'127.0.0.1',GAME_PREVIEW_ALIAS:'0',DATABASE_URL:database.url,GAME_DATA_DIR:dataDir||temporaryDir,...environment},
+    env:{...process.env,PORT:'0',GAME_HOST:'127.0.0.1',GAME_PREVIEW_ALIAS:'0',DATABASE_URL:database.url,GAME_DATA_DIR:dataDir||temporaryDir,GOOGLE_CLIENT_ID:'',GOOGLE_CLIENT_SECRET:'',GAME_PUBLIC_ORIGIN:'',...environment},
     stdio:['ignore','pipe','pipe']
   });
   let output='';
@@ -28,7 +28,7 @@ export async function startTestServer(database,{dataDir,environment={}}={}){
     await until(()=>/http:\/\/127\.0\.0\.1:\d+/.test(output)||child.exitCode!==null||child.signalCode!==null,{timeout:10000,message:'Timed out waiting for PostgreSQL server startup'});
     assert.equal(child.exitCode,null,output.replaceAll(database.url,'[test database]'));
     assert.equal(child.signalCode,null,output.replaceAll(database.url,'[test database]'));
-    return {child,temporaryDir,url:output.match(/http:\/\/127\.0\.0\.1:\d+/)[0]};
+    return {child,temporaryDir,database,url:output.match(/http:\/\/127\.0\.0\.1:\d+/)[0]};
   }catch(error){await stopTestServer({child,temporaryDir});throw error;}
 }
 
@@ -38,4 +38,11 @@ export async function stopTestServer(server){
     const ended=once(server.child,'exit');server.child.kill('SIGTERM');await ended;
   }
   if(server.temporaryDir)await rm(server.temporaryDir,{recursive:true,force:true});
+}
+
+// Test identity is seeded directly into a disposable DB. No auth bypass route
+// or provider credential exists in the production server.
+export async function testPlayer(server,claim={}){
+  const login=await server.database.player(claim);
+  return {...login,headers:{Cookie:`ashen_session=${login.cookie}`}};
 }

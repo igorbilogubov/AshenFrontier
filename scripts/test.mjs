@@ -17,7 +17,9 @@ try {
   }
   const tests = process.argv.slice(2);
   const files = tests.length ? tests : (await readdir(new URL('../test/', import.meta.url))).filter(name => name.endsWith('.test.mjs')).sort().map(name => `test/${name}`);
-  process.exitCode = await runChild(['--test', ...files], {GAME_TEST_DATABASE_URL: url, DATABASE_URL: '', NODE_ENV: 'test'});
+  // Each file may start several real database clients and game servers. Keep
+  // suites bounded; the race tests still create their own concurrent requests.
+  process.exitCode = await runChild(['--test', '--test-concurrency=4', ...files], {GAME_TEST_DATABASE_URL: url, DATABASE_URL: '', NODE_ENV: 'test'});
 } catch (error) { console.error(error.message); process.exitCode = 1; }
 finally {
   if (cluster) {

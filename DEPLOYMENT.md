@@ -1,5 +1,11 @@
 # Hetzner: общая 3D-опушка
 
+## Следующая версия аккаунтов — ещё не опубликована
+
+Код Google-входа и schema 5 подготовлен локально. Перед его выкладкой настроить OAuth Web Client и точный callback `/auth/google/callback`; в закрытое окружение Compose добавить `GAME_PUBLIC_ORIGIN`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`. Compose требует эти значения; Docker build включает `auth/`. [Настройка](docs/GOOGLE_AUTH_SETUP.md).
+
+Schema 5 удаляет старый столбец ключей героев; существующие строки остаются без аккаунта, случайное автоматическое присвоение запрещено. Необходимо закрыть вопрос о переносе нынешних тестовых героев до переключения пользовательской базы. После миграции откат только контейнера к protocol 2 несовместим: требуется совместимый релиз. Общая база и production в текущей задаче не менялись; новый push/deployment не выполнялись. Текущее исключение пользователя о новых backups/проверках сохранности остаётся в силе, volume и старые архивы не удалять.
+
 Проверено 16 сентября 2026. Текущий релиз: **20260916-consumables-afk-01**, runtime commit `7b5a7b7a3889eb0dcbc2cbcfc62efd8416f4b48c`, образ `ashen-frontier:20260916-consumables-afk-01`, игра и PostgreSQL healthy, схема БД 4. Публичная игра: https://ashen-frontier.91.99.21.123.sslip.io/ ; состояние: https://ashen-frontier.91.99.21.123.sslip.io/health .
 
 Это последняя проверенная выкладка, а не автоматический указатель на HEAD репозитория. Приватный GitHub: [igorbilogubov/AshenFrontier](https://github.com/igorbilogubov/AshenFrontier). Подготовка GitHub/документов не требует перезапуска игры. Workflow CI выполняет только проверки; секретов SSH и данных героев в GitHub нет. Перед следующей выкладкой перечитать живые `current`, image и health.

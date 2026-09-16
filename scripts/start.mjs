@@ -1,5 +1,6 @@
 import {localDirectory, runChild, startCluster} from './postgres-runtime.mjs';
 try {
+  try { process.loadEnvFile('.env'); } catch (error) { if (error.code !== 'ENOENT') throw error; }
   let url = process.env.DATABASE_URL;
   if (!url) {
     if (process.env.NODE_ENV === 'production' || process.env.GAME_STRESS === '1' || process.env.GAME_DATA_DIR) {

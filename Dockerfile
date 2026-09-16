@@ -6,6 +6,7 @@ COPY tsconfig.json server.ts world.ts ./
 COPY shared ./shared
 COPY stress ./stress
 COPY storage ./storage
+COPY auth ./auth
 COPY public ./public
 COPY scripts/build.mjs ./scripts/build.mjs
 RUN npm run build

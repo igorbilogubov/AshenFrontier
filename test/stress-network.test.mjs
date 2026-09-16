@@ -7,16 +7,18 @@ import path from 'node:path';
 import {WebSocket} from 'ws';
 import {createTestDatabase,hasTestDatabase} from './helpers/postgres.mjs';
 import {startTestServer,stopTestServer,until} from './helpers/network.mjs';
+import {testPlayer} from './helpers/network.mjs';
 
 async function observer(server){
-  const client={ws:new WebSocket(server.url.replace('http:','ws:')+'/ws',{origin:server.url}),welcome:null,state:null};
+  const login=await testPlayer(server,{name:'Наблюдатель',classId:'warrior'});
+  const client={ws:new WebSocket(server.url.replace('http:','ws:')+'/ws',{origin:server.url,headers:login.headers}),welcome:null,state:null};
   client.ws.on('message',raw=>{
     const message=JSON.parse(String(raw));
     if(message.type==='welcome')client.welcome=message;
     if(message.type==='state')client.state=message;
   });
   await once(client.ws,'open');
-  client.ws.send(JSON.stringify({type:'join',protocol:2,name:'Наблюдатель',classId:'warrior'}));
+  client.ws.send(JSON.stringify({type:'join',protocol:3,heroId:login.heroId}));
   await until(()=>client.welcome&&client.state,{message:'Stress observer did not join'});
   return client;
 }

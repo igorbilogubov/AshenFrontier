@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
-import {randomBytes,randomUUID} from 'node:crypto';
+import {randomBytes,randomUUID,createHash} from 'node:crypto';
 import {Client} from 'pg';
+import {newHero,persistentHero} from '../../dist/world.js';
 import {openHeroStore} from '../../dist/storage/postgres.js';
 
 // The runner supplies a disposable PostgreSQL cluster or admin database. Every
@@ -18,6 +19,13 @@ export async function createTestDatabase(){
   try{await admin.query(`CREATE DATABASE ${name}`);}
   catch(error){await admin.end();throw error;}
   let closed=false;
+  const fixtures=new Map();
+  async function identity(label=randomUUID()){
+    const account=await withStore(store=>store.upsertGoogleAccount({sub:BigInt('0x'+createHash('sha256').update(label).digest('hex')).toString(),email:`${randomUUID()}@example.invalid`,name:'Test account'}));
+    const cookie=randomBytes(32).toString('base64url'),hash=createHash('sha256').update(cookie).digest('hex');
+    await withStore(store=>store.createSession(account.id,hash,new Date(Date.now()+86400000)));
+    return {account,cookie,sessionHash:hash,fixture:label};
+  }
   async function withStore(action){
     assert(!closed,'Test database is closed');
     const store=await openHeroStore({connectionString:url.href});
@@ -26,11 +34,21 @@ export async function createTestDatabase(){
   return {
     url:url.href,
     name,
-    async seed(token,hero){
-      const operationId=randomUUID();
-      return withStore(store=>store.commit([{token,hero,expectedRevision:0}],operationId,'test fixture'));
+    withStore,
+    identity,
+    async seed(label,hero){
+      const login=await identity(label);login.heroId=hero.id;fixtures.set(label,login);
+      return withStore(store=>store.commit([{accountId:login.account.id,hero,expectedRevision:0}],randomUUID(),'test fixture'));
     },
-    load(token){return withStore(store=>store.load(token));},
+    load(label){const login=fixtures.get(label);assert(login,'Unknown fixture');return withStore(store=>store.load(login.heroId,login.account.id));},
+    async player(claim={}){
+      if(claim.fixture&&fixtures.has(claim.fixture))return fixtures.get(claim.fixture);
+      if(claim.fixture){const login=await identity();return {...login,heroId:claim.fixture};}
+      const hero=persistentHero(newHero(claim.name||'Странник',claim.classId||'warrior'));
+      const label=randomUUID(),login=await identity(label);login.heroId=hero.id;fixtures.set(label,login);
+      await withStore(store=>store.commit([{accountId:login.account.id,hero,expectedRevision:0}],randomUUID(),'test fixture'));
+      return login;
+    },
     async close(){
       if(closed)return;
       closed=true;

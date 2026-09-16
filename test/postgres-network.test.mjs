@@ -10,9 +10,11 @@ import pg from 'pg';
 import {makeLoot,newHero,persistentHero} from '../dist/world.js';
 import {createTestDatabase,hasTestDatabase} from './helpers/postgres.mjs';
 import {startTestServer,stopTestServer,until} from './helpers/network.mjs';
+import {testPlayer} from './helpers/network.mjs';
 
 async function join(server,claim){
-  const ws=new WebSocket(server.url.replace('http:','ws:')+'/ws',{origin:server.url});
+  const login=await testPlayer(server,claim);
+  const ws=new WebSocket(server.url.replace('http:','ws:')+'/ws',{origin:server.url,headers:login.headers});
   let welcome,state,error;
   ws.on('message',data=>{
     const message=JSON.parse(data);
@@ -21,9 +23,9 @@ async function join(server,claim){
     if(message.type==='error')error=message;
   });
   await once(ws,'open');
-  ws.send(JSON.stringify({type:'join',protocol:2,...claim}));
+  ws.send(JSON.stringify({type:'join',protocol:3,heroId:login.heroId}));
   await until(()=>state||error,{message:'Timed out waiting for PostgreSQL join'});
-  return {ws,welcome,state,error};
+  return {ws,welcome,state,error,fixture:login.fixture};
 }
 async function leave(client){
   if(!client||client.ws.readyState===WebSocket.CLOSED)return;
@@ -38,14 +40,14 @@ test('fresh PostgreSQL stays authoritative while a malformed legacy JSON save re
   try{
     server=await startTestServer(database,{dataDir:dir});
     first=await join(server,{name:'Новый герой',classId:'mage'});
-    assert(first.welcome?.token);
-    const identity=first.state.self.id,token=first.welcome.token;
+    assert(first.fixture);
+    const identity=first.state.self.id,fixture=first.fixture;
     await leave(first);await stopTestServer(server);
     assert.equal(await readFile(file,'utf8'),legacy);
-    const row=await database.load(token);
+    const row=await database.load(fixture);
     assert.equal(row?.hero.id,identity);
     server=await startTestServer(database,{dataDir:dir});
-    restored=await join(server,{token});
+    restored=await join(server,{fixture});
     assert.equal(restored.state.self.id,identity);
     assert.equal(restored.state.self.classId,'mage');
     assert.equal(await readFile(file,'utf8'),legacy);
@@ -76,23 +78,23 @@ test('a second world writer cannot start on the same database; the first keeps s
     await assert.rejects(()=>startTestServer(database));
     assert.equal((await fetch(server.url+'/health')).status,200);
     client=await join(server,{name:'Один писатель'});
-    assert(client.welcome?.token);
+    assert(client.fixture);
     await leave(client);await stopTestServer(server);
     server=await startTestServer(database);
-    client=await join(server,{token:client.welcome.token});
+    client=await join(server,{fixture:client.fixture});
     assert.equal(client.state.self.name,'Один писатель');
   }finally{await leave(client);await stopTestServer(server);await database.close();}
 });
 
 test('losing the retained PostgreSQL world writer freezes uncommitted sale and restores the last durable hero on restart',{skip:!hasTestDatabase},async()=>{
-  const database=await createTestDatabase(),token='e'.repeat(48),hero=newHero('Последний коммит');
+  const database=await createTestDatabase(),fixture='e'.repeat(48),hero=newHero('Последний коммит');
   const sale=makeLoot('warrior',1,0,'ring');hero.gold=25;hero.items.push(sale);
   let server,client,restored;
   const admin=new pg.Client({connectionString:database.url});
   try{
-    await database.seed(token,persistentHero(hero));
+    await database.seed(fixture,persistentHero(hero));
     server=await startTestServer(database);
-    client=await join(server,{token});assert(client.welcome&&client.state);
+    client=await join(server,{fixture});assert(client.welcome&&client.state);
     assert.equal(client.state.self.gold,25);
     assert(client.state.self.items.some(item=>item.id===sale.id));
     const published=[];
@@ -125,12 +127,12 @@ test('losing the retained PostgreSQL world writer freezes uncommitted sale and r
     await until(()=>client.ws.readyState===WebSocket.CLOSED,{message:'Live connection remained open after writer loss'});
     assert(published.every(state=>state.self.gold===25&&state.self.items.some(item=>item.id===sale.id)),
       'Server published an uncommitted sale after writer loss');
-    const saved=await database.load(token);
+    const saved=await database.load(fixture);
     assert.equal(saved.hero.gold,25);
     assert(saved.hero.items.some(item=>item.id===sale.id));
 
     await stopTestServer(server);server=await startTestServer(database);
-    restored=await join(server,{token});
+    restored=await join(server,{fixture});
     assert.equal(restored.state.self.gold,25);
     assert(restored.state.self.items.some(item=>item.id===sale.id));
   }finally{await leave(client);await leave(restored);await stopTestServer(server);await admin.end().catch(()=>{});await database.close();}

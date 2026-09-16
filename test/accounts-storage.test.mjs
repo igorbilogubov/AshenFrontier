@@ -33,7 +33,8 @@ test('concurrent creation and batch creation cannot exceed five heroes', {skip:!
   try{
     const outcomes=await Promise.allSettled(Array.from({length:12},(_,i)=>write(i%2?store:second,account.id,hero(`Герой ${i}`))));
     assert.equal(outcomes.filter(result=>result.status==='fulfilled').length,5);
-    assert(outcomes.filter(result=>result.status==='rejected').every(result=>result.reason instanceof CharacterLimitError));
+    const rejected=outcomes.filter(result=>result.status==='rejected');
+    assert(rejected.every(result=>result.reason instanceof CharacterLimitError),rejected.map(result=>`${result.reason.name}: ${result.reason.message}`).join('\n'));
     assert.equal((await store.listHeroes(account.id)).length,5);
     const sql=new pg.Client({connectionString:db.url});await sql.connect();
     try{

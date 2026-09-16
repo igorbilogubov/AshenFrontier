@@ -84,9 +84,9 @@ export type ClientCommand =
   | {type:'assignConsumable';slot:QuickSlot;definitionId:string|null} | {type:'useConsumable';slot:QuickSlot}
   | {type:'portal';portalId:string}
   | { type: 'resetStats'; revision: number };
-export type ClientMessage = ClientCommand | { type: 'join'; protocol: 2; name: string; classId: ClassId; token?: string | null } | { type: 'chat'; text: string } | { type: 'ping'; t: number };
+export type ClientMessage = ClientCommand | { type: 'join'; protocol: 3; heroId: string } | { type: 'chat'; text: string } | { type: 'ping'; t: number };
 export type ServerMessage =
-  | { type: 'welcome'; protocol: 2; id: string; token: string; chat: ChatEntry[] }
+  | { type: 'welcome'; protocol: 3; id: string; chat: ChatEntry[] }
   | ({ type: 'state'; save: { at: number; ok: boolean } } & WorldSnapshot)
   | { type: 'chat'; entry: ChatEntry } | { type: 'error'; code: string; text: string } | { type: 'pong'; t: unknown };
 export type JsonValue = null | boolean | number | string | JsonValue[] | JsonObject;

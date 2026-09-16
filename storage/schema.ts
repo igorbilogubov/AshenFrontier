@@ -222,7 +222,7 @@ export async function migrate(client:PoolClient):Promise<void>{
     await client.query('SELECT pg_advisory_xact_lock(8675309, 4733)');
     await client.query('CREATE TABLE IF NOT EXISTS schema_migrations (version integer PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())');
     const applied=await client.query<{version:number}>('SELECT version FROM schema_migrations');
-    if([1,2,3,4,5,6].some(version=>!applied.rows.some(row=>row.version===version))){
+    if([1,2,3,4,5,6,7].some(version=>!applied.rows.some(row=>row.version===version))){
       // Data migrations must never copy counters while an older process can
       // still buy or consume them. Read-only opens of a current schema stay free.
       const world=await client.query<{locked:boolean}>('SELECT pg_try_advisory_xact_lock(8675309, 4732) AS locked');
@@ -244,6 +244,15 @@ export async function migrate(client:PoolClient):Promise<void>{
       ALTER TABLE heroes ADD COLUMN build_revision bigint NOT NULL DEFAULT 0 CHECK(build_revision>=0);
       ALTER TABLE heroes ADD COLUMN skill_presets jsonb NOT NULL DEFAULT '[null,null,null]'::jsonb CHECK(jsonb_typeof(skill_presets)='array' AND jsonb_array_length(skill_presets)=3);
     `);await client.query('INSERT INTO schema_migrations(version) VALUES (6)');}
+    const seventh=await client.query<{version:number}>('SELECT version FROM schema_migrations WHERE version=7');
+    if(!seventh.rowCount){await client.query(`
+      ALTER TABLE heroes DROP CONSTRAINT hp_potion_limit;
+      ALTER TABLE heroes ADD CONSTRAINT hp_potion_limit CHECK (potions BETWEEN 0 AND 3996);
+      ALTER TABLE heroes DROP CONSTRAINT heroes_mana_potions_check;
+      ALTER TABLE heroes ADD CONSTRAINT heroes_mana_potions_check CHECK (mana_potions BETWEEN 0 AND 3996);
+      ALTER TABLE consumable_stacks DROP CONSTRAINT consumable_stacks_quantity_check;
+      ALTER TABLE consumable_stacks ADD CONSTRAINT consumable_stacks_quantity_check CHECK (quantity BETWEEN 1 AND 999);
+    `);await client.query('INSERT INTO schema_migrations(version) VALUES (7)');}
     await client.query('COMMIT');
   }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}
 }

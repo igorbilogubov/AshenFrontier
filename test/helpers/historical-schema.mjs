@@ -7,8 +7,20 @@ async function requireDisposable(client){
   const name=(await client.query('SELECT current_database() AS name')).rows[0].name;
   assert(/^ashen_test_[a-f0-9]{24}$/.test(name),'Historical fixtures require a disposable test database');
 }
-export async function removeBuildSchema(client){
+export async function removeExpandedConsumableSchema(client){
   await requireDisposable(client);
+  await client.query(`
+    ALTER TABLE heroes DROP CONSTRAINT hp_potion_limit;
+    ALTER TABLE heroes ADD CONSTRAINT hp_potion_limit CHECK (potions BETWEEN 0 AND 50);
+    ALTER TABLE heroes DROP CONSTRAINT heroes_mana_potions_check;
+    ALTER TABLE heroes ADD CONSTRAINT heroes_mana_potions_check CHECK (mana_potions BETWEEN 0 AND 50);
+    ALTER TABLE consumable_stacks DROP CONSTRAINT consumable_stacks_quantity_check;
+    ALTER TABLE consumable_stacks ADD CONSTRAINT consumable_stacks_quantity_check CHECK (quantity BETWEEN 1 AND 50);
+    DELETE FROM schema_migrations WHERE version=7;
+  `);
+}
+export async function removeBuildSchema(client){
+  await removeExpandedConsumableSchema(client);
   await client.query('ALTER TABLE heroes DROP COLUMN IF EXISTS skill_build; ALTER TABLE heroes DROP COLUMN IF EXISTS build_revision; ALTER TABLE heroes DROP COLUMN IF EXISTS skill_presets; DELETE FROM schema_migrations WHERE version=6;');
 }
 export async function removeAccountSchema(client){

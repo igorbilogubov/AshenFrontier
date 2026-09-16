@@ -47,7 +47,7 @@ export async function createWorldInteractions(scene:T.Scene,game:NetworkGame,cho
         const bundle=mesh(model,new T.BoxGeometry(.35,.14,.28),new T.MeshStandardMaterial({color:drop.item?.slot==='armor'?'#70857c':'#948567'}),0,.13,0);bundle.rotation.y=.4;
         mesh(model,new T.BoxGeometry(.045,.15,.3),new T.MeshStandardMaterial({color:'#4e4c34'}),0,.14,0).rotation.y=.4;
       }
-      const color=drop.item?.rarity===2?'#79b9e0':drop.item?.rarity===1?'#84be70':'#d6d9d5';
+      const color=drop.item?.rarity===4?'#c58aeb':drop.item?.rarity===3?'#e3b84f':drop.item?.rarity===2?'#79b9e0':drop.item?.rarity===1?'#84be70':'#d6d9d5';
       const ring=mesh(model,new T.RingGeometry(.23,.28,24),new T.MeshBasicMaterial({color,transparent:true,opacity:.6,side:T.DoubleSide,depthWrite:false}),0,.01,0);ring.rotation.x=-Math.PI/2;ring.castShadow=false;
     }
     const label=document.createElement('button');label.type='button';label.className=`ground-loot-label ${drop.kind==='gold'?'gold':`rarity-${drop.item?.rarity||0}`}`;

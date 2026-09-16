@@ -13,7 +13,7 @@
 .target-loot-category.rarity-1{color:#96c979;background:#789d6620}
 .target-loot-category.rarity-2{color:#8ac5e9;background:#5eafd024}
 .target-loot-category.rarity-3{color:#e3b84f;background:#c9973124}
-.target-loot-category.rarity-4{color:#58d4c0;background:#3cae9b24}
+.target-loot-category.rarity-4{color:#c58aeb;background:#8f56ad24}
 .target-loot-symbol{display:block;width:18px;height:18px}
 .target-loot-symbol svg{display:block;width:100%;height:100%}
 @media(max-width:600px){#target-panel{top:76px;width:min(218px,calc(100vw - 18px));padding:7px 9px 8px}#target-name{font-size:14px}}
@@ -23,7 +23,7 @@ button,select,summary,[role="button"],.vendor-world-label,.ground-loot-label{cur
 input,textarea,[contenteditable="true"]{cursor:text}
 input[type="button"],input[type="submit"],input[type="checkbox"],input[type="radio"]{cursor:url('/game/cursors/ashen-interact.svg') 2 2,pointer}
 
-#target-panel.elite-target{border-color:#c7a16a;box-shadow:0 0 0 1px #c7a16a30,inset 0 0 16px #b58a3712}#target-panel.elite-target #target-name{color:#f4cf86}#target-panel.boss-target{border-color:#58d4c0;box-shadow:0 0 0 1px #58d4c040,0 0 22px #3cae9b22,inset 0 0 16px #58d4c014}#target-panel.boss-target #target-name{color:#79ead7}#snow-guide p:not(.eyebrow){font-size:11px;color:#b7cdd3;line-height:1.55}
+#target-panel.elite-target{border-color:#c7a16a;box-shadow:0 0 0 1px #c7a16a30,inset 0 0 16px #b58a3712}#target-panel.elite-target #target-name{color:#f4cf86}#target-panel.boss-target{border-color:#c58aeb;box-shadow:0 0 0 1px #c58aeb40,0 0 22px #3cae9b22,inset 0 0 16px #c58aeb14}#target-panel.boss-target #target-name{color:#79ead7}#snow-guide p:not(.eyebrow){font-size:11px;color:#b7cdd3;line-height:1.55}
 
 body.snow-region .brand h1{color:#1f3949;text-shadow:0 1px 3px #ffffff80}body.snow-region .brand p{color:#2b4757;text-shadow:0 1px 3px #ffffff80}body.snow-region .account-menu>summary{color:#233f50;text-shadow:0 1px 2px #ffffff99}
 

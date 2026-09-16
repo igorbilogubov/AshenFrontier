@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as T from '../dist/public/game/vendor/three.module.js';
 import {bindTargetPresentation} from '../dist/public/game/target-presentation.js';
 import {lootRegionForType,possibleLoot} from '../dist/public/game/possible-loot.js';
-import {regionalEquipment} from '../dist/public/game/equipment-items.js';
+import {regionalEquipment,rollEquipment} from '../dist/public/game/equipment-items.js';
 import {BOSS_GEAR_CHANCE,BOSS_RARITY_CHANCES,GEAR_CHANCE} from '../dist/public/game/loot-rules.js';
 import {MOB_TYPES} from '../dist/public/game/location.js';
 
@@ -28,13 +28,13 @@ test('possible loot uses live mob coins, real one-item chance and only currently
   for(const type of Object.keys(MOB_TYPES)){
     const view=possibleLoot(type);
     assert.equal(view.gold,MOB_TYPES[type].coins);
-    assert.equal(view.itemChance,GEAR_CHANCE[type]);
+    assert.equal(view.itemChance,GEAR_CHANCE[type]??.10);
     assert.deepEqual(view.categories.map(category=>category.id),['gold','weapon','armor','accessory']);
     assert.equal(view.categories[0].rarity,'gold');
     for(const category of view.categories.slice(1)){
       const matching=['warrior','archer','mage'].flatMap(classId=>regionalEquipment(classId,lootRegionForType(type),category.rarity)).filter(item=>category.slots.includes(item.slot));
       assert(matching.length>0);
-      assert(matching.every(item=>item.rarity===category.rarity));
+      assert(matching.every(item=>rollEquipment(item.id,'test-only',()=>0).rarity===category.rarity));
     }
     assert(!view.categories.some(category=>category.rarity===2),'no unimplemented rare drop is advertised');
   }

@@ -26,6 +26,8 @@ const rarityNames:Readonly<Record<PreviewRarity,string>>={1:'НЕОБЫЧНЫЙ'
 const wardrobes:Record<ClassId,Equipment>={warrior:{},archer:{},mage:{}};let equipment=wardrobes.warrior;let selected='watch-armor',warrior:EnhanceableModel,clip:WarriorClip='Idle',elapsed=0,last=0,paused=false,feedback='';
 let previewClass:ClassId='warrior',loadSequence=0;let previewRegion:GearRegion='forest',previewRarity:PreviewRarity=1,enhancement=0;
 const previewItems=()=>regionalEquipment(previewClass,previewRegion,previewRarity);
+const enhancementSupported=()=>previewRegion==='swamp'||previewRegion==='mines'||previewRegion==='rift'||previewRegion==='citadel';
+const visualEnhancement=()=>enhancementSupported()?enhancement:0;
 const models=new Map<ClassId,EnhanceableModel>();
 const buttons=new Map<string,HTMLButtonElement>();
 const source=()=>({classId:previewClass,level:previewRegion==='forest'?1:REGIONAL_COLLECTIONS[previewRegion].level,items:[...samples.values()],equipment});
@@ -40,6 +42,7 @@ function catalog(){
   const collectionName=set?.name??(previewRegion==='forest'?collections[previewClass].slice(2).join(' и '):REGIONAL_COLLECTIONS[previewRegion][previewClass][1]);
   const note=classNames[previewClass]+' · '+collectionName+' · 6 слотов снаряжения';
   $('model-note').textContent=note;canvas.setAttribute('aria-label',note);
+  ($('enhancement-preview') as HTMLInputElement).disabled=!enhancementSupported();$('enhancement-hint').textContent=enhancementSupported()?'Только внешний вид предмета':'Доступно новым комплектам с 40-го уровня';
 }
 catalog();
 function fit(){const {width,height}=canvas.getBoundingClientRect();renderer.setSize(width,height,false);camera.aspect=width/height;camera.updateProjectionMatrix();}
@@ -52,7 +55,7 @@ function update(){
   $('sample-equip').textContent=worn?'Снять':'Надеть';$('sample-feedback').textContent=feedback||'Каждая находка получает свои значения в указанном диапазоне.';
   const stats=characterStats(source()),values:[string,string][]=[['Урон',stats.attack.toFixed(1)],['Защита',stats.armor.toFixed(1)],['Здоровье',String(stats.maxHp)],['Мана',String(stats.maxMana)],['Попадание',(stats.hitChance*100).toFixed(1)+'%'],['Скорость атак','+'+Math.round(stats.attackSpeed*100)+'%']];
   $('sample-totals').replaceChildren(...values.map(([label,value])=>{const row=document.createElement('div'),name=document.createElement('span'),number=document.createElement('strong');name.textContent=label;number.textContent=value;row.append(name,number);return row;}));
-  warrior?.equipment('sword',previewClass,equipmentAppearance(source()));warrior?.applyEnhancement?.(enhancement);
+  warrior?.equipment('sword',previewClass,equipmentAppearance(source()));warrior?.applyEnhancement?.(visualEnhancement());
 }
 function preset(kind:'wanderer'|'watch'|'none'){
   for(const key of Object.keys(equipment) as (keyof Equipment)[])delete equipment[key];
@@ -79,7 +82,7 @@ async function selectClass(classId:ClassId){
     const model=models.get(classId)??await loadWarrior(classId) as EnhanceableModel;models.set(classId,model);
     if(sequence!==loadSequence)return;
     if(warrior)scene.remove(warrior.root);warrior=model;scene.add(warrior.root);
-    elapsed=0;warrior.previewClip(clip);warrior.equipment('sword',classId,equipmentAppearance(source()));warrior.applyEnhancement?.(enhancement);
+    elapsed=0;warrior.previewClip(clip);warrior.equipment('sword',classId,equipmentAppearance(source()));warrior.applyEnhancement?.(visualEnhancement());
     const names={warrior:'Exo Gray',archer:'Erika Archer',mage:'Dreyar'};
     $('model-name').textContent=names[classId];
     $('warrior-wardrobe').hidden=false;$('warrior-presets').hidden=false;$('class-description').hidden=true;
@@ -91,4 +94,4 @@ $('back-to-warrior').onclick=()=>void selectClass('warrior');
 
 function selectCollection(){previewRegion=($('region-preview') as HTMLSelectElement).value as GearRegion;previewRarity=Number(($('rarity-preview') as HTMLSelectElement).value) as PreviewRarity;selected=previewItems().find(item=>item.slot==='armor')!.id;catalog();preset('wanderer');}
 $('region-preview').onchange=selectCollection;$('rarity-preview').onchange=selectCollection;
-($('enhancement-preview') as HTMLInputElement).oninput=()=>{enhancement=Number(($('enhancement-preview') as HTMLInputElement).value);$('enhancement-value').textContent=`+${enhancement}`;warrior?.applyEnhancement?.(enhancement);};
+($('enhancement-preview') as HTMLInputElement).oninput=()=>{enhancement=Number(($('enhancement-preview') as HTMLInputElement).value);$('enhancement-value').textContent=`+${enhancement}`;warrior?.applyEnhancement?.(visualEnhancement());};

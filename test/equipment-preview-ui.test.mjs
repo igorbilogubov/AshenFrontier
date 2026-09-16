@@ -10,7 +10,8 @@ test('equipment preview offers seven regions, four rarities and visual-only +0..
   for(const region of ['forest','snow','wasteland','swamp','mines','rift','citadel'])assert.match(html,new RegExp(`value="${region}"`));
   for(const rarity of [1,2,3,4])assert.match(html,new RegExp(`value="${rarity}"`));
   assert.match(html,/id="enhancement-preview"[^>]*min="0"[^>]*max="9"/);
-  assert.match(logic,/applyEnhancement\?\.\(enhancement\)/);
+  assert.match(logic,/applyEnhancement\?\.\(visualEnhancement\(\)\)/);
+  assert.match(logic,/disabled=!enhancementSupported\(\)/);
   assert.doesNotMatch(logic,/\.enhancement\s*=/,'enhancement stays outside Item data');
 });
 

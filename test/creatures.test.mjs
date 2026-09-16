@@ -7,10 +7,12 @@ import {createMob,CREATURE_CLIPS,WOLF_CLIPS,BEAR_CLIPS,ATTACK_CONTACT,STRIDES} f
 import {MOB_TYPES} from '../dist/public/game/location.js';
 
 const assets={},files={};
+// Snow creatures have their own anatomy and contact tests in snow-creatures.test.mjs.
+const FOREST_TYPES=['wolf','boar','alpha','bear'];
 for(const type of Object.keys(MOB_TYPES)){
   const bytes=await fs.readFile(new URL(`../public/game/creatures/${type}.glb`,import.meta.url));
   const jsonLength=bytes.readUInt32LE(12),json=JSON.parse(bytes.subarray(20,20+jsonLength));
-  files[type]={bytes,json,binary:bytes.subarray(28+jsonLength)};
+  if(FOREST_TYPES.includes(type))files[type]={bytes,json,binary:bytes.subarray(28+jsonLength)};
   const loader=new GLTFLoader();
   // Real skin and keyframes; embedded texture decoding is verified in the browser.
   loader.register(()=>({name:'GeometryOnlyTest',loadTexture:()=>Promise.resolve(new T.Texture())}));
@@ -73,7 +75,7 @@ test('creature assets carry their animations, a complete skin and actual coat co
 });
 
 test('every animal remains finite through every clip and falls onto its side',()=>{
-  for(const type of Object.keys(MOB_TYPES)){
+  for(const type of FOREST_TYPES){
     const m=createMob(type,assets),scale=MOB_TYPES[type].scale;
     for(const name of Object.keys(m.clips)){
       m.previewClip(name);
@@ -92,7 +94,7 @@ test('every animal remains finite through every clip and falls onto its side',()
 });
 
 test('walk/run support paws hold the ground at the speed used by the renderer',()=>{
-  for(const type of Object.keys(MOB_TYPES))for(const name of ['Walk','Run']){
+  for(const type of FOREST_TYPES)for(const name of ['Walk','Run']){
     const m=createMob(type,assets),cfg=MOB_TYPES[type],stride=STRIDES[type][name==='Walk'?'walk':'run'];
     m.previewClip(name);const points=[];
     for(const phase of [0,.12,.24,.36,.48]){m.samplePreview(m.clips[name].duration*phase);const p=point(m,'Front_L_Paw');p.z+=phase*stride*cfg.scale;points.push(p);}
@@ -180,7 +182,7 @@ test('wolf and bear movement and pivot transitions keep poses continuous at 30 a
 
 test('cloned mobs animate independently; warning, contact, corpse hiding and respawn stay synchronized',()=>{
   const camera=new T.PerspectiveCamera();
-  for(const type of Object.keys(MOB_TYPES)){
+  for(const type of FOREST_TYPES){
     const a=createMob(type,assets),b=createMob(type,assets),mob=actor(type),cfg=MOB_TYPES[type];
     const unchanged=point(b,'Head').clone();
     assert.notEqual(bone(a,'Head'),bone(b,'Head'));

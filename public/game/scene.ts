@@ -40,7 +40,7 @@ import {heldMouseInput} from './mouse-input.js';
 import {element as $,errorMessage} from './ui-types.js';
 import type {Point,PublicPlayer,PublicMob,WeaponId} from '../../shared/types.js';
 type Warrior=Awaited<ReturnType<typeof loadWarrior>>;
-type MobModel=ReturnType<typeof createMob> & {pickMeshes:T.Mesh[]};
+type MobModel=ReturnType<typeof createMob>;
 type RemoteWarrior=Warrior & {label:HTMLDivElement};
 type VisualHero=Pick<PublicPlayer,'id'|'x'|'z'|'yaw'|'gait'|'runBlend'|'moveBlend'|'dead'|'weapon'|'classId'|'hurt'|'attack'|'appearance'>;
 interface FloatingNumber {element:HTMLSpanElement;x:number;z:number;y:number;life:number}
@@ -101,9 +101,9 @@ function pickGround(){
   return raycaster.ray.intersectPlane(groundPlane,new T.Vector3());
 }
 function pickMob(){
-  const objects:T.Mesh[]=[];for(const mob of game.mobs){const model=models.get(mob.id);if(!model||!model.root.visible||mob.state==='dead')continue;objects.push(...model.pickMeshes);}
-  const direct:unknown=raycaster.intersectObjects(objects,false)[0]?.object.userData.mob;if(typeof direct==='number')return direct;
-  // Slimmer legs and a tapered muzzle should not demand pixel-perfect clicks.
+  // Creature GLBs use fixed bounds that cover every shipped animation. Picking
+  // those bounds avoids raycasting every triangle of a SkinnedMesh while an
+  // attack key is held, and keeps slender legs/muzzles easy to target.
   const box=new T.Box3(),point=new T.Vector3();let nearest=Infinity,id:number|null=null;
   for(const mob of game.mobs){
     const model=models.get(mob.id);if(!model||!model.root.visible||mob.state==='dead')continue;
@@ -314,8 +314,7 @@ function renderShots(){
 function ensureMobModel(mob:PublicMob){
   let model=models.get(mob.id);
   if(!model){
-    model=Object.assign(createMob(mob.type,mobAssets,mob.eliteId,mob.dungeonId,mob.bossId),{pickMeshes:[] as T.Mesh[]});
-    model.pickRoot.traverse(object=>{if(object instanceof T.Mesh){object.userData.mob=mob.id;model!.pickMeshes.push(object);}});
+    model=createMob(mob.type,mobAssets,mob.eliteId,mob.dungeonId,mob.bossId);
     models.set(mob.id,model);scene.add(model.root);
   }
   return model;

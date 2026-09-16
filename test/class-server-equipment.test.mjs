@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {World,newHero,safeHero,persistentHero,makeLoot,stats} from '../dist/world.js';
-import {CLASS_ITEMS,validateEquipment,equipmentAppearance} from '../dist/public/game/equipment-items.js';
+import {CLASS_ITEMS,COMMON_CLASS_ITEMS,validateEquipment,equipmentAppearance} from '../dist/public/game/equipment-items.js';
 import {itemArtKey} from '../dist/public/game/item-icons.js';
 import {AFK_SPOTS} from '../dist/public/game/location.js';
 
@@ -23,7 +23,7 @@ test('personal class drops keep each randomly selected definition and stable rol
     assert.equal(p.questKills,15);assert.equal(p.kills,15);
     for(const item of drops){
       assert.equal(item.classId,classId);assert.equal(item.rollVersion,1);assert(item.rolls.length>0);
-      assert(CLASS_ITEMS[classId].some(def=>def.id===item.definitionId&&def.slot===item.slot));
+      assert([...CLASS_ITEMS[classId],...COMMON_CLASS_ITEMS[classId]].some(def=>def.id===item.definitionId&&def.slot===item.slot));
       validateEquipment(item);
     }
   }

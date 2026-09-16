@@ -20,7 +20,7 @@ test('rare equipment uses the existing image for its actual appearance in every 
 });
 
 test('each class has ten unique definitions and six slots, with stable validated rolls and art',async()=>{
-  assert.equal(EQUIPMENT_ITEMS.length,132);assert.equal(new Set(EQUIPMENT_ITEMS.map(i=>i.id)).size,132);
+  assert.equal(EQUIPMENT_ITEMS.length,540);assert.equal(new Set(EQUIPMENT_ITEMS.map(i=>i.id)).size,540);
   for(const classId of ['archer','mage']){
     const catalog=CLASS_ITEMS[classId];assert.equal(catalog.length,10);
     assert.deepEqual(slots.map(slot=>catalog.filter(d=>d.slot===slot).length),[2,2,2,2,1,1]);

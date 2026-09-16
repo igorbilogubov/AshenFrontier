@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import {randomBytes,randomUUID,createHash} from 'node:crypto';
 import pg from 'pg';
 import {openHeroStore,StoreConflictError,StoreUnavailableError} from '../dist/storage/postgres.js';
-import {newHero,persistentHero} from '../dist/world.js';
-import {rollEquipment} from '../dist/public/game/equipment-items.js';
+import {newHero,persistentHero,safeHero,stats} from '../dist/world.js';
+import {rollEquipment,regionalEquipment} from '../dist/public/game/equipment-items.js';
 
 const adminUrl=process.env.GAME_TEST_DATABASE_URL;
 async function database(){
@@ -14,8 +14,10 @@ async function database(){
   await admin.query(`CREATE DATABASE ${name}`);
   const url=new URL(adminUrl);url.pathname=`/${name}`;
   return {url:url.toString(),admin,close:async()=>{
-    await admin.query(`DROP DATABASE ${name} WITH (FORCE)`);
-    await admin.end();
+    // All clients are already closed. FORCE can try to terminate a background
+    // autovacuum worker owned by postgres, which a restricted QA role cannot do.
+    try{await admin.query(`DROP DATABASE ${name}`);}
+    finally{await admin.end();}
   }};
 }
 const account=async store=>(await store.upsertGoogleAccount({sub:randomUUID(),email:'test@example.com',name:'Test'})).id;
@@ -43,6 +45,28 @@ test('normalized hero, rolls, bag, equipped gear and pending loot survive exact 
       const locations=(await client.query('SELECT kind FROM inventory_locations WHERE hero_id=$1 ORDER BY kind',[value.id])).rows.map(r=>r.kind);
       assert.deepEqual(locations,['bag','equipped','equipped','pending']);
     }finally{await client.end();}
+  }finally{await store.close();await db.close();}
+});
+
+test('late set gear, yellow bag item and dungeon position survive a store restart',
+  {skip:!adminUrl},async()=>{
+  const db=await database();let store=await openHeroStore({connectionString:db.url});
+  try{
+    const token=await account(store),value=hero('Владыка','warrior');
+    value.level=100;value.x=4208;value.z=0;
+    value.items=regionalEquipment('warrior','citadel',4).map(def=>rollEquipment(def.id,randomUUID(),()=>.65));
+    value.equipment=Object.fromEntries(value.items.map(item=>[item.slot,item.id]));
+    const yellow=rollEquipment(regionalEquipment('warrior','rift',3)[0].id,randomUUID(),()=>.15);
+    value.items.push(yellow);
+    const before=stats(safeHero(value));
+    await commit(store,token,value,0);await store.close();
+    store=await openHeroStore({connectionString:db.url});
+    const restored=await store.load(value.id,token);
+    assert.deepEqual(restored,{hero:value,revision:1});
+    assert.deepEqual(stats(safeHero(restored.hero)),before);
+    const moved=structuredClone(restored.hero);moved.stash=[yellow.id];
+    await commit(store,token,moved,restored.revision);
+    assert.deepEqual((await store.load(value.id,token)).hero,moved);
   }finally{await store.close();await db.close();}
 });
 

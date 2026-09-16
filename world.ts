@@ -9,12 +9,12 @@ import type {ClassId, EquipmentSlot, Item, Hero, PersistentHero, HeroAttack, Mob
 import {isRecord, isClassId, isEquipmentSlot, isWeaponId} from './shared/types.js';
 import {randomUUID} from 'node:crypto';
 import {CLASSES,EQUIPMENT_SLOTS,BAG_CAPACITY,backpackItems,classFor,canEquip,STAT_KEYS,CLASS_PROGRESSION,characterStats,normalizedAllocations} from './public/rules.js';
-import {BOUNDS,CAMP,SPAWNS,mobConfig,WEAPONS,AFK_SPOTS,afkSpotAt,withinSpot,safe,stand,clearPath,distance,translate,moveHero} from './public/game/location.js';
+import {BOUNDS,CAMP,SPAWNS,mobConfig,WEAPONS,AFK_SPOTS,afkSpotAt,withinSpot,safe as pointIsSafe,stand,clearPath,distance,translate,moveHero} from './public/game/location.js';
 import {angleDelta,turnTowards,inStrike} from './public/game/motion.js';
 import {SKILLS,skillsForClass,legacySkillId} from './public/game/skills.js';
 import {LOOT_TTL_MS,MAX_GROUND_DROPS_PER_HERO,PICKUP_RANGE,gearRarity} from './public/game/loot-rules.js';
 import {portalById,ALL_PASSAGES} from './public/game/stadium.js';
-import {locationAt,sameLocation,fieldRegionAt} from './public/game/world-layout.js';
+import {locationAt as pointLocation,fieldRegionAt} from './public/game/world-layout.js';
 import {SHOP,shopPrice,sellPrice} from './public/game/shop.js';
 import {defaultAfkPreferences,parseAfkPreferences,afkCombatRadius} from './public/game/afk-preferences.js';
 import {PERSONAL_CHEST,CHEST_APPROACH,CHEST_DOOR_OUTSIDE,CHEST_DOOR_INSIDE,inChestRoom} from './public/game/personal-stash.js';
@@ -25,6 +25,24 @@ export const SAVE_VERSION=3;
 const finite=(value: unknown,fallback=0)=>typeof value==='number'&&Number.isFinite(value)?value:fallback;
 const nonnegative=(value: unknown,fallback=0)=>Math.max(0,finite(value,fallback));
 const CHASE_HOME_LIMIT=28,CHASE_TARGET_LIMIT=30,HOME_REST_SECONDS=3;
+
+/** Map geometry is immutable. Reuse each entity's positional queries until it
+ * moves; checking both coordinates also covers portals, respawns and changes
+ * between ticks. Weak keys do not retain departed heroes, drops or projectiles.
+ * Combat stats and other mutable gameplay state are deliberately not cached. */
+function positionalQuery<T>(query:(point:Point)=>T){
+  const cache=new WeakMap<Point,{x:number;z:number;value:T}>();
+  return (point:Point):T=>{
+    const entry=cache.get(point);
+    if(entry&&entry.x===point.x&&entry.z===point.z)return entry.value;
+    const value=query(point);
+    if(entry){entry.x=point.x;entry.z=point.z;entry.value=value;}
+    else cache.set(point,{x:point.x,z:point.z,value});
+    return value;
+  };
+}
+const locationAt=positionalQuery(pointLocation),safe=positionalQuery(pointIsSafe);
+const sameLocation=(a:Point,b:Point)=>locationAt(a)===locationAt(b);
 
 const liveMob=(m:Mob)=>m.state!=='dead'&&!m.bossLocked;
 const validPoint=(value:unknown):value is Point=>isRecord(value)&&typeof value.x==='number'&&Number.isFinite(value.x)&&typeof value.z==='number'&&Number.isFinite(value.z);
@@ -854,7 +872,7 @@ export class World{
   }
   tickBoss(m:Mob,dt:number){
     const cfg=mobConfig(m),home={x:m.homeX,z:m.homeZ},movementScale=(m.rootUntil??0)>this.t?0:(m.slowUntil??0)>this.t?.7:1;
-    const candidates=[...this.players.values()].filter(p=>p.connected&&!p.dead&&!safe(p)&&sameLocation(p,m)&&distance(p,home)<22&&clearPath(m,p));
+    const candidates=[...this.players.values()].filter(p=>p.connected&&!p.dead&&distance(p,home)<22&&sameLocation(p,m)&&!safe(p)&&clearPath(m,p));
     const target=candidates.find(p=>p.id===m.target)??candidates.sort((a,b)=>distance(a,m)-distance(b,m))[0];
     if(!target){
       delete m.telegraph;m.target=null;
@@ -943,11 +961,11 @@ export class World{
       const spot=m.spotId?AFK_SPOTS.find(candidate=>candidate.id===m.spotId):null;
       let p=m.target===null?undefined:this.players.get(m.target);
       if(m.state==='idle'){
-        p=[...this.players.values()].filter(p=>!p.dead&&!safe(p)&&sameLocation(p,m)&&distance(p,m)<cfg.aggro&&clearPath(p,m)).sort((a,b)=>distance(a,m)-distance(b,m))[0];
+        p=[...this.players.values()].filter(p=>!p.dead&&distance(p,m)<cfg.aggro&&sameLocation(p,m)&&!safe(p)&&clearPath(p,m)).sort((a,b)=>distance(a,m)-distance(b,m))[0];
         if(p){m.target=p.id;m.state='chase';m.age=0;}
       }
       if(['chase','windup','recover'].includes(m.state)&&(!p||p.dead||safe(p)||!sameLocation(p,m)||distance(p,m)>CHASE_TARGET_LIMIT)){
-        const replacement=[...this.players.values()].filter(other=>!other.dead&&!safe(other)&&sameLocation(other,m)&&distance(other,m)<cfg.aggro&&clearPath(other,m)).sort((a,b)=>distance(a,m)-distance(b,m))[0];
+        const replacement=[...this.players.values()].filter(other=>!other.dead&&distance(other,m)<cfg.aggro&&sameLocation(other,m)&&!safe(other)&&clearPath(other,m)).sort((a,b)=>distance(a,m)-distance(b,m))[0];
         if(replacement){p=replacement;m.target=p.id;}
       }
       if(['chase','windup','recover'].includes(m.state)&&(!p||p.dead||safe(p)||!sameLocation(p,m)||distance(m,home)>CHASE_HOME_LIMIT||distance(p,m)>CHASE_TARGET_LIMIT)){
@@ -957,7 +975,7 @@ export class World{
       if((m.rootUntil??0)>this.t){m.speed=0;continue;}
       const slowScale=(m.slowUntil??0)>this.t?.7:1;
       if(m.state==='return'){
-        const replacement=distance(m,home)<CHASE_HOME_LIMIT?[...this.players.values()].filter(other=>!other.dead&&!safe(other)&&sameLocation(other,m)&&distance(other,m)<cfg.aggro&&clearPath(other,m)).sort((a,b)=>distance(a,m)-distance(b,m))[0]:undefined;
+        const replacement=distance(m,home)<CHASE_HOME_LIMIT?[...this.players.values()].filter(other=>!other.dead&&distance(other,m)<cfg.aggro&&sameLocation(other,m)&&!safe(other)&&clearPath(other,m)).sort((a,b)=>distance(a,m)-distance(b,m))[0]:undefined;
         if(replacement){m.state='chase';m.target=replacement.id;m.timer=0;m.age=0;}
         else{
           const d=distance(m,home);
@@ -968,7 +986,7 @@ export class World{
           }else{m.timer=0;const a=Math.atan2(home.x-m.x,home.z-m.z);m.yaw=turnTowards(m.yaw,a,dt,9);m.speed=translate(m,Math.sin(a)*cfg.speed*slowScale*dt,Math.cos(a)*cfg.speed*slowScale*dt,cfg.radius,true)/dt;}
         }
       }else if(m.state==='windup'){
-        m.timer-=dt;if(m.timer<=0){for(const target of this.players.values())if(!target.dead&&!safe(target)&&sameLocation(target,m)&&clearPath(m,target)&&inStrike(m,target,m.targetYaw,cfg.range+.2,.72))if(!this.inSkillZone(m,'archer-smoke')||this.random()>=.28)this.damagePlayer(target,cfg.damage);m.state='recover';m.timer=cfg.cooldown;m.age=0;}
+        m.timer-=dt;if(m.timer<=0){for(const target of this.players.values())if(!target.dead&&inStrike(m,target,m.targetYaw,cfg.range+.2,.72)&&sameLocation(target,m)&&!safe(target)&&clearPath(m,target))if(!this.inSkillZone(m,'archer-smoke')||this.random()>=.28)this.damagePlayer(target,cfg.damage);m.state='recover';m.timer=cfg.cooldown;m.age=0;}
       }else if(m.state==='recover'){m.timer-=dt;if(m.timer<=0)m.state='chase';}
       else if(m.state==='chase'&&p){
         const a=Math.atan2(p.x-m.x,p.z-m.z);m.yaw=turnTowards(m.yaw,a,dt,10);
@@ -993,7 +1011,7 @@ export class World{
         if(!m)continue;
         if(b.skillId&&b.attackId!==undefined)this.emit('skillImpact',{x:m.x,z:m.z,skillId:b.skillId,caster:b.owner,attackId:b.attackId,yaw:b.yaw});
         if(b.aoe){
-          const targets=this.mobs.filter(other=>liveMob(other)&&sameLocation(owner,other)&&!safe(other)&&clearPath(m,other)&&(other===m||distance(other,m)<=b.aoe+mobConfig(other).radius))
+          const targets=this.mobs.filter(other=>liveMob(other)&&sameLocation(owner,other)&&(other===m||distance(other,m)<=b.aoe+mobConfig(other).radius)&&!safe(other)&&clearPath(m,other))
             .sort((left,right)=>(left===m?-1:right===m?1:distance(left,m)-distance(right,m))||left.id-right.id).slice(0,b.maxTargets??this.mobs.length);
           for(const target of targets){
             if(b.automatic&&!owner.afk)break;

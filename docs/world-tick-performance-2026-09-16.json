@@ -1,0 +1,153 @@
+{
+  "date": "2026-09-16",
+  "method": "Alternating in-memory world algorithms, same current data, saturated mage AFK. No database, network or rendering. Quantiles for ticks and all-player snapshots are separate; their sum is not a full-cycle p95.",
+  "metadata": {
+    "node": "v24.19.0",
+    "cpu": "Apple M1",
+    "mobs": 711,
+    "players": 16,
+    "afk": true,
+    "ticks": 1200,
+    "warmup": 200,
+    "stepMs": 50,
+    "maps": [
+      "forest",
+      "snow",
+      "wasteland",
+      "swamp",
+      "mines",
+      "rift",
+      "citadel",
+      "forest-dungeon",
+      "snow-dungeon",
+      "wasteland-dungeon",
+      "swamp-dungeon",
+      "mines-dungeon",
+      "rift-dungeon",
+      "citadel-dungeon",
+      "stadium",
+      "forest"
+    ]
+  },
+  "results": [
+    {
+      "name": "5670bd3",
+      "tickWallMs": {
+        "mean": 92.26106836899989,
+        "p50": 78.5868330000012,
+        "p95": 191.30199999999604,
+        "p99": 306.9858339999919,
+        "max": 443.7375420000026
+      },
+      "tickCpuMs": {
+        "mean": 83.34072900000005,
+        "p50": 70.033,
+        "p95": 189.327,
+        "p99": 280.339,
+        "max": 544.691
+      },
+      "allSnapshotsWallMs": {
+        "mean": 34.42478750000126,
+        "p50": 32.776708000004874,
+        "p95": 45.6296250000014,
+        "p99": 90.3555839999899,
+        "max": 90.3555839999899
+      },
+      "allSnapshotsCpuMs": {
+        "mean": 31.22265999999999,
+        "p50": 29.882,
+        "p95": 44.032,
+        "p99": 62.133,
+        "max": 62.133
+      },
+      "kills": 170,
+      "encounterHash": "2772e637b6ed62fa3e89f371d419be4b667df0e20acc6c342ae1a032453308b1"
+    },
+    {
+      "name": "current",
+      "tickWallMs": {
+        "mean": 15.084056541999999,
+        "p50": 14.203792000000249,
+        "p95": 23.031208000000333,
+        "p99": 28.427167000001646,
+        "max": 51.80441700000665
+      },
+      "tickCpuMs": {
+        "mean": 13.819969999999996,
+        "p50": 12.667,
+        "p95": 20.89,
+        "p99": 34.58,
+        "max": 58.455
+      },
+      "allSnapshotsWallMs": {
+        "mean": 11.976309119999787,
+        "p50": 11.932999999989988,
+        "p95": 16.095000000001164,
+        "p99": 18.677708000002895,
+        "max": 18.677708000002895
+      },
+      "allSnapshotsCpuMs": {
+        "mean": 11.73174,
+        "p50": 11.136,
+        "p95": 16.553,
+        "p99": 26.186,
+        "max": 26.186
+      },
+      "kills": 170,
+      "encounterHash": "2772e637b6ed62fa3e89f371d419be4b667df0e20acc6c342ae1a032453308b1"
+    }
+  ],
+  "additionalRuns": [
+    {
+      "note": "One mage AFK; targeted regressions were running concurrently, not an isolated machine measurement.",
+      "rows": [
+        {
+          "node": "v24.19.0",
+          "cpu": "Apple M1",
+          "mobs": 711,
+          "players": 1,
+          "afk": true,
+          "ticks": 1200,
+          "warmup": 200,
+          "stepMs": 50,
+          "maps": [
+            "forest"
+          ]
+        },
+        {
+          "name": "current",
+          "tickWallMs": {
+            "mean": 2.302957225999997,
+            "p50": 2.075375000000122,
+            "p95": 3.761250000000018,
+            "p99": 4.5812499999999545,
+            "max": 6.846208999999817
+          },
+          "tickCpuMs": {
+            "mean": 2.925997,
+            "p50": 2.392,
+            "p95": 6.274,
+            "p99": 8.507,
+            "max": 17.544
+          },
+          "allSnapshotsWallMs": {
+            "mean": 1.0081433400000048,
+            "p50": 0.8512089999999262,
+            "p95": 2.1915420000000267,
+            "p99": 3.2392500000000837,
+            "max": 3.2392500000000837
+          },
+          "allSnapshotsCpuMs": {
+            "mean": 1.4604799999999998,
+            "p50": 0.911,
+            "p95": 3.861,
+            "p99": 8.063,
+            "max": 8.063
+          },
+          "kills": 30,
+          "encounterHash": "7bb839808796e1389c8f584bb0819daa711f14169863e5e99846e0a929749de6"
+        }
+      ]
+    }
+  ]
+}

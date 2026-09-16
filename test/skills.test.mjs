@@ -18,7 +18,7 @@ const cast=(w,p,id,extra={})=>w.command(p,{type:'skill',skillId:id,yaw:east,...e
 const damage=m=>190-m.hp;
 
 test('original four equipped attacks per class have fixed class ownership, private cooldowns and server costs',()=>{
-  assert.equal(Object.keys(SKILLS).length,36);
+  assert.equal(Object.keys(SKILLS).length,39);
   for(const classId of ['warrior','archer','mage']){
     const skills=legacyCombatSkills(classId);assert.deepEqual(skills.map(s=>s.slot),['1','2','3','4']);
     const {w,p}=fixture(classId,[[9.4,1.8]]);

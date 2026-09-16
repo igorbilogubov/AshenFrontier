@@ -3,7 +3,7 @@ import * as T from '../dist/public/game/vendor/three.module.js';import {GLTFLoad
 import {createAnimatedWarrior} from '../dist/public/game/character.js';import {SKILLS} from '../dist/public/game/skills.js';import {createSkillEffects} from '../dist/public/game/skill-effects.js';import {skillMotionSample} from '../dist/public/game/skill-motion.js';import {BOW_GRIP} from '../dist/public/game/bow-presentation.js';
 async function load(name){const bytes=await fs.readFile(new URL('../public/game/characters/'+name,import.meta.url)),loader=new GLTFLoader();loader.register(()=>({name:'NoTextures',loadTexture:()=>Promise.resolve(new T.Texture())}));return loader.parseAsync(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),'');}
 const asset=await load('ashen-archer-equipment-v1.glb'),library=await load('class-combat-v1.glb');
-test('thirty-six motion accents have finite continuous endpoints and distinct authored poses',()=>{
+test('thirty-nine motion accents have finite continuous endpoints and distinct authored poses',()=>{
  for(const skill of Object.values(SKILLS)){
   let previous;for(let frame=0;frame<=240;frame++){const values=Object.values(skillMotionSample(skill.id,frame/240,skill.hitFraction));assert(values.every(Number.isFinite));if(previous)assert(Math.max(...values.map((v,i)=>Math.abs(v-previous[i])))<.2,skill.id+' discontinuity');if(frame===0||frame===240)assert(values.every(v=>Math.abs(v)<1e-8),skill.id+' terminal offset');previous=values;}
  }

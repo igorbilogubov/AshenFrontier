@@ -39,14 +39,17 @@ export function skillMotionSample(skill:string,phase:number,contact:number){
     case 'warrior-whirlwind':leftSpread=.28*envelope;rightSpread=.35*envelope;lean=.12*envelope;break;
     case 'warrior-thrust':turn=-.4*charge+.28*strike;rightLift=-.48*envelope;rightSpread=-.28*envelope;lean=.25*strike-.09*charge;break;
     case 'warrior-shockwave':rightLift=-1.12*charge;leftLift=-.48*charge;lean=-.16*charge+.42*strike;head=.12*strike;break;
+    case 'warrior-earthquake':rightLift=-1.2*charge;leftLift=-.7*charge;leftSpread=.3*envelope;rightSpread=.3*envelope;lean=-.2*charge+.5*strike;knee=.5*envelope;break;
     case 'archer-piercing':turn=-.24*charge;lean=-.12*charge+.16*strike;rightSpread=.19*charge;break;
     case 'archer-volley':turn=(-.38*charge+.33*strike);leftSpread=.2*envelope;rightSpread=.26*envelope;break;
     case 'archer-frost-shot':{const low=envelope*(1-smooth((p/contact-.45)/.55));lean=.22*low;leftLift=.22*low;rightLift=.18*low;head=-.12*low;break;}
     case 'archer-rain':lean=-.38*envelope;leftLift=-.5*envelope;rightLift=-.5*envelope;head=-.22*envelope;break;
+    case 'archer-arrow-storm':lean=-.42*envelope;leftLift=-.58*envelope;rightLift=-.62*envelope;leftSpread=.18*envelope;rightSpread=.18*envelope;head=-.24*envelope;break;
     case 'mage-fireball':turn=-.23*charge+.28*strike;rightLift=-.22*charge;leftSpread=.25*charge;break;
     case 'mage-frost':leftSpread=.4*envelope;rightSpread=.4*envelope;lean=.16*strike;break;
     case 'mage-lightning':turn=-.35*charge+.22*strike;rightLift=-.58*envelope;leftLift=.25*envelope;leftSpread=-.2*envelope;lean=.16*strike;break;
     case 'mage-meteor':leftLift=-.68*charge;rightLift=-.82*charge;leftSpread=.18*charge;rightSpread=.18*charge;lean=-.2*charge+.36*strike;head=-.16*charge;break;
+    case 'mage-arcane-nova':leftLift=-.45*charge+.55*strike;rightLift=-.45*charge+.55*strike;leftSpread=.75*envelope;rightSpread=.75*envelope;lean=-.18*charge+.3*strike;break;
   }
   // The strike accent also tapers at the terminal pose (animation snapshots can
   // jump directly to 1, so do not rely on frame-by-frame damping for recovery).

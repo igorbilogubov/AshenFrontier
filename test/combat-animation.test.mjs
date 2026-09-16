@@ -3,8 +3,8 @@ import * as T from '../dist/public/game/vendor/three.module.js';import {GLTFLoad
 import {createAnimatedWarrior} from '../dist/public/game/character.js';import {SKILLS} from '../dist/public/game/skills.js';
 async function load(name){const bytes=await fs.readFile(new URL('../public/game/characters/'+name,import.meta.url));const loader=new GLTFLoader();loader.register(()=>({name:'NoTextures',loadTexture:()=>Promise.resolve(new T.Texture())}));return loader.parseAsync(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),'');}
 const library=await load('class-combat-v1.glb');
-test('all thirty-six skill phases deform their actual equipped model without exploding or root drift',async()=>{
- assert.equal(Object.keys(SKILLS).length,36);
+test('all thirty-nine skill phases deform their actual equipped model without exploding or root drift',async()=>{
+ assert.equal(Object.keys(SKILLS).length,39);
  assert.deepEqual(library.animations.map(c=>c.name).sort(),['Bow_Draw','Bow_Recoil','Mage_Cast','Mage_Pulse']);
  for(const classId of ['warrior','archer','mage']){
   const model=createAnimatedWarrior(await load(`ashen-${classId}-equipment-v1.glb`),classId,library.animations);

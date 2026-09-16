@@ -17,10 +17,10 @@ test('real account session applies, saves and restores private build; malformed 
  try{
   server=await startTestServer(db);c=await connect(server,fixture);
   assert.equal(c.state.self.buildRevision,0);assert(!('skillBuild' in c.state.players[0]));
-  const build={slots:['warrior-heavy','warrior-charge','warrior-guard','warrior-berserk'],talents:{'warrior-duelist-1':2,'warrior-duelist-2':2}};
+  const build={slots:['warrior-heavy','warrior-charge','warrior-guard','warrior-berserk',null],talents:{'warrior-duelist-1':2,'warrior-duelist-2':2}};
   c.ws.send(JSON.stringify({type:'buildApply',revision:0,build}));await until(()=>c.state.self.buildRevision===1);assert.deepEqual(c.state.self.skillBuild,build);
   c.ws.send(JSON.stringify({type:'buildSavePreset',index:2}));await until(()=>c.state.self.skillPresets[2]);assert.deepEqual(c.state.self.skillPresets[2],build);
-  c.ws.send(JSON.stringify({type:'buildApply',revision:0,build:{slots:[null,null,null,null],talents:{}}}));await until(()=>c.events.some(e=>e.type==='buildResult'&&!e.ok));assert.deepEqual(c.state.self.skillBuild,build);
+  c.ws.send(JSON.stringify({type:'buildApply',revision:0,build:{slots:[null,null,null,null,null],talents:{}}}));await until(()=>c.events.some(e=>e.type==='buildResult'&&!e.ok));assert.deepEqual(c.state.self.skillBuild,build);
   const failures=c.events.filter(e=>e.type==='buildResult'&&!e.ok).length;
   c.ws.send(JSON.stringify({type:'buildApply',revision:1,build:{...build,talents:{'warrior-duelist-mastery':1}}}));await until(()=>c.events.filter(e=>e.type==='buildResult'&&!e.ok).length>failures);assert.equal(c.state.self.buildRevision,1);
   await close(c);c=null;await stopTestServer(server);server=null;

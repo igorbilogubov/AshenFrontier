@@ -1,6 +1,6 @@
 import type {PoolClient} from 'pg';
 
-export const DATABASE_SCHEMA_VERSION=7;
+export const DATABASE_SCHEMA_VERSION=8;
 
 // The migration is embedded so both source execution and dist execution use the
 // exact same schema, including in the production Docker image.
@@ -224,7 +224,7 @@ export async function migrate(client:PoolClient):Promise<void>{
     await client.query('SELECT pg_advisory_xact_lock(8675309, 4733)');
     await client.query('CREATE TABLE IF NOT EXISTS schema_migrations (version integer PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())');
     const applied=await client.query<{version:number}>('SELECT version FROM schema_migrations');
-    if([1,2,3,4,5,6,7].some(version=>!applied.rows.some(row=>row.version===version))){
+    if([1,2,3,4,5,6,7,8].some(version=>!applied.rows.some(row=>row.version===version))){
       // Data migrations must never copy counters while an older process can
       // still buy or consume them. Read-only opens of a current schema stay free.
       const world=await client.query<{locked:boolean}>('SELECT pg_try_advisory_xact_lock(8675309, 4732) AS locked');
@@ -255,6 +255,18 @@ export async function migrate(client:PoolClient):Promise<void>{
       ALTER TABLE consumable_stacks DROP CONSTRAINT consumable_stacks_quantity_check;
       ALTER TABLE consumable_stacks ADD CONSTRAINT consumable_stacks_quantity_check CHECK (quantity BETWEEN 1 AND 999);
     `);await client.query('INSERT INTO schema_migrations(version) VALUES (7)');}
+    const eighth=await client.query<{version:number}>('SELECT version FROM schema_migrations WHERE version=8');
+    if(!eighth.rowCount){await client.query(`
+      ALTER TABLE heroes DROP CONSTRAINT heroes_skill_build_check;
+      UPDATE heroes SET skill_build=jsonb_set(skill_build,'{slots}',(skill_build->'slots')||'null'::jsonb)
+        WHERE skill_build IS NOT NULL AND jsonb_array_length(skill_build->'slots')=4;
+      UPDATE heroes SET skill_presets=(
+        SELECT jsonb_agg(CASE WHEN preset.value='null'::jsonb OR jsonb_array_length(preset.value->'slots')<>4 THEN preset.value
+          ELSE jsonb_set(preset.value,'{slots}',(preset.value->'slots')||'null'::jsonb) END ORDER BY preset.ordinality)
+        FROM jsonb_array_elements(skill_presets) WITH ORDINALITY AS preset(value,ordinality)
+      );
+      ALTER TABLE heroes ADD CONSTRAINT heroes_skill_build_check CHECK (skill_build IS NULL OR (jsonb_typeof(skill_build)='object' AND jsonb_typeof(skill_build->'slots')='array' AND jsonb_array_length(skill_build->'slots')=5 AND jsonb_typeof(skill_build->'talents')='object'));
+    `);await client.query('INSERT INTO schema_migrations(version) VALUES (8)');}
     await client.query('COMMIT');
   }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}
 }

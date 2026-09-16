@@ -2,7 +2,7 @@ import type {ClassId, SkillId} from '../../shared/types.js';
 
 /** Shared presentation metadata and authoritative combat limits. */
 export interface SkillDefinition {
-  id: SkillId; classId: ClassId; slot: '1' | '2' | '3' | '4'; name: string; description: string;
+  id: SkillId; classId: ClassId; slot: '1' | '2' | '3' | '4' | 'rmb'; name: string; description: string;
   unlockLevel:number;kind:'attack'|'mobility'|'defense'|'support'|'control'|'channel';effectDuration?:number;cooldownFamily?:'mobility';
   manaCost: number; cooldown: number; durationScale: number; hitFraction: number;
   damageScale: number; range: number; radius?: number; halfAngle?: number;
@@ -21,6 +21,9 @@ export const SKILLS: Readonly<Record<SkillId, Readonly<SkillDefinition>>> = Obje
   'archer-rain': {id:'archer-rain',unlockLevel:22,kind:'attack',classId:'archer',slot:'4',name:'Дождь стрел',description:'Через 0,45 с поражает до 4 целей в области впереди.',manaCost:26,cooldown:10,durationScale:1.45,hitFraction:.61,damageScale:1.18,range:5.3,radius:1.75,maxTargets:4},
   'mage-lightning': {id:'mage-lightning',unlockLevel:5,kind:'attack',classId:'mage',slot:'3',name:'Цепная молния',description:'Ток перескакивает между 3 близкими целями с падением урона.',manaCost:18,cooldown:0,durationScale:1.28,hitFraction:.55,damageScale:1.08,range:5.2,radius:1.9,maxTargets:3},
   'mage-meteor': {id:'mage-meteor',unlockLevel:22,kind:'attack',classId:'mage',slot:'4',name:'Метеор',description:'Через 0,7 с падает в область впереди, до 5 целей.',manaCost:38,cooldown:12,durationScale:1.6,hitFraction:.65,damageScale:1.72,range:5.1,radius:1.9,maxTargets:5},
+  'warrior-earthquake': {id:'warrior-earthquake',unlockLevel:20,kind:'attack',classId:'warrior',slot:'rmb',name:'Землетрясение',description:'Сотрясает землю в радиусе 5 м, поражая до 10 целей ослабленным ударом.',manaCost:28,cooldown:13,durationScale:1.55,hitFraction:.62,damageScale:.55,range:5,radius:5,halfAngle:Math.PI,maxTargets:10},
+  'archer-arrow-storm': {id:'archer-arrow-storm',unlockLevel:20,kind:'attack',classId:'archer',slot:'rmb',name:'Град стрел',description:'Через 0,55 с накрывает область радиусом 5 м, поражая до 12 целей.',manaCost:30,cooldown:14,durationScale:1.55,hitFraction:.62,damageScale:.5,range:6,radius:5,maxTargets:12},
+  'mage-arcane-nova': {id:'mage-arcane-nova',unlockLevel:20,kind:'attack',classId:'mage',slot:'rmb',name:'Чародейская нова',description:'Взрыв энергии в радиусе 5 м вокруг мага, поражающий до 12 целей.',manaCost:32,cooldown:14,durationScale:1.6,hitFraction:.64,damageScale:.5,range:5,radius:5,halfAngle:Math.PI,maxTargets:12},
   'warrior-heavy': {id:'warrior-heavy',classId:'warrior',slot:'1',unlockLevel:10,kind:'attack',name:'Мощный удар',description:'Тяжёлый удар сверху по одной цели.',manaCost:12,cooldown:0,durationScale:1.7,hitFraction:.55,damageScale:1.82,range:2.6,maxTargets:1,halfAngle:.5},
   'warrior-bleed': {id:'warrior-bleed',classId:'warrior',slot:'1',unlockLevel:14,kind:'attack',name:'Кровавый разрез',description:'Разрез и кровотечение на 4 с. Повтор обновляет длительность.',manaCost:9,cooldown:0,durationScale:1.15,hitFraction:.55,damageScale:1.12,range:2.45,maxTargets:1,halfAngle:.6,effectDuration:4},
   'warrior-charge': {id:'warrior-charge',classId:'warrior',slot:'1',unlockLevel:8,kind:'mobility',name:'Рывок',description:'Сближение по прямой до 5 м, останавливается об препятствия.',manaCost:10,cooldown:9,durationScale:0.65,hitFraction:.55,damageScale:0,range:5,maxTargets:0,cooldownFamily:'mobility'},

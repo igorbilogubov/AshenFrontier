@@ -5,6 +5,7 @@ import type {EventPayloads,PublicMob,Point} from '../../shared/types.js';
 type ImpactEvent=EventPayloads['skillImpact'];
 const COLORS:Record<string,string>={'warrior-cleave':'#ffe3ac','warrior-whirlwind':'#eac083','warrior-thrust':'#fff5d0','warrior-shockwave':'#e7a25b','archer-piercing':'#fff0a6','archer-volley':'#b8e29c','archer-frost-shot':'#91e5ff','archer-rain':'#d4edaa','mage-fireball':'#ff9b3e','mage-frost':'#a5e9ff','mage-lightning':'#c9c0ff','mage-meteor':'#ff793c'};
 Object.assign(COLORS,{'warrior-heavy':'#ffe4b4','warrior-bleed':'#d95643','warrior-charge':'#e5c28c','warrior-leap':'#cfb28f','warrior-guard':'#a4c0d3','warrior-berserk':'#dc5942','warrior-shout':'#ead4a1','warrior-banner':'#d0c596','archer-aimed':'#ffeaa2','archer-poison':'#87d456','archer-retreat':'#bfceb3','archer-roll':'#b9c7a6','archer-trap':'#afbba6','archer-focus':'#dddfa1','archer-wind':'#b2dfca','archer-smoke':'#85968a','mage-ice-lance':'#8ad7f1','mage-beam':'#ba9ffa','mage-teleport':'#c6afff','mage-ice-step':'#a6ebee','mage-mana-shield':'#8dbfe9','mage-seals':'#cabaf5','mage-ward':'#a8c0ec','mage-mana-source':'#8fb7f1'});
+Object.assign(COLORS,{'warrior-earthquake':'#e4a45f','archer-arrow-storm':'#c9e79e','mage-arcane-nova':'#bca9ff'});
 const POOL_SIZE=32,PARTICLES=24;
 /** Bounded, reusable geometry; every impact/telegraph starts from a server event.
  * Cosmetic debris never determines a hit or changes the server's warning delay. */
@@ -24,7 +25,7 @@ export function createSkillEffects(scene:T.Scene){
   const slowRings=new Map<number,T.Mesh<T.RingGeometry,T.MeshBasicMaterial>>();let cursor=0;
   function sample(effect:typeof effects[number]){
     const p=T.MathUtils.clamp(effect.age/effect.duration,0,1),out=1-p,exp=1-out*out*out,skill=effect.skill,r=effect.radius;
-    const lightning=skill==='mage-lightning'||skill==='mage-beam',rain=skill==='archer-rain',meteor=skill==='mage-meteor',ice=skill==='mage-frost'||skill==='archer-frost-shot'||skill==='mage-ice-lance'||skill==='mage-ice-step';
+    const lightning=skill==='mage-lightning'||skill==='mage-beam',rain=skill==='archer-rain'||skill==='archer-arrow-storm',meteor=skill==='mage-meteor',ice=skill==='mage-frost'||skill==='archer-frost-shot'||skill==='mage-ice-lance'||skill==='mage-ice-step';
     effect.ring.scale.setScalar(r*(effect.warning?1:.22+.78*exp));effect.ring.material.opacity=effect.warning?.18+.14*Math.sin(p*16)**2:out*.65;
     effect.core.visible=meteor||skill==='mage-fireball';effect.core.scale.setScalar(effect.warning?.3:(meteor?.7:.48)*(.3+exp));effect.core.position.set(effect.warning?-1.6*(1-p):0,effect.warning?.3+6*(1-p):.42,0);effect.core.material.opacity=out*.85;
     if(effect.warning&&!rain){effect.sparks.visible=false;effect.streaks.visible=false;return;}
@@ -48,7 +49,7 @@ export function createSkillEffects(scene:T.Scene){
     impact(event:ImpactEvent,elapsedSeconds=0){
       const effect=effects[cursor++%effects.length],skill=SKILLS[event.skillId];if(!skill||event.phase==='end')return;
       effect.age=Math.max(0,elapsedSeconds);effect.warning=event.phase==='warning';effect.skill=event.skillId;effect.seed=event.attackId;
-      effect.duration=effect.warning?Math.max(.05,event.delay??.5):event.skillId==='mage-lightning'?.3:event.skillId==='archer-rain'?.55:event.skillId==='mage-meteor'?.8:.55;
+      effect.duration=effect.warning?Math.max(.05,event.delay??.5):event.skillId==='mage-lightning'?.3:event.skillId==='archer-rain'||event.skillId==='archer-arrow-storm'?.55:event.skillId==='mage-meteor'?.8:.55;
       effect.radius=event.radius??skill.radius??(skill.kind==='mobility'?1:skill.kind!=='attack'&&skill.kind!=='channel'?1.2:skill.classId==='archer'||skill.classId==='mage'?.6:skill.range);effect.active=true;
       effect.root.position.set(event.x,.065,event.z);effect.root.rotation.y=event.yaw;effect.root.visible=true;
       const dx=(event.from?.x??event.x)-event.x,dz=(event.from?.z??event.z)-event.z;

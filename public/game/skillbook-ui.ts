@@ -1,5 +1,4 @@
 import {actionIcon} from './action-icons.js';
-import {safe} from './location.js';
 import type {NetworkGame} from './network.js';
 import {SKILLS,skillsForClass,type SkillDefinition} from './skills.js';
 import {TALENTS,defaultSkillBuild,effectiveSkill,parseSkillBuild,talentBranches,talentPoints,talentSpent,type TalentDefinition} from './skill-builds.js';
@@ -7,7 +6,7 @@ import type {ClassId,SkillBuild,SkillId,WorldEvent} from '../../shared/types.js'
 
 type PendingBuild={kind:'apply'|'save'|'load';sentAt:number;build?:SkillBuild;index?:0|1|2};
 type Page='skills'|'talents';
-const slots=['1','2','3','4'] as const;
+const slots=['1','2','3','4','ПКМ'] as const;
 const presetNames=['Охота','Босс','PvP'] as const;
 const kindLabels:Record<SkillDefinition['kind'],string>={attack:'Атака',mobility:'Движение',defense:'Защита',support:'Поддержка',control:'Контроль',channel:'Канал'};
 const clone=(build:SkillBuild):SkillBuild=>({slots:[...build.slots],talents:{...build.talents}});
@@ -22,7 +21,7 @@ export function bindSkillbook(game:NetworkGame,toast:(message:string)=>void){
   let owner='',serverRevision=-1,baseline:SkillBuild|undefined,draft:SkillBuild|undefined,pending:PendingBuild|null=null,status='',error=false,selectedSkill:SkillId|null=null,page:Page='skills',renderKey='';
   const isOpen=()=>!panel.hidden;
   const classTalents=(classId:ClassId)=>TALENTS.filter(talent=>talent.classId===classId);
-  const canChange=()=>game.connected&&safe(game.player)&&!game.player.dead;
+  const canChange=()=>game.connected&&!game.player.dead;
   const currentBuild=()=>parseSkillBuild(game.player.skillBuild,game.player.classId,game.player.level)??defaultSkillBuild(game.player.classId,game.player.level);
   function setStatus(message:string,isError=false){status=message;error=isError;renderKey='';}
   function setPage(next:Page){page=next;field<HTMLButtonElement>('skillbook-skills-tab').setAttribute('aria-selected',String(next==='skills'));field<HTMLButtonElement>('skillbook-talents-tab').setAttribute('aria-selected',String(next==='talents'));field<HTMLElement>('skillbook-skills').hidden=next!=='skills';field<HTMLElement>('skillbook-talents').hidden=next!=='talents';renderKey='';render();}
@@ -54,9 +53,9 @@ export function bindSkillbook(game:NetworkGame,toast:(message:string)=>void){
     if(!draft)return;const skill=SKILLS[skillId];
     if(skill.classId!==game.player.classId||skill.unlockLevel>game.player.level){setStatus(`«${skill.name}» откроется на ${skill.unlockLevel} уровне.`,true);return;}
     const previous=draft.slots.indexOf(skillId);if(previous>=0)draft.slots[previous]=null;
-    draft.slots[index]=skillId;selectedSkill=null;setStatus('Боевой набор изменён. Примените сборку у костра.');renderKey='';render();
+    draft.slots[index]=skillId;selectedSkill=null;setStatus('Боевой набор изменён. Примените сборку.');renderKey='';render();
   }
-  function removeSlot(index:number){if(!draft||!draft.slots[index])return;draft.slots[index]=null;setStatus('Слот освобождён. Примените сборку у костра.');renderKey='';render();}
+  function removeSlot(index:number){if(!draft||!draft.slots[index])return;draft.slots[index]=null;setStatus('Слот освобождён. Примените сборку.');renderKey='';render();}
   function branchSpent(branch:string){if(!draft)return 0;return classTalents(game.player.classId).filter(t=>t.branch===branch&&!t.keystone).reduce((sum,t)=>sum+(draft!.talents[t.id]??0),0);}
   function otherKeystone(id:string){if(!draft)return false;return classTalents(game.player.classId).some(t=>t.keystone&&t.id!==id&&(draft!.talents[t.id]??0)>0);}
   function changeTalent(definition:TalentDefinition,amount:-1|1){
@@ -76,10 +75,10 @@ export function bindSkillbook(game:NetworkGame,toast:(message:string)=>void){
   function renderSlots(){
     if(!draft)return;slotList.replaceChildren();
     draft.slots.forEach((id,index)=>{
-      const skill=id?effectiveSkill({...game.player,skillBuild:draft},id):null,button=document.createElement('div');button.className='skill-slot'+(skill?'':' empty');button.dataset.slot=String(index+1);button.dataset.index=String(index);
+      const skill=id?effectiveSkill({...game.player,skillBuild:draft},id):null,button=document.createElement('div');button.className='skill-slot'+(skill?'':' empty');button.dataset.slot=slots[index];button.dataset.index=String(index);
       const art=document.createElement('span');art.className='skill-slot-art';if(skill)art.innerHTML=actionIcon(skill.id);
       const copy=document.createElement('span'),name=document.createElement('strong'),meta=document.createElement('small'),main=document.createElement('button');main.type='button';main.className='skill-slot-main';name.textContent=skill?.name||'Пустой слот';meta.textContent=skill?`${fixed(skill.manaCost)} MP${skill.cooldown?` · ${fixed(skill.cooldown)} с`:''}`:'Выберите навык';copy.append(name,meta);main.append(art,copy);button.append(main);
-      if(skill){const remove=document.createElement('button');remove.type='button';remove.className='slot-remove';remove.textContent='×';remove.setAttribute('aria-label',`Убрать ${skill.name} из слота ${index+1}`);remove.onclick=event=>{event.stopPropagation();removeSlot(index);};button.append(remove);button.draggable=true;button.dataset.skill=skill.id;button.addEventListener('dragstart',event=>event.dataTransfer?.setData('text/skill-id',skill.id));}
+      if(skill){const remove=document.createElement('button');remove.type='button';remove.className='slot-remove';remove.textContent='×';remove.setAttribute('aria-label',`Убрать ${skill.name} из слота ${slots[index]}`);remove.onclick=event=>{event.stopPropagation();removeSlot(index);};button.append(remove);button.draggable=true;button.dataset.skill=skill.id;button.addEventListener('dragstart',event=>event.dataTransfer?.setData('text/skill-id',skill.id));}
       main.onclick=()=>{if(selectedSkill)assign(selectedSkill,index);else if(id){selectedSkill=id;setStatus(`Выбран «${skill!.name}». Укажите новый слот.`);renderKey='';render();}};
       button.addEventListener('dragover',event=>{event.preventDefault();button.classList.add('drag-over');});button.addEventListener('dragleave',()=>button.classList.remove('drag-over'));
       button.addEventListener('drop',event=>{event.preventDefault();button.classList.remove('drag-over');const id=event.dataTransfer?.getData('text/skill-id') as SkillId;if(id&&Object.hasOwn(SKILLS,id))assign(id,index);});
@@ -92,9 +91,9 @@ export function bindSkillbook(game:NetworkGame,toast:(message:string)=>void){
       const skill=effectiveSkill({...game.player,skillBuild:draft},base.id),locked=base.unlockLevel>game.player.level,equipped=draft.slots.includes(base.id),card=document.createElement('button');card.type='button';card.className=`skill-card${locked?' locked':''}${equipped?' equipped':''}${selectedSkill===base.id?' selected':''}`;card.dataset.skill=base.id;card.setAttribute('role','listitem');card.disabled=false;card.draggable=!locked;
       const head=document.createElement('div');head.className='skill-card-head';const art=document.createElement('span');art.className='skill-card-art';art.innerHTML=actionIcon(base.id);const kind=document.createElement('span');kind.className='skill-kind';kind.textContent=kindLabels[base.kind];head.append(art,kind);
       const name=document.createElement('h4');name.textContent=base.name;const description=document.createElement('p');description.textContent=base.description;const meta=document.createElement('div');meta.className='skill-card-meta';meta.innerHTML=`<span>${fixed(skill.manaCost)} MP</span><span>${skill.cooldown?fixed(skill.cooldown)+' с':'без КД'}</span>`;card.append(head,name,description,meta);
-      if(equipped){const mark=document.createElement('span');mark.className='skill-equipped-mark';mark.textContent=String(draft.slots.indexOf(base.id)+1);card.append(mark);}
+      if(equipped){const mark=document.createElement('span');mark.className='skill-equipped-mark';mark.textContent=slots[draft.slots.indexOf(base.id)];card.append(mark);}
       if(locked){const lock=document.createElement('span');lock.className='skill-card-lock';lock.textContent=`Откроется на уровне ${base.unlockLevel}`;card.append(lock);}
-      card.onclick=()=>{if(locked){setStatus(`«${base.name}» откроется на ${base.unlockLevel} уровне.`,true);render();return;}selectedSkill=selectedSkill===base.id?null:base.id;setStatus(selectedSkill?`Выбран «${base.name}». Нажмите нужный слот 1–4.`:'Выбор навыка снят.');renderKey='';render();};
+      card.onclick=()=>{if(locked){setStatus(`«${base.name}» откроется на ${base.unlockLevel} уровне.`,true);render();return;}selectedSkill=selectedSkill===base.id?null:base.id;setStatus(selectedSkill?`Выбран «${base.name}». Нажмите нужный слот 1–4 или ПКМ.`:'Выбор навыка снят.');renderKey='';render();};
       card.addEventListener('dragstart',event=>{if(!locked)event.dataTransfer?.setData('text/skill-id',base.id);});bindTooltip(card,()=>skill,locked?`Требуется ${base.unlockLevel} уровень.`:'');catalog.append(card);
     }
   }
@@ -116,7 +115,7 @@ export function bindSkillbook(game:NetworkGame,toast:(message:string)=>void){
   function renderPresets(){
     const list=field<HTMLElement>('skillbook-preset-list');list.replaceChildren();const presets=game.player.skillPresets??[null,null,null];
     presetNames.forEach((name,index)=>{const group=document.createElement('span');group.className='preset-group';const load=document.createElement('button'),save=document.createElement('button');load.type=save.type='button';load.className='preset-load'+(presets[index]?'':' empty');save.className='preset-save';load.textContent=name;save.textContent='↓';load.title=presets[index]?`Применить пресет «${name}» у костра`:`Пресет «${name}» ещё не сохранён`;save.title=`Сохранить текущую применённую сборку: «${name}»`;load.disabled=!presets[index]||!game.connected||!!pending;save.disabled=!game.connected||!!pending;
-      load.onclick=()=>{if(!presets[index]||pending)return;if(!canChange()){setStatus('Пресет можно применить только в безопасной зоне.',true);render();return;}pending={kind:'load',index:index as 0|1|2,sentAt:performance.now()};setStatus(`Применяем пресет «${name}»…`);game.send({type:'buildLoadPreset',revision:game.player.buildRevision,index:index as 0|1|2});renderKey='';render();};
+      load.onclick=()=>{if(!presets[index]||pending)return;if(!canChange()){setStatus('Пресет доступен живому герою при подключении к миру.',true);render();return;}pending={kind:'load',index:index as 0|1|2,sentAt:performance.now()};setStatus(`Применяем пресет «${name}»…`);game.send({type:'buildLoadPreset',revision:game.player.buildRevision,index:index as 0|1|2});renderKey='';render();};
       save.onclick=()=>{if(pending)return;if(dirty()){setStatus('Сначала примените изменения, затем сохраните пресет.',true);render();return;}pending={kind:'save',index:index as 0|1|2,sentAt:performance.now()};setStatus(`Сохраняем текущую сборку в пресет «${name}»…`);game.send({type:'buildSavePreset',index:index as 0|1|2});renderKey='';render();};group.append(load,save);list.append(group);});
   }
   function render(force=false){
@@ -124,11 +123,11 @@ export function bindSkillbook(game:NetworkGame,toast:(message:string)=>void){
     field<HTMLElement>('skillbook-level').textContent=String(game.player.level);field<HTMLElement>('talent-spent').textContent=String(spent);field<HTMLElement>('talent-total').textContent=String(available);field<HTMLElement>('talent-tab-points').textContent=String(Math.max(0,available-spent));
     const next=available>=20?'Все 20 очков открыты':game.player.level<10?'Первое очко на 10 уровне':`Следующее очко на ${10+available*4} уровне`;field<HTMLElement>('talent-next-point').textContent=next;field<HTMLElement>('talent-budget-fill').style.width=`${available?Math.min(100,spent/available*100):0}%`;
     const currentAvailable=Math.max(0,talentPoints(game.player.level)-talentSpent(currentBuild()));field<HTMLElement>('talent-points-badge').textContent=String(currentAvailable);field<HTMLElement>('talent-points-badge').hidden=!currentAvailable;
-    const safeState=field<HTMLElement>('skillbook-safe-state');safeState.textContent=usable?(game.player.afk?'У костра · применение остановит автоохоту':'У костра · сборку можно применить'):'Просмотр доступен · применение только у костра';safeState.classList.toggle('locked',!usable);
+    const safeState=field<HTMLElement>('skillbook-safe-state');safeState.textContent=usable?(game.player.afk?'Можно применить · автоохота остановится':'Сборку можно применить в бою'):'Применение доступно живому герою при подключении';safeState.classList.toggle('locked',!usable);
     renderSlots();renderCatalog();renderTalents();renderPresets();
     applyButton.disabled=!isDirty||!usable||!!pending;discardButton.disabled=!isDirty||!!pending;resetButton.disabled=!spent||!!pending;
     applyButton.textContent=pending?.kind==='apply'?'Применяем…':'Применить сборку';
-    const fallback=pending?'Ждём подтверждения сервера…':status||(!game.connected?'Нет соединения с миром.':!usable?'Просматривать можно везде. Изменение сборки доступно у костра.':isDirty?'Есть неприменённые изменения.':game.player.afk?'Открытие книги не выключает автоохоту. Применение сборки её остановит.':'Сборка сохранена на сервере.');statusNode.textContent=fallback;statusNode.classList.toggle('error',error);statusNode.classList.toggle('pending',!!pending);
+    const fallback=pending?'Ждём подтверждения сервера…':status||(!game.connected?'Нет соединения с миром.':!usable?'Применение доступно живому герою.':isDirty?'Есть неприменённые изменения.':game.player.afk?'Открытие книги не выключает автоохоту. Применение сборки её остановит.':'Сборка сохранена на сервере.');statusNode.textContent=fallback;statusNode.classList.toggle('error',error);statusNode.classList.toggle('pending',!!pending);
   }
   function showTooltip(target:HTMLElement,value:SkillDefinition|TalentDefinition,locked=''){
     if('manaCost' in value){
@@ -140,7 +139,7 @@ export function bindSkillbook(game:NetworkGame,toast:(message:string)=>void){
   function hideTooltip(){tooltip.hidden=true;}
   function bindTooltip(target:HTMLElement,getValue:()=>SkillDefinition|TalentDefinition,locked=''){target.addEventListener('mouseenter',()=>showTooltip(target,getValue(),locked));target.addEventListener('mouseleave',hideTooltip);target.addEventListener('focusin',()=>showTooltip(target,getValue(),locked));target.addEventListener('focusout',hideTooltip);}
 
-  applyButton.onclick=()=>{if(!draft||pending||!dirty())return;if(!canChange()){setStatus('Сборку можно применить только в безопасной зоне.',true);render();return;}const valid=parseSkillBuild(draft,game.player.classId,game.player.level);if(!valid){setStatus('Черновик содержит недоступный навык или неверное распределение талантов.',true);render();return;}pending={kind:'apply',build:clone(valid),sentAt:performance.now()};setStatus('Применяем сборку…');game.send({type:'buildApply',revision:game.player.buildRevision,build:valid});renderKey='';render();};
+  applyButton.onclick=()=>{if(!draft||pending||!dirty())return;if(!canChange()){setStatus('Сборка доступна живому герою при подключении к миру.',true);render();return;}const valid=parseSkillBuild(draft,game.player.classId,game.player.level);if(!valid){setStatus('Черновик содержит недоступный навык или неверное распределение талантов.',true);render();return;}pending={kind:'apply',build:clone(valid),sentAt:performance.now()};setStatus('Применяем сборку…');game.send({type:'buildApply',revision:game.player.buildRevision,build:valid});renderKey='';render();};
   discardButton.onclick=()=>{if(!baseline||pending)return;draft=clone(baseline);selectedSkill=null;setStatus('Неприменённые изменения отменены.');renderKey='';render();};
   resetButton.onclick=()=>{if(!draft||pending||!talentSpent(draft))return;draft.talents={};setStatus('Таланты сброшены в черновике. Примените сборку у костра.');renderKey='';render();};
   function onEvent(event:WorldEvent){

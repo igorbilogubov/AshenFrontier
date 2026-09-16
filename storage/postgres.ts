@@ -171,7 +171,7 @@ async function readHero(client:PoolClient,heroId:string,accountId:string):Promis
   const consumableInventory:ConsumableStack[]=stackRows.rows.map(stack=>({id:stack.id,definitionId:stack.definition_id,quantity:stack.quantity}));
   const stash=stashLocations.sort((a,b)=>a.position-b.position).map(location=>location.id);
   const hero:PersistentHero={
-    skillBuild:parseSkillBuild(row.skill_build,row.class_id,row.level)??defaultSkillBuild(row.class_id,row.level),buildRevision:numeric(row.build_revision),skillPresets:row.skill_presets,
+    skillBuild:parseSkillBuild(row.skill_build,row.class_id,row.level)??defaultSkillBuild(row.class_id,row.level),buildRevision:numeric(row.build_revision),skillPresets:[0,1,2].map(index=>parseSkillBuild(row.skill_presets?.[index],row.class_id,row.level)) as PersistentHero['skillPresets'],
     schemaVersion:row.schema_version,id:row.id,name:row.name,classId:row.class_id,level:row.level,
     xp:numeric(row.xp),gold:numeric(row.gold),kills:row.kills,items,pendingItems,stash,equipment,consumableInventory,quickSlots:{q:row.quick_slot_q,w:row.quick_slot_w},consumableOverflow:row.consumable_overflow,
     allocatedStats:{strength:row.strength,dexterity:row.dexterity,vitality:row.vitality,energy:row.energy},statRevision:row.stat_revision,

@@ -4,22 +4,22 @@ import {World,newHero,safeHero,persistentHero,stats} from '../dist/world.js';
 import {SKILLS,skillsForClass} from '../dist/public/game/skills.js';
 import {TALENTS,talentPoints,talentBranches,parseSkillBuild,effectiveSkill,defaultSkillBuild} from '../dist/public/game/skill-builds.js';
 import {CAMP_SPAWN} from '../dist/public/game/camp-layout.js';
-import {stand,distance,clearPath} from '../dist/public/game/location.js';
+import {stand,distance,clearPath,safe} from '../dist/public/game/location.js';
 const east=Math.PI/2;
 const advance=(w,seconds)=>{for(let i=0;i<Math.round(seconds*20);i++)w.tick(.05,w.t+50);};
 function fixture(classId,ids){
  const w=new World({random:()=>0}),p=newHero('Сборка',classId);Object.assign(p,{level:86,x:8,z:1.8,yaw:east,targetYaw:east});
- p.skillBuild={slots:[...ids,...Array(4-ids.length).fill(null)],talents:{}};p.mana=stats(p).maxMana;p.hp=stats(p).maxHp;w.add(p);
+ p.skillBuild={slots:[...ids,...Array(5-ids.length).fill(null)],talents:{}};p.mana=stats(p).maxMana;p.hp=stats(p).maxHp;w.add(p);
  w.mobs=w.mobs.slice(0,3);w.mobs.forEach((m,i)=>Object.assign(m,{x:9.4+i*.4,z:1.8,homeX:9.4+i*.4,homeZ:1.8,hp:10000,state:'recover',timer:1000,target:p.id}));
  return {w,p,m:w.mobs[0]};
 }
 const cast=(f,id,targetId)=>f.w.castSkill(f.p,id,east,targetId);
 const settle=(f)=>{for(let i=0;f.p.attack&&i<100;i++)advance(f.w,.05);};
 
-test('catalog has twelve unique level unlocks per class and 54 functional talents',()=>{
- assert.equal(Object.keys(SKILLS).length,36);assert.equal(TALENTS.length,54);
+test('catalog has thirteen unique level unlocks per class and 54 functional talents',()=>{
+ assert.equal(Object.keys(SKILLS).length,39);assert.equal(TALENTS.length,54);
  for(const c of ['warrior','archer','mage']){
-  assert.deepEqual(skillsForClass(c).map(s=>s.unlockLevel),[1,3,5,8,10,14,18,22,27,32,38,45]);
+  assert.deepEqual(skillsForClass(c).map(s=>s.unlockLevel),[1,3,5,8,10,14,18,20,22,27,32,38,45]);
   assert.equal(skillsForClass(c)[3].kind,'mobility');
   assert.equal(talentBranches(c).length,3);
   assert.equal(TALENTS.filter(t=>t.classId===c&&t.keystone).length,3);
@@ -28,7 +28,7 @@ test('catalog has twelve unique level unlocks per class and 54 functional talent
 });
 test('build parser rejects foreign, duplicate, locked skills and invalid talent budget/keystones',()=>{
  const base=defaultSkillBuild('warrior',1);assert(parseSkillBuild(base,'warrior',1));
- for(const slots of [['mage-fireball',null,null,null],['warrior-cleave','warrior-cleave',null,null],['warrior-heavy',null,null,null]])assert.equal(parseSkillBuild({slots,talents:{}},'warrior',1),null);
+ for(const slots of [['mage-fireball',null,null,null,null],['warrior-cleave','warrior-cleave',null,null,null],['warrior-heavy',null,null,null,null]])assert.equal(parseSkillBuild({slots,talents:{}},'warrior',1),null);
  assert.equal(parseSkillBuild({...base,talents:{'warrior-duelist-1':1}},'warrior',9),null);
  assert.equal(parseSkillBuild({...base,talents:{'warrior-duelist-mastery':1}},'warrior',86),null);
  const talents=Object.fromEntries(TALENTS.filter(t=>t.classId==='warrior'&&t.branch==='duelist'&&!t.keystone).slice(0,4).map(t=>[t.id,2]));talents['warrior-duelist-mastery']=1;
@@ -40,17 +40,33 @@ test('server enforces equipped skills and level gate even for forged payloads',(
  const f=fixture('warrior',['warrior-heavy']);assert.equal(cast(f,'warrior-cleave'),false);assert.equal(cast(f,'mage-beam'),false);
  f.p.level=1;assert.equal(cast(f,'warrior-heavy'),false);assert.equal(f.p.attack,null);
 });
-test('town apply cancels actions and buffs, retains cooldowns, saves/loads presets with revision guard',()=>{
+test('combat build apply cancels actions and buffs, retains cooldowns, saves/loads presets with revision guard',()=>{
  const f=fixture('warrior',['warrior-guard','warrior-heavy']);assert(cast(f,'warrior-guard'));settle(f);assert(f.p.effects.length);const cd=f.p.skillCooldowns['warrior-guard'];
- const build={slots:['warrior-cleave',null,null,null],talents:{}};
- f.w.command(f.p,{type:'buildApply',revision:0,build});assert.equal(f.p.buildRevision,0);
- Object.assign(f.p,CAMP_SPAWN);f.w.startAfk(f.p);f.w.command(f.p,{type:'buildApply',revision:0,build});
- assert.equal(f.p.buildRevision,1);assert.equal(f.p.afk,null);assert.equal(f.p.effects.length,0);assert.equal(f.p.skillCooldowns['warrior-guard'],cd);
- f.w.command(f.p,{type:'buildSavePreset',index:0});assert.deepEqual(f.p.skillPresets[0],build);
- f.w.command(f.p,{type:'buildApply',revision:0,build:{slots:[null,null,null,null],talents:{}}});assert.deepEqual(f.p.skillBuild,build);
- f.w.command(f.p,{type:'buildApply',revision:1,build:{slots:['warrior-heavy',null,null,null],talents:{}}});
- f.w.command(f.p,{type:'buildLoadPreset',revision:2,index:0});assert.deepEqual(f.p.skillBuild,build);assert.equal(f.p.buildRevision,3);
+ const build={slots:['warrior-cleave',null,null,null,null],talents:{}};
+ f.w.command(f.p,{type:'buildApply',revision:0,build});assert.equal(f.p.buildRevision,1);assert.equal(f.p.effects.length,0);assert.equal(f.p.skillCooldowns['warrior-guard'],cd);
+ const campBuild={slots:['warrior-heavy',null,null,null,null],talents:{}};
+ Object.assign(f.p,CAMP_SPAWN);f.w.startAfk(f.p);f.w.command(f.p,{type:'buildApply',revision:1,build:campBuild});
+ assert.equal(f.p.buildRevision,2);assert.equal(f.p.afk,null);
+ f.w.command(f.p,{type:'buildSavePreset',index:0});assert.deepEqual(f.p.skillPresets[0],campBuild);
+ f.w.command(f.p,{type:'buildApply',revision:0,build:{slots:[null,null,null,null,null],talents:{}}});
+ assert.deepEqual(f.p.skillBuild,campBuild);
+ f.w.command(f.p,{type:'buildApply',revision:2,build});
+ f.w.command(f.p,{type:'buildLoadPreset',revision:3,index:0});assert.deepEqual(f.p.skillBuild,campBuild);assert.equal(f.p.buildRevision,4);
  const restored=safeHero(persistentHero(f.p));assert.deepEqual(restored.skillBuild,f.p.skillBuild);assert.deepEqual(restored.skillPresets,f.p.skillPresets);assert.equal(restored.skillCooldowns['warrior-guard'],cd);
+});
+test('level-20 large-area skills hit distant packs up to their cap while respecting safe ground and outer radius',()=>{
+ for(const [classId,id] of [['warrior','warrior-earthquake'],['archer','archer-arrow-storm'],['mage','mage-arcane-nova']]){
+  const f=fixture(classId,[id]),skill=SKILLS[id],template=f.m;Object.assign(f.p,{x:-3,z:7,yaw:east,targetYaw:east});
+  const hit={x:-3,z:11},outside={x:-3,z:12.8};assert(stand(hit.x,hit.z)&&clearPath(f.p,hit)&&distance(f.p,hit)===4);
+  const make=(mobId,point)=>({...template,id:mobId,...point,homeX:point.x,homeZ:point.z,hp:10000,state:'recover',timer:1000,target:f.p.id,contributors:new Map(),dots:[]});
+  const pack=Array.from({length:skill.maxTargets+2},(_,index)=>make(1000+index,hit)),far=make(2000,outside),protectedMob=make(2001,CAMP_SPAWN);
+  assert(safe(protectedMob)&&distance(f.p,protectedMob)<skill.range);f.w.mobs=[...pack,far,protectedMob];
+  const mana=f.p.mana,started=id==='archer-arrow-storm'?f.w.castSkill(f.p,id,east,undefined,{x:f.p.x,z:f.p.z}):cast(f,id);
+  assert(started,id);advance(f.w,3);
+  assert.equal(pack.filter(m=>m.hp<10000).length,skill.maxTargets,id);
+  assert.equal(far.hp,10000,`${id} exceeded its five-metre radius`);assert.equal(protectedMob.hp,10000,`${id} damaged safe ground`);
+  assert.equal(f.p.mana,mana-skill.manaCost);assert(f.p.skillCooldowns[id]>skill.cooldown-3&&f.p.skillCooldowns[id]<=skill.cooldown);
+ }
 });
 test('all six mobility skills move, share class cooldown and remain on valid paths',()=>{
  for(const [c,ids] of [['warrior',['warrior-charge','warrior-leap']],['archer',['archer-retreat','archer-roll']],['mage',['mage-teleport','mage-ice-step']]])for(const id of ids){

@@ -34,12 +34,12 @@ export const TALENTS:readonly TalentDefinition[]=Object.entries(BRANCHES).flatMa
 export const talentPoints=(level:number)=>Math.max(0,Math.min(20,1+Math.floor((level-10)/4)));
 export const talentSpent=(build:SkillBuild)=>Object.values(build.talents).reduce((sum,n)=>sum+n,0);
 export function defaultSkillBuild(classId:ClassId,level:number):SkillBuild{
- const unlocked=skillsForClass(classId).filter(s=>s.unlockLevel<=level).slice(0,4).map(s=>s.id);
- return {slots:[unlocked[0]??null,unlocked[1]??null,unlocked[2]??null,unlocked[3]??null],talents:{}};
+ const unlocked=skillsForClass(classId).filter(s=>s.unlockLevel<=level).slice(0,5).map(s=>s.id);
+ return {slots:[unlocked[0]??null,unlocked[1]??null,unlocked[2]??null,unlocked[3]??null,unlocked[4]??null],talents:{}};
 }
 export function parseSkillBuild(raw:unknown,classId:ClassId,level:number):SkillBuild|null{
- if(!isRecord(raw)||Object.keys(raw).some(k=>!['slots','talents'].includes(k))||!Array.isArray(raw.slots)||raw.slots.length!==4||!isRecord(raw.talents))return null;
- const slots=raw.slots,ids=slots.filter(x=>x!==null);
+ if(!isRecord(raw)||Object.keys(raw).some(k=>!['slots','talents'].includes(k))||!Array.isArray(raw.slots)||![4,5].includes(raw.slots.length)||!isRecord(raw.talents))return null;
+ const slots=raw.slots.length===4?[...raw.slots,null]:raw.slots,ids=slots.filter(x=>x!==null);
  if(new Set(ids).size!==ids.length||ids.some(id=>typeof id!=='string'||!Object.hasOwn(SKILLS,id)||SKILLS[id as SkillId].classId!==classId||SKILLS[id as SkillId].unlockLevel>level))return null;
  const talents:Record<string,number>={};let spent=0,keystones=0;
  for(const [id,rank] of Object.entries(raw.talents)){

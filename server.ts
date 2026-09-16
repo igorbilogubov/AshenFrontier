@@ -194,7 +194,7 @@ const server=http.createServer(async(req,res)=>{
       res.writeHead(302,{Location:url.pathname==='/art-test.html'?'/':url.pathname.replace('/art-test/','/game/')});res.end();return;
     }
     const pathname=decodeURIComponent(url.pathname==='/'?'/index.html':url.pathname);
-    if(pathname!=='/index.html'&&pathname!=='/rules.js'&&!pathname.startsWith('/game/')){res.writeHead(404);res.end('Not found');return;}
+    if(!['/index.html','/privacy.html','/terms.html','/rules.js'].includes(pathname)&&!pathname.startsWith('/game/')){res.writeHead(404);res.end('Not found');return;}
     const extension=path.extname(pathname);
     // First-party modules come from the compiler. Assets/vendor files stay in public.
     // No fallback to TS sources, sourcemaps, server modules, saves or arbitrary dist files.

@@ -38,6 +38,12 @@ test('HTTP serves only the 3D client, models and public rules; save files and le
   const database=await createTestDatabase();let server;
   try{server=await startTestServer(database);
     const page=await fetch(server.url);assert.equal(page.status,200);const html=await page.text();assert(html.includes('game/scene.js'));assert(!html.includes('src="game.js"'));
+    assert.match(html,/браузерная онлайн-RPG/);assert.match(html,/href="\/privacy\.html"/);assert.match(html,/href="\/terms\.html"/);
+    const privacy=await fetch(server.url+'/privacy.html');assert.equal(privacy.status,200);assert.match(privacy.headers.get('content-type'),/text\/html/);
+    const privacyHtml=await privacy.text();assert.match(privacyHtml,/openid/);assert.match(privacyHtml,/igbelogubov@gmail\.com/);assert.match(privacyHtml,/href="\/terms\.html"/);
+    const terms=await fetch(server.url+'/terms.html');assert.equal(terms.status,200);assert.match(terms.headers.get('content-type'),/text\/html/);
+    const termsHtml=await terms.text();assert.match(termsHtml,/до пяти героев/);assert.match(termsHtml,/Платные покупки сейчас не реализованы/);assert.match(termsHtml,/href="\/privacy\.html"/);
+    const legalStyle=await fetch(server.url+'/game/legal.css');assert.equal(legalStyle.status,200);assert.match(legalStyle.headers.get('content-type'),/text\/css/);
     for(const file of ['/data/heroes.json','/../data/heroes.json','/world.mjs','/__stress/info','/__stress/report','/world.ts','/server.ts','/game/scene.ts','/game/scene.js.map','/dist/server.js','/game.js','/world.json','/assets/tiny-dungeon/tilemap.png','/game/../../data/heroes.json'])assert.equal((await fetch(server.url+file)).status,404,file);
     const module=await fetch(server.url+'/game/scene.js');assert.equal(module.status,200);assert.match(module.headers.get('content-type'),/javascript/);assert((await module.text()).includes('WebGLRenderer'));
     const model=await fetch(server.url+'/game/characters/ashen-warrior-v1.glb',{method:'HEAD'});assert.equal(model.status,200);assert.equal(model.headers.get('content-type'),'model/gltf-binary');

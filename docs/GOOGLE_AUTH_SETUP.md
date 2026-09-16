@@ -5,6 +5,8 @@
 ## Настройка
 
 1. В Google Cloud / Google Auth Platform выбрать проект игры. Настроить Branding и Audience; для режима Testing добавить тестовые Google-аккаунты.
+
+Для Branding текущего production использовать homepage `https://ashen-frontier.91.99.21.123.sslip.io/`, Privacy Policy `https://ashen-frontier.91.99.21.123.sslip.io/privacy.html` и Terms of Service `https://ashen-frontier.91.99.21.123.sslip.io/terms.html`. Те же ссылки доступны на экране входа; перед публикацией страницы должны отвечать публично на этом домене.
 2. Создать OAuth Client типа **Web application**. Разрешить точный redirect URI для каждого используемого окружения:
    - `http://localhost:4732/auth/google/callback` для локального входа;
    - `https://<домен-игры>/auth/google/callback` для сервера.

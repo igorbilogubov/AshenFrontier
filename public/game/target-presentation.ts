@@ -25,11 +25,11 @@ export function bindTargetPresentation(scene:T.Scene):(target:PresentedTarget|nu
   const geometry=new T.RingGeometry(.88,1,48),material=new T.MeshBasicMaterial({color:'#d7a469',transparent:true,opacity:.8,side:T.DoubleSide,depthWrite:false});
   const ring=new T.Mesh(geometry,material);ring.rotation.x=-Math.PI/2;ring.position.y=.08;ring.renderOrder=4;ring.visible=false;ring.castShadow=false;ring.userData.dynamic=true;scene.add(ring);
   let shownLootType:string|null=null;
-  function showLoot(type:MobType,eliteId?:string,bossId?:DungeonId){
+  function showLoot(type:MobType,eliteId?:string,bossId?:DungeonId,dungeonId?:DungeonId){
     loot.hidden=false;
-    const key=type+':'+(eliteId||'')+':'+(bossId||'');if(shownLootType===key)return;
+    const key=type+':'+(eliteId||'')+':'+(bossId||'')+':'+(dungeonId||'');if(shownLootType===key)return;
     shownLootType=key;
-    const available=possibleLoot(type,eliteId,bossId);
+    const available=possibleLoot(type,eliteId,bossId,dungeonId);
     row.replaceChildren();
     for(const category of available.categories){
       const badge=document.createElement('div');badge.className=`target-loot-category ${category.rarity==='gold'?'gold':`rarity-${category.rarity}`}`;
@@ -51,7 +51,7 @@ export function bindTargetPresentation(scene:T.Scene):(target:PresentedTarget|nu
       health.textContent=`${Math.round(target.hp!)} / ${Math.round(target.maxHp!)}`;
       fill.style.transform=`scaleX(${Math.max(0,Math.min(1,target.hp!/target.maxHp!))})`;
     }else{health.textContent=target.kind==='mob'?'Цель':target.kind==='vendor'?target.subtitle??'Торговец':target.subtitle??'Игрок';}
-    if(target.kind==='mob')showLoot(target.type,target.eliteId,target.bossId);else{loot.hidden=true;shownLootType=null;}
+    if(target.kind==='mob')showLoot(target.type,target.eliteId,target.bossId,target.dungeonId);else{loot.hidden=true;shownLootType=null;}
     const validPosition=Number.isFinite(target.x)&&Number.isFinite(target.z);
     ring.visible=validPosition;
     if(validPosition){

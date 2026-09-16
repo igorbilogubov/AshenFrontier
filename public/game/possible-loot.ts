@@ -38,9 +38,9 @@ const LABELS:Readonly<Record<LootCategoryId,string>>=Object.freeze({
 const BOSS_RARITIES=[1,2,3,4] as const;
 
 /** Display only categories that the current server item catalog can actually roll. */
-export function possibleLoot(type:MobType,eliteId?:string,bossId?:DungeonId):PossibleLoot{
+export function possibleLoot(type:MobType,eliteId?:string,bossId?:DungeonId,dungeonId?:DungeonId):PossibleLoot{
   const categories:PossibleLootCategory[]=[{id:'gold',name:LABELS.gold,rarity:'gold',slots:[]}];
-  const region=bossId?bossId.replace(/-dungeon$/,'') as GearRegion:lootRegionForType(type);
+  const region=(bossId??dungeonId)?(bossId??dungeonId)!.replace(/-dungeon$/,'') as GearRegion:lootRegionForType(type);
   const rarities:readonly (1|2|3|4)[]=bossId?BOSS_RARITIES:eliteId?[1,2]:[1];
   for(const id of ['weapon','armor','accessory'] as const){
     const slots=GROUPS[id];
@@ -51,6 +51,6 @@ export function possibleLoot(type:MobType,eliteId?:string,bossId?:DungeonId):Pos
       categories.push({id,name:LABELS[id],rarity,slots,...(chance===undefined?{}:{chance})});
     }
   }
-  const config=mobConfig({type,eliteId,bossId,dungeonId:bossId});
+  const config=mobConfig({type,eliteId,bossId,dungeonId:dungeonId??bossId});
   return {gold:config.coins,itemChance:bossId?BOSS_GEAR_CHANCE:eliteId?ELITE_GEAR_CHANCE:(GEAR_CHANCE[type]??.10),categories};
 }

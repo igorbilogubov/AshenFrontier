@@ -5,7 +5,7 @@ import {bindTargetPresentation} from '../dist/public/game/target-presentation.js
 import {lootRegionForType,possibleLoot} from '../dist/public/game/possible-loot.js';
 import {regionalEquipment,rollEquipment} from '../dist/public/game/equipment-items.js';
 import {BOSS_GEAR_CHANCE,BOSS_RARITY_CHANCES,GEAR_CHANCE} from '../dist/public/game/loot-rules.js';
-import {MOB_TYPES} from '../dist/public/game/location.js';
+import {MOB_TYPES,mobConfig} from '../dist/public/game/location.js';
 
 class ElementStub{
   constructor(){this.children=[];this.attributes=new Map();this.style={};this.hidden=false;this.textContent='';this.className='';this.title='';this.classList={toggle:(name,enabled)=>{const classes=new Set(this.className.split(' ').filter(Boolean));if(enabled)classes.add(name);else classes.delete(name);this.className=[...classes].join(' ');}};}
@@ -50,6 +50,13 @@ test('late regions keep their own catalog and a dungeon boss advertises all four
   assert.equal(view.categories.length,13);
   assert.deepEqual([...new Set(view.categories.slice(1).map(category=>category.rarity))],[1,2,3,4]);
   for(const category of view.categories.slice(1))assert.equal(category.chance,BOSS_RARITY_CHANCES[category.rarity]);
+});
+
+test('dungeon guards expose their doubled dungeon reward without pretending to be bosses',()=>{
+  const guard=possibleLoot('bonehound','guard-citadel',undefined,'citadel-dungeon');
+  assert.equal(guard.gold,mobConfig({type:'bonehound',eliteId:'guard-citadel',dungeonId:'citadel-dungeon'}).coins);
+  assert.equal(guard.itemChance,.40);
+  assert.deepEqual([...new Set(guard.categories.slice(1).map(category=>category.rarity))],[1,2]);
 });
 
 test('selected mob gets center name/HP/real loot and ring; vendor/player remove loot, null clears all',()=>{

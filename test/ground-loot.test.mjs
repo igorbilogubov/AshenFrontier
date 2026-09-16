@@ -32,7 +32,7 @@ test('each eligible contributor sees only personal ground gold; XP and quest cre
 });
 
 test('no guaranteed first-kill gear; rates are 10% common and 40% boss with one rolled item at most',()=>{
-  assert.deepEqual(GEAR_CHANCE,{wolf:.10,boar:.10,bear:.10,alpha:.40,lynx:.10,yak:.10,'frost-spider':.10,'ice-golem':.10});
+  assert.deepEqual(GEAR_CHANCE,{wolf:.10,boar:.10,bear:.10,alpha:.40,lynx:.10,yak:.10,'frost-spider':.10,'ice-golem':.10,'ash-jackal':.10,scorpion:.10,'monitor-lizard':.10,scarab:.10});
   const none=fixture(()=>.5);kill(none.w,none.p,none.m);
   assert.equal(none.w.snapshot(none.p.id).groundLoot.filter(d=>d.kind==='item').length,0);
   const all=fixture(()=>0);kill(all.w,all.p,all.m);

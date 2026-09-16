@@ -2,7 +2,7 @@ import * as T from './vendor/three.module.js';
 import type {PublicPlayer,PublicMob,SkillZone} from '../../shared/types.js';
 
 /** Server-owned lifetimes, bounded reusable meshes. No particle lights or timers per actor. */
-export function createPersistentSkillEffects(scene:T.Scene){
+export function createPersistentSkillEffects(scene:T.Scene,originFor?:(playerId:string)=>{x:number;y:number;z:number}|null){
   const ringGeometry=new T.TorusGeometry(1,.025,4,48),sphereGeometry=new T.SphereGeometry(1,12,8),crystalGeometry=new T.OctahedronGeometry(.28),planeGeometry=new T.PlaneGeometry(.65,.9),poleGeometry=new T.CylinderGeometry(.025,.04,1.9,6),beamGeometry=new T.CylinderGeometry(1,1,1,6);
   const slots=Array.from({length:64},()=>{
     const root=new T.Group();root.visible=false;root.userData.dynamic=true;scene.add(root);
@@ -39,7 +39,7 @@ export function createPersistentSkillEffects(scene:T.Scene){
         const attack=player.attack;if(attack?.skillId!=='mage-beam'||beamsUsed>=beams.length)continue;
         const mob=mobs.find(m=>m.id===attack.targetId&&m.state!=='dead');
         const target=mob??attack.target;if(!target)continue;
-        const beam=beams[beamsUsed++];a.set(player.x,1.24,player.z);b.set(target.x,.8,target.z);direction.subVectors(b,a);const length=direction.length();
+        const beam=beams[beamsUsed++];const origin=originFor?.(player.id);a.set(origin?.x??player.x+Math.sin(player.yaw)*.38,origin?.y??1.3,origin?.z??player.z+Math.cos(player.yaw)*.38);b.set(target.x,.8,target.z);direction.subVectors(b,a);const length=direction.length();
         beam.root.visible=true;beam.root.position.copy(a).addScaledVector(direction,.5);beam.root.quaternion.setFromUnitVectors(up,direction.normalize());
         const pulse=1+.08*Math.sin(time*22);beam.outer.scale.set(.11*pulse,length,.11*pulse);beam.core.scale.set(.025,length,.025);
       }

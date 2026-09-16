@@ -5,6 +5,7 @@ import type {MobType} from '../../shared/types.js';
 export const LOOT_TTL_MS=180_000;
 export const MAX_GROUND_DROPS_PER_HERO=48;
 export const PICKUP_RANGE=1.4;
+export const AFK_PICKUP_RANGE=4;
 export const GEAR_CHANCE:Readonly<Partial<Record<MobType,number>>>=Object.freeze({wolf:.10,boar:.10,bear:.10,alpha:.40,lynx:.10,yak:.10,'frost-spider':.10,'ice-golem':.10,'ash-jackal':.10,scorpion:.10,'monitor-lizard':.10,scarab:.10});
 export const gearDrops=(type:MobType,random:()=>number)=>random()<(GEAR_CHANCE[type]??.1);
 

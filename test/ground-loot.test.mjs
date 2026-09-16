@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {World,newHero,makeLoot,persistentHero,safeHero} from '../dist/world.js';
 import {MOB_TYPES,stand} from '../dist/public/game/location.js';
 import {BAG_CAPACITY,backpackItems} from '../dist/public/rules.js';
-import {LOOT_TTL_MS,MAX_GROUND_DROPS_PER_HERO,GEAR_CHANCE} from '../dist/public/game/loot-rules.js';
+import {LOOT_TTL_MS,MAX_GROUND_DROPS_PER_HERO,GEAR_CHANCE,PICKUP_RANGE,AFK_PICKUP_RANGE} from '../dist/public/game/loot-rules.js';
 import {validateEquipment} from '../dist/public/game/equipment-items.js';
 
 function fixture(random=()=>.5){
@@ -45,7 +45,9 @@ test('no guaranteed first-kill gear; rates are 10% common and 40% boss with one 
 
 test('distant click approaches server-side without attack; neutral packets preserve target and manual steering cancels',()=>{
   const {w,p,m}=fixture();kill(w,p,m);const drop=w.snapshot(p.id).groundLoot[0];
-  Object.assign(p,{x:6,z:1.8});w.command(p,{type:'pickup',id:drop.id});assert.deepEqual(p.interactionTarget,{kind:'loot',id:drop.id});
+  assert.equal(PICKUP_RANGE,1.4);assert.equal(AFK_PICKUP_RANGE,4);
+  Object.assign(p,{x:6,z:1.8});assert.equal(w.pickUp(p,drop.id),false);assert.equal(p.gold,0);
+  w.command(p,{type:'pickup',id:drop.id,range:AFK_PICKUP_RANGE});assert.deepEqual(p.interactionTarget,{kind:'loot',id:drop.id});
   for(let seq=1;seq<=5;seq++){w.command(p,{type:'input',x:0,z:0,aim:null,seq});tick(w);assert(p.interactionTarget);}
   assert(p.x>6);assert.equal(p.attack,null);
   w.command(p,{type:'input',x:1,z:0,aim:0,seq:6});assert.equal(p.interactionTarget,null);

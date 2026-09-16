@@ -1,4 +1,5 @@
 import type {ClassId, EquipmentSlot, Item, ItemRoll, ItemStatKey, ItemAppearance, StatSource} from '../../shared/types.js';
+import {REGIONAL_ITEMS,type GearRegion} from './regional-equipment.js';
 
 export interface ItemDefinition {
   id:string; rarity?:1|2; classId:ClassId; name:string; slot:EquipmentSlot; appearance:string; level:number;
@@ -45,7 +46,9 @@ export const CLASS_ITEMS:Record<ClassId,readonly ItemDefinition[]>={warrior:WARR
 // Frozen v1 ranges belong to these new IDs. Existing item definitions stay unchanged.
 const rareDefinitions=(items:readonly ItemDefinition[]):readonly ItemDefinition[]=>items.map(item=>({...item,id:`${item.id}-rare-v1`,name:`${item.name} превосходства`,rarity:2,ranges:item.ranges.map(range=>{const step=range.step??1;return {...range,min:Math.round(Math.ceil(range.min*1.25/step)*step*1000)/1000,max:Math.round(Math.ceil(range.max*1.25/step)*step*1000)/1000};})}));
 export const RARE_CLASS_ITEMS:Record<ClassId,readonly ItemDefinition[]>={warrior:rareDefinitions(WARRIOR_ITEMS),archer:rareDefinitions(ARCHER_ITEMS),mage:rareDefinitions(MAGE_ITEMS)};
-export const EQUIPMENT_ITEMS:readonly ItemDefinition[]=[...Object.values(CLASS_ITEMS).flat(),...Object.values(RARE_CLASS_ITEMS).flat()];
+export const RARE_REGIONAL_ITEMS={snow:{warrior:rareDefinitions(REGIONAL_ITEMS.snow.warrior),archer:rareDefinitions(REGIONAL_ITEMS.snow.archer),mage:rareDefinitions(REGIONAL_ITEMS.snow.mage)},wasteland:{warrior:rareDefinitions(REGIONAL_ITEMS.wasteland.warrior),archer:rareDefinitions(REGIONAL_ITEMS.wasteland.archer),mage:rareDefinitions(REGIONAL_ITEMS.wasteland.mage)}};
+export const EQUIPMENT_ITEMS:readonly ItemDefinition[]=[...Object.values(CLASS_ITEMS).flat(),...Object.values(RARE_CLASS_ITEMS).flat(),...Object.values(REGIONAL_ITEMS).flatMap(region=>Object.values(region).flat()),...Object.values(RARE_REGIONAL_ITEMS).flatMap(region=>Object.values(region).flat())];
+export const regionalEquipment=(classId:ClassId,region:GearRegion,rarity:1|2):readonly ItemDefinition[]=>region==='forest'?(rarity===2?RARE_CLASS_ITEMS:CLASS_ITEMS)[classId]:(rarity===2?RARE_REGIONAL_ITEMS:REGIONAL_ITEMS)[region][classId];
 export const equipmentItems=(classId:ClassId)=>CLASS_ITEMS[classId];
 export const itemDefinition=(id:unknown)=>typeof id==='string'?EQUIPMENT_ITEMS.find(item=>item.id===id):undefined;
 // Called with server randomness for real loot. The workshop creates labelled,

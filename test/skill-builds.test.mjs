@@ -122,3 +122,26 @@ test('talent descriptions have effective numeric impact and keystone drawbacks',
  f.p.skillBuild.talents={'mage-arcanist-1':2,'mage-arcanist-2':2,'mage-arcanist-3':2,'mage-arcanist-4':2,'mage-arcanist-mastery':1};assert(parseSkillBuild(f.p.skillBuild,'mage',86));
  const tuned=effectiveSkill(f.p,'mage-beam');assert(tuned.damageScale>s.damageScale);assert(tuned.manaCost<s.manaCost);assert(tuned.range<s.range);
 });
+
+test('guardian mastery applies one ten-percent outgoing tradeoff to basic and skill damage',()=>{
+ const a=fixture('warrior',['warrior-heavy']),b=fixture('warrior',['warrior-heavy']);
+ a.p.skillBuild.talents={'warrior-guardian-1':2,'warrior-guardian-2':2,'warrior-guardian-3':2,'warrior-guardian-4':2,'warrior-guardian-mastery':1};
+ assert(parseSkillBuild(a.p.skillBuild,'warrior',86));assert(Math.abs(stats(a.p).attack/stats(b.p).attack-.9)<1e-9);
+ assert.equal(effectiveSkill(a.p,'warrior-heavy').damageScale,effectiveSkill(b.p,'warrior-heavy').damageScale);
+});
+
+test('hunter minor talent widens actual volley projectile angles',()=>{
+ const f=fixture('archer',['archer-volley']);f.p.skillBuild.talents={'archer-hunter-1':2};
+ assert(parseSkillBuild(f.p.skillBuild,'archer',86));
+ const skill=effectiveSkill(f.p,'archer-volley');assert(skill.halfAngle>SKILLS['archer-volley'].halfAngle);
+ f.w.resolveAttack(f.p,{id:1,age:0,duration:1,yaw:east,special:true,hit:true,skillId:skill.id},stats(f.p).attack);
+ assert.deepEqual(f.w.projectiles.map(p=>p.yaw),[east-skill.halfAngle,east,east+skill.halfAngle]);
+});
+test('leap landing obeys effective radius, damage and four-target cap',()=>{
+ const f=fixture('warrior',['warrior-leap']);f.p.skillBuild.talents={'warrior-crowd-1':2,'warrior-crowd-2':2};
+ const template=f.m;f.w.mobs=Array.from({length:6},(_,i)=>({...template,id:i,x:12+(i%3)*.15,z:1.8+Math.floor(i/3)*.15,homeX:12,homeZ:1.8,contributors:new Map(),hp:10000}));
+ const skill=effectiveSkill(f.p,'warrior-leap');assert(skill.radius>SKILLS['warrior-leap'].radius);
+ assert(cast(f,skill.id));settle(f);const struck=f.w.mobs.filter(m=>m.hp<10000);
+ assert.equal(struck.length,skill.maxTargets);assert.equal(struck.length,4);
+ assert(struck.every(m=>10000-m.hp===Math.round(stats(f.p).attack*skill.damageScale)));
+});

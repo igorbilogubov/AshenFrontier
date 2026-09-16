@@ -1,3 +1,4 @@
+import {removeBuildSchema} from './helpers/historical-schema.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {randomUUID,createHash} from 'node:crypto';
@@ -71,6 +72,7 @@ test('schema5 removes guest key access and retains orphaned legacy hero without 
   const account=await store.upsertGoogleAccount(identity()),value=hero('Старый герой');await write(store,account.id,value);
   const client=new pg.Client({connectionString:db.url});await client.connect();
   try{
+    await removeBuildSchema(client);
     // Reconstruct schema4 fixture in this disposable database only.
     await client.query(`DROP TRIGGER character_account_guard ON heroes; DROP FUNCTION assign_character_slot();
       DROP TABLE account_sessions; ALTER TABLE heroes DROP COLUMN account_slot; ALTER TABLE heroes DROP COLUMN account_id;
@@ -79,7 +81,7 @@ test('schema5 removes guest key access and retains orphaned legacy hero without 
   }finally{await client.end();}
   const migrated=await openHeroStore({connectionString:db.url});
   try{
-    assert.equal(await migrated.schemaVersion(),5);
+    assert.equal(await migrated.schemaVersion(),6);
     const newAccount=await migrated.upsertGoogleAccount(identity());
     assert.equal(await migrated.load(value.id,newAccount.id),null);
     assert.deepEqual(await migrated.listHeroes(newAccount.id),[]);

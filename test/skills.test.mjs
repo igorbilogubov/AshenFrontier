@@ -1,3 +1,4 @@
+import {equipLegacySkills,legacyCombatSkills} from './helpers/skill-builds.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {World,newHero,safeHero,persistentHero,stats} from '../dist/world.js';
@@ -7,7 +8,7 @@ import {clearPath} from '../dist/public/game/location.js';
 const east=Math.PI/2;
 const step=(w,n=1)=>{for(let i=0;i<n;i++)w.tick(.05,w.t+50);};
 function fixture(classId,positions){
-  const w=new World({random:()=>0}),p=newHero('Навыки',classId);w.add(p);
+  const w=new World({random:()=>0}),p=newHero('Навыки',classId);w.add(p);equipLegacySkills(p);p.mana=stats(p).maxMana;
   Object.assign(p,{x:8,z:1.8,yaw:east,targetYaw:east});
   w.mobs=w.mobs.slice(0,positions.length);
   w.mobs.forEach((m,i)=>Object.assign(m,{x:positions[i][0],z:positions[i][1],homeX:positions[i][0],homeZ:positions[i][1],hp:190,state:'recover',timer:100,target:p.id}));
@@ -16,10 +17,10 @@ function fixture(classId,positions){
 const cast=(w,p,id,extra={})=>w.command(p,{type:'skill',skillId:id,yaw:east,...extra});
 const damage=m=>190-m.hp;
 
-test('twelve 1/2/3/4 skills have fixed class ownership, private cooldowns and server costs',()=>{
-  assert.equal(Object.keys(SKILLS).length,12);
+test('original four equipped attacks per class have fixed class ownership, private cooldowns and server costs',()=>{
+  assert.equal(Object.keys(SKILLS).length,36);
   for(const classId of ['warrior','archer','mage']){
-    const skills=skillsForClass(classId);assert.deepEqual(skills.map(s=>s.slot),['1','2','3','4']);
+    const skills=legacyCombatSkills(classId);assert.deepEqual(skills.map(s=>s.slot),['1','2','3','4']);
     const {w,p}=fixture(classId,[[9.4,1.8]]);
     for(const other of Object.values(SKILLS).filter(s=>s.classId!==classId)){
       const before=persistentHero(p);cast(w,p,other.id,{damage:999999,manaCost:0,cooldown:0});
@@ -161,7 +162,7 @@ test('chain lightning records actual unique jumps; meteor delays capped splash a
 
 
 test('every new Z/X cast ignores forged client cost, starts one private cooldown and respects mana',()=>{
-  for(const classId of ['warrior','archer','mage'])for(const skill of skillsForClass(classId).slice(2)){
+  for(const classId of ['warrior','archer','mage'])for(const skill of legacyCombatSkills(classId).slice(2)){
     const {w,p}=fixture(classId,[[9.5,1.8]]);p.mana=skill.manaCost-1;
     cast(w,p,skill.id,{manaCost:0,cooldown:0,damage:100000});assert.equal(p.attack,null);
     p.mana=stats(p).maxMana;const before=p.mana;

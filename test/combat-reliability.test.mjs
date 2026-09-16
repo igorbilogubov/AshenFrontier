@@ -1,3 +1,4 @@
+import {equipLegacySkills} from './helpers/skill-builds.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {World,newHero,stats} from '../dist/world.js';
@@ -62,7 +63,7 @@ test('server target checks reject malformed, blocked, distant and cross-region a
 });
 
 test('ground areas use a clamped server point; aimed body contact and accuracy remain separate',()=>{
-  const w=new World({random:()=>0}),p=newHero('Наведение','mage');w.add(p);Object.assign(p,{x:8,z:1.8,yaw:Math.PI/2,targetYaw:Math.PI/2});
+  const w=new World({random:()=>0}),p=newHero('Наведение','mage');equipLegacySkills(p);p.mana=stats(p).maxMana;w.add(p);Object.assign(p,{x:8,z:1.8,yaw:Math.PI/2,targetYaw:Math.PI/2});
   const m=w.mobs[0];w.mobs=[m];Object.assign(m,{x:12,z:1.8,homeX:12,homeZ:1.8,hp:190,state:'recover',timer:100,target:p.id});
   p.mana=stats(p).maxMana;
   w.command(p,{type:'skill',skillId:'mage-meteor',yaw:Math.PI/2,target:{x:30,z:1.8}});

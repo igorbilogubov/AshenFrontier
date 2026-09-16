@@ -1,3 +1,4 @@
+import {defaultSkillBuild} from '../dist/public/game/skill-builds.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {World,newHero,stats} from '../dist/world.js';
@@ -17,7 +18,7 @@ function randomFor(seed){
 }
 function run(classId,level,targets,mode,seed,duration=SECONDS){
   const w=new World({random:randomFor(seed)}),p=newHero('Баланс',classId);w.add(p);
-  p.level=level;p.allocatedStats=level===1?{...p.allocatedStats,[classId==='warrior'?'strength':classId==='archer'?'dexterity':'energy']:5}:budgets[classId];
+  p.level=level;p.skillBuild=defaultSkillBuild(classId,level);p.allocatedStats=level===1?{...p.allocatedStats,[classId==='warrior'?'strength':classId==='archer'?'dexterity':'energy']:5}:budgets[classId];
   p.mana=stats(p).maxMana;p.hp=stats(p).maxHp;
   Object.assign(p,{x:8,z:1.8,yaw:EAST,targetYaw:EAST});
   w.mobs=w.mobs.slice(0,targets);

@@ -37,7 +37,7 @@ export function stats(p:StatSource&{effects?:Hero['effects'];skillBuild?:SkillBu
   const s=characterStats(p),b=talentBonuses({classId:p.classId??'warrior',level:p.level??1,skillBuild:p.skillBuild});
   const has=(id:SkillId)=>p.effects?.some(e=>e.skillId===id&&e.remaining>0);
   s.hpRegen*=1+(b.hpRegen??0);s.manaRegen*=1+(b.manaRegen??0);s.speedScale*=1+(b.movement??0)+(has('archer-wind')?.2:0);
-  s.damageReduction=1-(1-s.damageReduction)*(1-(b.reduction??0)-(b.guardian?.1:0));
+  if(b.reduction||b.guardian)s.damageReduction=1-(1-s.damageReduction)*(1-(b.reduction??0)-(b.guardian?.1:0));
   if(has('warrior-berserk'))s.attackSpeed+=.22;
   const outgoing=(has('warrior-guard')?.85:1)*(has('warrior-shout')?1.08:1)*(b.guardian?.9:1);
   s.attack*=outgoing;s.attackPower=s.attack;
@@ -449,9 +449,9 @@ export class World{
       const next={x:move.from.x+(move.to.x-move.from.x)*t,z:move.from.z+(move.to.z-move.from.z)*t};
       if(stand(next.x,next.z,.3)&&sameLocation(p,next)&&clearPath(p,next)){p.vx=(next.x-p.x)/dt;p.vz=(next.z-p.z)/dt;p.x=next.x;p.z=next.z;p.moveBlend=0;}
       if(move.age>=move.duration){
-        if(move.skillId==='warrior-leap'){for(const m of this.mobs)if(liveMob(m)&&sameLocation(p,m)&&distance(p,m)<=1.7+mobConfig(m).radius&&clearPath(p,m)){this.strikeMob(p,m,stats(p).attack*.3,false,move.skillId);this.slowMob(p,m,2,move.skillId);}}
+        if(move.skillId==='warrior-leap'){const skill=effectiveSkill(p,move.skillId),targets=this.mobs.filter(m=>liveMob(m)&&sameLocation(p,m)&&!safe(m)&&distance(p,m)<=(skill.radius??1.7)+mobConfig(m).radius&&clearPath(p,m)).sort((a,b)=>distance(p,a)-distance(p,b)||a.id-b.id).slice(0,skill.maxTargets);for(const m of targets)if(this.strikeMob(p,m,stats(p).attack*skill.damageScale,false,move.skillId))this.slowMob(p,m,skill.effectDuration??2,move.skillId);}
         if(move.skillId==='mage-ice-step'){const d=distance(move.from,move.to);for(let i=0;i<=Math.ceil(d);i++){const t=i/Math.max(1,Math.ceil(d));this.skillZones.push({id:randomUUID(),owner:p.id,skillId:move.skillId,x:move.from.x+(move.to.x-move.from.x)*t,z:move.from.z+(move.to.z-move.from.z)*t,radius:.8,remaining:3,attackId:p.attackSerial,yaw:p.yaw});}}
-        this.emit('skillImpact',{x:p.x,z:p.z,skillId:move.skillId,caster:p.id,attackId:p.attackSerial,yaw:p.yaw,phase:'impact',radius:move.skillId==='warrior-leap'?1.7:undefined});p.mobility=undefined;p.vx=p.vz=0;
+        this.emit('skillImpact',{x:p.x,z:p.z,skillId:move.skillId,caster:p.id,attackId:p.attackSerial,yaw:p.yaw,phase:'impact',radius:move.skillId==='warrior-leap'?effectiveSkill(p,move.skillId).radius:undefined});p.mobility=undefined;p.vx=p.vz=0;
       }
     }
     if(p.channel){
@@ -762,7 +762,7 @@ export class World{
       this.pendingAreas.push({skillId,caster:p.id,attackId:a.id,yaw,...center,at:this.t+delay*1000,damage:attackPower*skill!.damageScale,automatic:a.automatic===true});
       this.emit('skillImpact',{...center,skillId,caster:p.id,attackId:a.id,yaw,phase:'warning',delay,radius:skill!.radius});
     }else{
-      const spread=.27*(talentBonuses(p).hunter?1.25:1),sharedHits: number[]=[],angles=skillId==='archer-volley'?[-spread,0,spread]:[0];
+      const spread=skillId==='archer-volley'?skill?.halfAngle??.27:.27,sharedHits: number[]=[],angles=skillId==='archer-volley'?[-spread,0,spread]:[0];
       for(const offset of angles)this.projectiles.push({
         id:randomUUID(),owner:p.id,x:p.x,z:p.z,yaw:yaw+offset,remaining:skill?.range??stats(p).range,hitIds:[],
         speed:skill?.projectileSpeed??(p.classId==='archer'?13:9),kind:p.classId,

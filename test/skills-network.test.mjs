@@ -1,3 +1,4 @@
+import {equipLegacySkills} from './helpers/skill-builds.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {once} from 'node:events';
@@ -19,6 +20,7 @@ async function close(c){if(!c||c.ws.readyState===WebSocket.CLOSED)return;const e
 
 test('real skill packets expose only public cast/impact, and private mana/cooldown state survives server restart',{skip:!hasTestDatabase},async()=>{
   const database=await createTestDatabase(),fixture='f'.repeat(48),hero=newHero('Сетевая магия','mage');
+  equipLegacySkills(hero);
   Object.assign(hero,{x:6.3,z:1.8,yaw:Math.PI/2,targetYaw:Math.PI/2});
   await database.seed(fixture,persistentHero(hero));
   let server;const clients=[];

@@ -1,3 +1,4 @@
+import {equipLegacySkills} from './helpers/skill-builds.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {World,newHero,safeHero,persistentHero,stats,makeLoot,SAVE_VERSION} from '../dist/world.js';
@@ -156,7 +157,7 @@ test('class formulas give their main attribute damage and all classes benefit fr
 
 test('normal attacks remain free; repeatable specials spend mana once and respect attack recovery',()=>{
   for(const classId of Object.keys(CLASS_PROGRESSION)){
-    const {w,p}=fixture(classId);field(w,p);p.mana=0;
+    const {w,p}=fixture(classId);equipLegacySkills(p);field(w,p);p.mana=0;
     assert.equal(w.attack(p,Math.PI/2,true),false);assert.equal(p.specialCooldown,0);assert.equal(p.attack,null);
     assert.equal(w.attack(p,Math.PI/2,false),true);assert.equal(p.mana,0);p.attack=null;
     const skill=SKILLS[legacySkillId(classId)];p.mana=skill.manaCost;

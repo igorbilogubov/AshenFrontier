@@ -1,3 +1,4 @@
+import {equipLegacySkills,legacyCombatSkills} from './helpers/skill-builds.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {World,newHero,safeHero,persistentHero,makeLoot,stats} from '../dist/world.js';
@@ -12,7 +13,7 @@ const setBottles=(p,kind,quantity)=>{const id=kind==='hp'?'hp-basic':'mana-basic
 const step=(w,n=1)=>{for(let i=0;i<n;i++)w.tick(.05,w.t+50);};
 function fixture(classId='warrior',spot=AFK_SPOTS[0]){
   const w=new World({random:()=>0}),p=newHero('Автоохота',classId);w.add(p);
-  Object.assign(p,{x:spot.x,z:spot.z,level:20});p.hp=stats(p).maxHp;p.mana=stats(p).maxMana;
+  Object.assign(p,{x:spot.x,z:spot.z,level:22});equipLegacySkills(p);p.hp=stats(p).maxHp;p.mana=stats(p).maxMana;
   return {w,p,spot};
 }
 const toggle=(w,p,enabled)=>w.command(p,{type:'afk',enabled});
@@ -194,7 +195,7 @@ test('AFK leaves town safe and quiet, refuses targets behind walls and never mix
 });
 
 test('every class and enabled skill rotates and deals real damage without leaving the activation anchor',()=>{
-  for(const classId of ['warrior','archer','mage'])for(const skill of skillsForClass(classId)){
+  for(const classId of ['warrior','archer','mage'])for(const skill of legacyCombatSkills(classId)){
     const {w,p}=fixture(classId);Object.assign(p,{x:7.6,z:1.8,yaw:0,targetYaw:0,vx:3,vz:2,moveBlend:1,runBlend:1});
     assert.equal(afkSpotAt(p),null);const target=w.mobs[0];w.mobs=[target];
     Object.assign(target,{x:p.x+1.3,z:p.z,homeX:p.x+1.3,homeZ:p.z,hp:10000,state:'recover',timer:100,target:p.id});

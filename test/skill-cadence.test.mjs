@@ -1,3 +1,4 @@
+import {equipLegacySkills,legacyCombatSkills} from './helpers/skill-builds.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {World,newHero,stats} from '../dist/world.js';
@@ -7,7 +8,7 @@ import {rollEquipment} from '../dist/public/game/equipment-items.js';
 const east=Math.PI/2;
 const step=(w,n=1)=>{for(let i=0;i<n;i++)w.tick(.05,w.t+50);};
 function setup(classId='warrior'){
-  const w=new World({random:()=>0}),p=newHero('Темп',classId);w.add(p);
+  const w=new World({random:()=>0}),p=newHero('Темп',classId);w.add(p);equipLegacySkills(p);
   Object.assign(p,{x:8,z:1.8,yaw:east,targetYaw:east});
   const m=w.mobs[0];w.mobs=[m];Object.assign(m,{x:9.4,z:1.8,homeX:9.4,homeZ:1.8,hp:10000,state:'recover',timer:10000,target:p.id});
   p.mana=stats(p).maxMana;return {w,p,m};
@@ -15,7 +16,7 @@ function setup(classId='warrior'){
 
 test('nine ordinary skills have no individual cooldown; fourth per class retains one',()=>{
   for(const classId of ['warrior','archer','mage']){
-    const skills=skillsForClass(classId);
+    const skills=legacyCombatSkills(classId);
     assert.deepEqual(skills.map(skill=>skill.cooldown>0),[false,false,false,true]);
     const {w,p}=setup(classId),q=skills[0],e=skills[1];
     assert(w.castSkill(p,q.id,east));const first=p.attack.id,startMana=p.mana;

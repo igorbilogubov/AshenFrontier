@@ -1,5 +1,5 @@
 import type {ClassId, SkillBuild, SkillId, SkillLoadout} from '../../shared/types.js';
-import {isRecord} from '../../shared/types.js';
+const isRecord=(value:unknown):value is Record<string,unknown>=>value!==null&&typeof value==='object'&&!Array.isArray(value);
 import {SKILLS, skillsForClass, type SkillDefinition} from './skills.js';
 
 export interface BuildSource {classId:ClassId;level:number;skillBuild?:SkillBuild}
@@ -65,13 +65,13 @@ export function effectiveSkill(hero:BuildSource,id:SkillId):SkillDefinition{
  s.damageScale*=1+(single?(b.singleDamage??0):0)+(area?(b.areaDamage??0):0)+(fire?(b.fireDamage??0):0)+(ice?(b.iceDamage??0):0)+(id==='mage-beam'?(b.beamDamage??0):0)+(id==='mage-lightning'?(b.lightningDamage??0):0);
  s.manaCost*=1-(single?(b.singleEconomy??0):0)-(area?(b.areaEconomy??0):0)-(s.kind==='defense'?(b.defenseEconomy??0):0)-(id==='mage-beam'?(b.beamEconomy??0):0);
  if(single)s.range*=1+(b.singleRange??0);
- if(area){s.radius=s.radius===undefined?undefined:s.radius*(1+(b.areaRadius??0));if(s.halfAngle!==undefined)s.range*=1+(b.areaRadius??0);s.durationScale*=1-(b.areaHaste??0);}
+ if(area){s.radius=s.radius===undefined?undefined:s.radius*(1+(b.areaRadius??0));if(id==='archer-volley')s.halfAngle=(s.halfAngle??.27)*(1+(b.areaRadius??0));else if(s.halfAngle!==undefined)s.range*=1+(b.areaRadius??0);s.durationScale*=1-(b.areaHaste??0);}
  if(s.effectDuration&&s.kind==='defense')s.effectDuration*=1+(b.defenseDuration??0);
  if(b.duelist)s.damageScale*=single?1.12:area?.88:1;
  if(b.crowd&&id==='warrior-whirlwind'){s.range*=1.25;s.damageScale*=.9;}
  if(b.sniper&&id==='archer-aimed'){s.damageScale*=1.18;s.durationScale*=1.15;}
  if(b.ranger&&id==='archer-poison'){s.effectDuration!*=1.5;s.damageScale*=.88;}
- if(b.hunter&&(id==='archer-volley'||id==='archer-rain')){if(s.radius)s.radius*=1.25;s.damageScale*=.9;}
+ if(b.hunter&&(id==='archer-volley'||id==='archer-rain')){if(s.radius)s.radius*=1.25;if(s.halfAngle&&id==='archer-volley')s.halfAngle*=1.25;s.damageScale*=.9;}
  if(b.pyromancer&&fire){if(s.radius)s.radius*=1.25;s.manaCost*=1.15;}
  if(b.frostlord&&ice)s.damageScale*=.92;
  if(b.arcanist&&id==='mage-beam'){s.manaCost*=.8;s.range*=.85;}

@@ -1,3 +1,4 @@
+import {equipLegacySkills} from './helpers/skill-builds.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -59,7 +60,7 @@ test('gear applies each roll once, honors class and camp restrictions, and publi
 });
 
 test('weapon appearance follows the item and haste shortens attacks without shortening skill cooldowns',()=>{
-  const p=newHero(),world=new World();world.add(p);
+  const p=newHero(),world=new World();equipLegacySkills(p);world.add(p);
   const sword=rollEquipment('watch-blade','sword',()=>1-Number.EPSILON),ring=rollEquipment('copper-ring','ring',()=>1-Number.EPSILON);
   p.items.push(sword,ring);world.command(p,{type:'equip',id:sword.id});world.command(p,{type:'equip',id:ring.id});
   world.command(p,{type:'weapon',weapon:'axe'});assert.equal(p.weapon,'sword');assert.equal(stats(p).attackSpeed,.08);

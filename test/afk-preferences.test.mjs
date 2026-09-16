@@ -1,3 +1,4 @@
+import {equipLegacySkills} from './helpers/skill-builds.mjs';
 import test from 'node:test';
 import {testAccount,removeAccountSchema,ownMigratedFixture} from './helpers/historical-schema.mjs';
 import assert from 'node:assert/strict';
@@ -19,7 +20,7 @@ const setBottles=(p,kind,quantity)=>{const id=kind==='hp'?'hp-basic':'mana-basic
 
 function fixture(classId='warrior'){
   const w=new World({random:()=>.5}),p=newHero('Настройки',classId),spot=AFK_SPOTS[0];
-  w.add(p);Object.assign(p,{x:spot.x,z:spot.z,level:20});p.hp=stats(p).maxHp;p.mana=stats(p).maxMana;
+  w.add(p);Object.assign(p,{x:spot.x,z:spot.z,level:22});equipLegacySkills(p);p.hp=stats(p).maxHp;p.mana=stats(p).maxMana;
   w.mobs=w.mobs.filter(m=>spot.spawnIds.includes(m.id));w.command(p,{type:'afk',enabled:true});assert(p.afk);
   return {w,p,spot};
 }
@@ -127,14 +128,14 @@ test('schema 3 migration keeps a schema 2 hero, stash, potions and class-specifi
     assert.equal(restored.revision,1);assert.equal(restored.hero.gold,31);assert.equal(restored.hero.potions,7);assert.equal(restored.hero.manaPotions,4);
     assert.deepEqual(restored.hero.items,hero.items);assert.deepEqual(restored.hero.stash,hero.stash);
     assert.deepEqual(restored.hero.afkPreferences,defaultAfkPreferences('mage'));
-    assert.equal(await store.schemaVersion(),5);assert.equal(await store.health(),true);
+    assert.equal(await store.schemaVersion(),6);assert.equal(await store.health(),true);
   }finally{if(store)await store.close();await db.close();}
 });
 
 test('WebSocket settings save reaches PostgreSQL and survives reconnect without restarting AFK',
   {skip:!hasTestDatabase},async()=>{
   const db=await createTestDatabase(),fixture='a'.repeat(48),spot=AFK_SPOTS[0],hero=newHero('Настроенный');
-  Object.assign(hero,{x:spot.x,z:spot.z});await db.seed(fixture,persistentHero(hero));
+  equipLegacySkills(hero);Object.assign(hero,{x:spot.x,z:spot.z});await db.seed(fixture,persistentHero(hero));
   let server,ws;
   try{
     server=await startTestServer(db);

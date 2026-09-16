@@ -35,6 +35,7 @@ export class NetworkGame{
   save:SaveState|undefined;
   groundLoot:GroundDrop[]=[];
   skillZones:SkillZone[]=[];
+  dungeon:import('../../shared/types.js').DungeonProgress|undefined;
   retryTimer:ReturnType<typeof setTimeout>|undefined;
   firstState:Promise<void>|undefined;
   resolveJoin:(()=>void)|null=null;
@@ -82,7 +83,7 @@ export class NetworkGame{
         const next:ClientPlayer={...self,coins:self.gold};
         if(next.afk||next.interactionTarget)this.pending=[];else for(const input of this.pending)moveHero(next,.05,input);
         this.player=next;this.mobs=m.mobs;this.players=m.players;this.projectiles=m.projectiles;this.save=m.save;
-        this.groundLoot=m.groundLoot||[];this.skillZones=m.skillZones||[];
+        this.groundLoot=m.groundLoot||[];this.skillZones=m.skillZones||[];this.dungeon=m.dungeon;
         this.events.push(...m.events);this.onStatus('online',m.save.ok?'В общем мире':'Ошибка сохранения — не закрывайте игру');
         this.resolveJoin?.();this.resolveJoin=null;this.rejectJoin=null;return;
       }

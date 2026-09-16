@@ -12,12 +12,12 @@ export const CREATURE_CLIPS=['Idle','Walk','Run','Attack','Hit','Death'] as cons
 export const WOLF_CLIPS=[...CREATURE_CLIPS,'Turn_Left','Turn_Right'] as const;
 export const BEAR_CLIPS=[...CREATURE_CLIPS,'Turn_Left','Turn_Right'] as const;
 export const ATTACK_CONTACT=.68;
-export const STRIDES={wolf:{walk:.72,run:1.12},boar:{walk:.52,run:.82},alpha:{walk:.70,run:1.12},bear:{walk:.72,run:1.00},lynx:{walk:.72,run:1.00},yak:{walk:.72,run:1.00},'frost-spider':{walk:.62,run:.90},'ice-golem':{walk:.64,run:.92},'ash-jackal':{walk:.72,run:1},scorpion:{walk:.52,run:.76},'monitor-lizard':{walk:.58,run:.82},scarab:{walk:.54,run:.78}};
+export const STRIDES:Partial<Record<MobType,{walk:number;run:number}>>={wolf:{walk:.72,run:1.12},boar:{walk:.52,run:.82},alpha:{walk:.70,run:1.12},bear:{walk:.72,run:1.00},lynx:{walk:.72,run:1.00},yak:{walk:.72,run:1.00},'frost-spider':{walk:.62,run:.90},'ice-golem':{walk:.64,run:.92},'ash-jackal':{walk:.72,run:1},scorpion:{walk:.52,run:.76},'monitor-lizard':{walk:.58,run:.82},scarab:{walk:.54,run:.78}};
 // Mesh-local bind-space bounds, sampled from the shipped GLBs throughout every
 // exported clip (including lunge and death), with at least .12 m clearance.
 // Three.js transforms these fixed boxes/spheres with each skinned mesh; no
 // per-frame vertex or bone-bound scan is needed for camera/shadow culling.
-const CULLING_BOUNDS:Readonly<Record<MobType,Readonly<{min:readonly [number,number,number];max:readonly [number,number,number]}>>>=Object.freeze({
+const CULLING_BOUNDS:Readonly<Partial<Record<MobType,Readonly<{min:readonly [number,number,number];max:readonly [number,number,number]}>>>>=Object.freeze({
   wolf:{min:[-1.5,-.2,-1.45],max:[.6,1.65,1.5]},
   boar:{min:[-1.5,-.2,-1.1],max:[.6,1.5,1.4]},
   alpha:{min:[-1.65,-.2,-1.45],max:[.5,1.75,1.5]},
@@ -40,15 +40,15 @@ export function loadMobAssets(){
   })).then(entries=>Object.fromEntries(entries));
 }
 
-export function createMob(type:MobType,assets:MobAssets,eliteId?:string){
-  const cfg=mobConfig({type,eliteId}),asset=assets?.[type];
+export function createMob(type:MobType,assets:MobAssets,eliteId?:string,dungeonId?:import('../../shared/types.js').DungeonId,bossId?:import('../../shared/types.js').DungeonId){
+  const cfg=mobConfig({type,eliteId,dungeonId,bossId}),asset=assets?.[type];
   if(!cfg||!asset)throw new Error(`Модель ${type} не загружена`);
   const root=new T.Group(),body=clone(asset.scene);root.name=`Creature_${type}`;body.scale.setScalar(cfg.scale);root.add(body);
   const contact=contactShadow(root,(type==='scorpion'||type==='scarab'||type==='monitor-lizard'?2.3:type==='frost-spider'?2.3:type==='bear'||type==='yak'?1.55:1.25)*cfg.scale,(type==='ice-golem'?1.5:2.45)*cfg.scale);
   const eliteMaterials=new Map<T.Material,T.Material>();
   body.traverse(o=>{if(o instanceof T.Mesh){
     o.castShadow=true;o.receiveShadow=true;o.frustumCulled=true;
-    if(eliteId){
+    if(eliteId||bossId){
       const accent=(source:T.Material)=>{
         let material=eliteMaterials.get(source);
         if(!material){material=source.clone();if(material instanceof T.MeshStandardMaterial){material.emissive.set(type==='yak'||type==='ice-golem'?'#65bfe7':'#b8772c');material.emissiveIntensity=.12;}eliteMaterials.set(source,material);}
@@ -57,7 +57,7 @@ export function createMob(type:MobType,assets:MobAssets,eliteId?:string){
       o.material=Array.isArray(o.material)?o.material.map(accent):accent(o.material);
     }
     if(o instanceof T.SkinnedMesh){
-      const {min,max}=CULLING_BOUNDS[type];
+      const {min,max}=CULLING_BOUNDS[type]??{min:[-4,-1,-4] as const,max:[4,5,4] as const};
       o.boundingBox=new T.Box3(new T.Vector3(...min),new T.Vector3(...max));
       o.boundingSphere=new T.Sphere(o.boundingBox.getCenter(new T.Vector3()),o.boundingBox.getSize(new T.Vector3()).length()/2+.05);
     }
@@ -95,15 +95,15 @@ export function createMob(type:MobType,assets:MobAssets,eliteId?:string){
     body.visible=mob.state!=='dead'||mob.age<2;contact.visible=body.visible;
     health.visible=mob.state!=='dead'&&(selected||mob.hp<cfg.hp||mob.state!=='idle');
     health.quaternion.copy(camera.quaternion);fill.scale.x=mob.hp/cfg.hp;fill.position.x=-(1-mob.hp/cfg.hp)*.53;
-    warning.visible=mob.state==='windup';warning.rotation.z=-mob.targetYaw;
-    warning.material.opacity=.12+.4*T.MathUtils.clamp(1-mob.timer/cfg.windup,0,1);
+    warning.visible=!mob.bossId&&mob.state==='windup';warning.rotation.z=-mob.targetYaw;
+    warning.material.opacity=.12+.4*T.MathUtils.clamp(1-mob.timer/(mob.telegraph?.duration??cfg.windup),0,1);
     selection.visible=selected&&mob.state!=='dead';
     const target=Object.fromEntries(clipNames.map(n=>[n,0]));
     if(mob.state==='dead'){
       actions.Death.time=Math.min(mob.age,clips.Death.duration);target.Death=1;state='Death';
     }else if(mob.state==='windup'||mob.state==='recover'&&mob.age<.45){
       // Damage is applied at the .68 contact pose, when the warning expires.
-      const phase=mob.state==='windup'?T.MathUtils.clamp(1-mob.timer/cfg.windup,0,1)*ATTACK_CONTACT:
+      const phase=mob.state==='windup'?T.MathUtils.clamp(1-mob.timer/(mob.telegraph?.duration??cfg.windup),0,1)*ATTACK_CONTACT:
         ATTACK_CONTACT+(1-ATTACK_CONTACT)*T.MathUtils.clamp(mob.age/.45,0,1);
       actions.Attack.time=phase*clips.Attack.duration;target.Attack=1;state='Attack';
     }else{
@@ -111,7 +111,7 @@ export function createMob(type:MobType,assets:MobAssets,eliteId?:string){
       runBlend+=(Number(run)-runBlend)*(1-Math.exp(-(refined?10:12)*dt));
       const moveTarget=refined?T.MathUtils.clamp(mob.speed/.20,0,1):Number(moving);
       moveBlend+=(moveTarget-moveBlend)*(1-Math.exp(-(refined?12:16)*dt));
-      const stride=T.MathUtils.lerp(type==='wolf'&&!refined?.70:STRIDES[type].walk,STRIDES[type].run,runBlend)*cfg.scale;
+      const stride=T.MathUtils.lerp(type==='wolf'&&!refined?.70:(STRIDES[type]?.walk??.65),(STRIDES[type]?.run??.95),runBlend)*cfg.scale;
       gait+=(refined?(travelled<1?travelled:0):mob.speed*dt)/stride;
       actions.Idle.time=(time+mob.id*.31)%clips.Idle.duration;
       actions.Walk.time=(gait%1)*clips.Walk.duration;actions.Run.time=(gait%1)*clips.Run.duration;

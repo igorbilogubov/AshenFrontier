@@ -1,3 +1,6 @@
+import {MAX_LEVEL,mobExperience} from './public/game/progression-curve.js';
+import {DUNGEONS,dungeonAt,dungeonById,dungeonSafe,DUNGEON_RESET_SECONDS,DUNGEON_ABANDON_SECONDS,inBossTelegraph} from './public/game/dungeons.js';
+import {lateRegionAt} from './public/game/late-world.js';
 import {WASTELAND_PASSAGES,inWasteland,WASTELAND_MIN_LEVEL} from './public/game/wasteland.js';
 import {SNOW_PASSAGES,inSnow,SNOW_MIN_LEVEL} from './public/game/snow.js';
 import {CAMP_SPAWN} from './public/game/camp-layout.js';
@@ -10,7 +13,7 @@ import {BOUNDS,CAMP,SPAWNS,mobConfig,WEAPONS,AFK_SPOTS,afkSpotAt,withinSpot,safe
 import {angleDelta,turnTowards,inStrike} from './public/game/motion.js';
 import {SKILLS,skillsForClass,legacySkillId} from './public/game/skills.js';
 import {LOOT_TTL_MS,MAX_GROUND_DROPS_PER_HERO,PICKUP_RANGE,gearRarity} from './public/game/loot-rules.js';
-import {portalById} from './public/game/stadium.js';
+import {portalById,ALL_PASSAGES} from './public/game/stadium.js';
 import {locationAt,sameLocation,fieldRegionAt} from './public/game/world-layout.js';
 import {SHOP,shopPrice,sellPrice} from './public/game/shop.js';
 import {defaultAfkPreferences,parseAfkPreferences,afkCombatRadius} from './public/game/afk-preferences.js';
@@ -23,7 +26,7 @@ const finite=(value: unknown,fallback=0)=>typeof value==='number'&&Number.isFini
 const nonnegative=(value: unknown,fallback=0)=>Math.max(0,finite(value,fallback));
 const CHASE_HOME_LIMIT=28,CHASE_TARGET_LIMIT=30,HOME_REST_SECONDS=3;
 
-const liveMob=(m:Mob)=>m.state!=='dead';
+const liveMob=(m:Mob)=>m.state!=='dead'&&!m.bossLocked;
 const validPoint=(value:unknown):value is Point=>isRecord(value)&&typeof value.x==='number'&&Number.isFinite(value.x)&&typeof value.z==='number'&&Number.isFinite(value.z);
 const bodyStrike=(origin:Point,m:Mob,yaw:number,range:number,halfAngle:number)=>{
   const d=distance(origin,m),radius=mobConfig(m).radius;
@@ -78,7 +81,7 @@ export function safeHero(saved: unknown): Hero{
   }
   const stash=raw.stash===undefined?[]:raw.stash;
   if(!Array.isArray(stash)||stash.length>32||new Set(stash).size!==stash.length||stash.some(id=>typeof id!=='string'||!items.some(item=>item.id===id)||Object.values(equipment).includes(id)))throw new Error('Invalid saved stash');
-  const x=finite(raw.x,CAMP_SPAWN.x),z=finite(raw.z,CAMP_SPAWN.z),position=legacy||typeof raw.x!=='number'||typeof raw.z!=='number'||!Number.isFinite(raw.x)||!Number.isFinite(raw.z)||!stand(x,z)||(inSnow({x,z})&&level<SNOW_MIN_LEVEL)||(inWasteland({x,z})&&level<WASTELAND_MIN_LEVEL)?CAMP_SPAWN:{x,z};
+  const x=finite(raw.x,CAMP_SPAWN.x),z=finite(raw.z,CAMP_SPAWN.z),position=legacy||typeof raw.x!=='number'||typeof raw.z!=='number'||!Number.isFinite(raw.x)||!Number.isFinite(raw.z)||!stand(x,z)||level<(dungeonAt({x,z})?.minLevel??lateRegionAt({x,z})?.minLevel??1)||(inSnow({x,z})&&level<SNOW_MIN_LEVEL)||(inWasteland({x,z})&&level<WASTELAND_MIN_LEVEL)?CAMP_SPAWN:{x,z};
   const yaw=finite(raw.yaw,Math.PI*.25),legacyId=legacySkillId(classId),specialCooldown=legacy?0:nonnegative(raw.specialCooldown);
   const skillCooldowns: SkillCooldowns={};
   if(isRecord(raw.skillCooldowns))for(const skill of Object.values(SKILLS))if(skill.classId===classId&&Object.hasOwn(raw.skillCooldowns,skill.id))skillCooldowns[skill.id]=nonnegative(raw.skillCooldowns[skill.id]);
@@ -97,7 +100,7 @@ export function safeHero(saved: unknown): Hero{
   const p: Hero={
     skillBuild:parseSkillBuild(raw.skillBuild,classId,level)??defaultSkillBuild(classId,level),buildRevision:Math.floor(nonnegative(raw.buildRevision)),skillPresets:[0,1,2].map(index=>Array.isArray(raw.skillPresets)?parseSkillBuild(raw.skillPresets[index],classId,level):null) as Hero['skillPresets'],effects:[],
     schemaVersion:SAVE_VERSION,id:typeof raw.id==='string'?raw.id:randomUUID(),name:String(raw.name||'Странник').replace(/[\p{C}<>]/gu,'').slice(0,18),
-    classId,level,xp:nonnegative(raw.xp),gold:nonnegative(raw.gold??raw.coins),kills:Math.floor(nonnegative(raw.kills)),items,pendingItems,stash,equipment,consumableInventory,quickSlots,consumableOverflow,
+    classId,level,xp:level>=MAX_LEVEL?0:nonnegative(raw.xp),gold:nonnegative(raw.gold??raw.coins),kills:Math.floor(nonnegative(raw.kills)),items,pendingItems,stash,equipment,consumableInventory,quickSlots,consumableOverflow,
     allocatedStats:normalizedAllocations(migrateStats?null:raw.allocatedStats,level),statRevision:!migrateStats&&typeof raw.statRevision==='number'&&Number.isSafeInteger(raw.statRevision)&&raw.statRevision>=0?raw.statRevision:0,
     ...position,yaw,targetYaw:yaw,weapon:raw.weapon==='axe'?'axe':'sword',
     questKills:legacy?0:nonnegative(raw.questKills),boss:legacy?false:!!raw.boss,questClaimed:legacy?false:!!raw.questClaimed,
@@ -129,12 +132,15 @@ export class World{
   projectiles: Projectile[];
   pendingAreas: {skillId:'archer-rain'|'mage-meteor';caster:string;attackId:number;yaw:number;x:number;z:number;at:number;damage:number;automatic:boolean}[];
   mobs: Mob[];
+  dungeonRuns=new Map<string,{resetAt:number;lastOccupied:number}>();
+  bossTurns=new Map<number,number>();
   skillZones:(SkillZone&{budget?:number;attackId:number;yaw:number;damage?:number;automatic?:boolean})[]=[];
   groundLoot: (GroundDrop & {owner:string})[];
   purchaseReceipts:Map<string,string[]>;
   constructor({random=Math.random}={}){
     this.random=random;
     this.t=Date.now();this.age=0;this.players=new Map();this.events=[];this.projectiles=[];this.pendingAreas=[];this.groundLoot=[];this.purchaseReceipts=new Map();
+    for(const d of DUNGEONS)this.dungeonRuns.set(d.id,{resetAt:0,lastOccupied:this.t});
     this.mobs=SPAWNS.map((s,id)=>({...s,id,homeX:s.x,homeZ:s.z,hp:mobConfig(s).hp,state:'idle',timer:1,yaw:Math.PI,targetYaw:Math.PI,age:0,gait:0,speed:0,flash:0,target:null,contributors:new Map()}));
   }
   add(p: Hero){this.stopAfk(p);this.stopInteraction(p);this.players.set(p.id,p);p.connected=true;p.disconnectAt=0;p.afk=null;p.shopActive=false;p.stashActive=false;}
@@ -672,7 +678,7 @@ export class World{
     if(!p.hp){this.clearSkillRuntime(p);this.stopAfk(p);this.stopInteraction(p);p.shopActive=false;p.stashActive=false;p.dead=2.5;p.attack=null;p.vx=p.vz=p.moveBlend=p.runBlend=0;this.emit('death',{},p.id);}
   }
   hurtMob(p: Hero,m: Mob,amount: number,automatic=false){
-    if(p.dead||safe(p)||m.state==='dead'||safe(m)||!sameLocation(p,m)||!clearPath(p,m))return false;
+    if(p.dead||safe(p)||m.state==='dead'||m.bossLocked||safe(m)||!sameLocation(p,m)||!clearPath(p,m))return false;
     const dealt=Math.min(m.hp,Math.max(0,Math.round(amount)));if(!dealt)return false;
     const earlier=m.contributors.get(p.id);
     m.hp-=dealt;m.flash=.2;p.combatUntil=this.t+15000;m.contributors.set(p.id,{at:this.t,damage:(earlier?.damage||0)+dealt,automatic:(earlier?.automatic??automatic)&&automatic});
@@ -681,7 +687,7 @@ export class World{
     return true;
   }
   strikeMob(p: Hero,m: Mob,amount: number,automatic=false,skillId?:SkillId){
-    if(p.dead||safe(p)||m.state==='dead'||safe(m)||!sameLocation(p,m)||!clearPath(p,m))return false;
+    if(p.dead||safe(p)||m.state==='dead'||m.bossLocked||safe(m)||!sameLocation(p,m)||!clearPath(p,m))return false;
     if(this.random()>=Math.min(.99,stats(p).hitChance+(skillId&&SKILLS[skillId].maxTargets===1?(talentBonuses(p).singleAccuracy??0)+(this.hasEffect(p,'archer-focus')?.05:0):0))){
       p.combatUntil=this.t+15000;
       if(m.state==='idle'||m.state==='return'){m.state='chase';m.target=p.id;m.timer=0;m.age=0;}
@@ -696,20 +702,23 @@ export class World{
     // Recent nearby contributors receive personal rewards. A final hit cannot steal the kill.
     for(const [id,contribution] of m.contributors){
       const p=this.players.get(id);if(!p||p.dead||this.t-contribution.at>20000||!sameLocation(p,m)||distance(p,m)>12||contribution.damage<cfg.hp*.05)continue;
-      const automatic=contribution.automatic===true;
-      p.kills++;if(!automatic&&locationAt(m)==='forest')p.questKills++;p.xp+=cfg.xp;if(!automatic&&m.id===6&&locationAt(m)==='forest')p.boss=true;
-      while(p.xp>=stats(p).xpNeeded){p.xp-=stats(p).xpNeeded;p.level++;p.statRevision++;this.emit('level',{level:p.level,points:5},p.id);}
+      const automatic=contribution.automatic===true,earnedXp=p.level>=MAX_LEVEL?0:mobExperience(p.level,cfg.level,cfg.xp);
+      p.kills++;if(!automatic&&locationAt(m)==='forest')p.questKills++;p.xp+=earnedXp;if(!automatic&&m.id===6&&locationAt(m)==='forest')p.boss=true;
+      while(p.level<MAX_LEVEL&&p.xp>=stats(p).xpNeeded){p.xp-=stats(p).xpNeeded;p.level++;p.statRevision++;this.emit('level',{level:p.level,points:5},p.id);}
+      if(p.level>=MAX_LEVEL)p.xp=0;
       this.addGroundDrop(p.id,{id:randomUUID(),kind:'gold',x:m.x,z:m.z,amount:cfg.coins,expiresAt:this.t+LOOT_TTL_MS});
-      const rarity=gearRarity(m.type,m.eliteId,this.random);
+      const rarity=gearRarity(m.type,m.eliteId,this.random,!!m.bossId);
       if(rarity!==null){
         const choices=regionalEquipment(p.classId,fieldRegionAt(m),rarity),definition=choices[Math.floor(this.random()*choices.length)];
         const item=rollEquipment(definition.id,randomUUID(),this.random);
         const shifted=stand(m.x+.22,m.z+.12),x=shifted?m.x+.22:m.x,z=shifted?m.z+.12:m.z;
         this.addGroundDrop(p.id,{id:randomUUID(),kind:'item',x,z,item,expiresAt:this.t+LOOT_TTL_MS});
       }
-      this.emit('kill',{id:m.id,name:cfg.name,xp:cfg.xp},p.id);
+      this.emit('kill',{id:m.id,name:cfg.name,xp:earnedXp},p.id);
     }
-    m.contributors.clear();m.target=null;
+    m.contributors.clear();m.target=null;delete m.telegraph;
+    if(m.bossId)this.dungeonRuns.get(m.bossId)!.resetAt=this.t+DUNGEON_RESET_SECONDS*1000;
+    if(m.dungeonId)this.refreshDungeon(m.dungeonId);
   }
   resolveAttack(p: Hero,a: HeroAttack,attackPower: number){
     if(p.dead||safe(p))return;
@@ -824,6 +833,46 @@ export class World{
     if(p.afkPreferences.basicAttackFallback&&d<=basicRange+body&&this.attack(p,yaw,false,target.id))return true;
     return false;
   }
+  refreshDungeon(id:string){
+    const guards=this.mobs.some(m=>m.dungeonId===id&&!m.bossId&&m.state!=='dead');
+    const boss=this.mobs.find(m=>m.bossId===id);if(boss)boss.bossLocked=guards;
+  }
+  resetDungeon(id:string){
+    for(const m of this.mobs)if(m.dungeonId===id){Object.assign(m,{x:m.homeX,z:m.homeZ,hp:mobConfig(m).hp,state:'idle',timer:1,age:0,target:null,speed:0,flash:0,patrol:null,slowUntil:0,rootUntil:0,rootImmunityUntil:0,dots:[]});delete m.telegraph;m.contributors.clear();this.bossTurns.delete(m.id);}
+    this.refreshDungeon(id);this.dungeonRuns.set(id,{resetAt:0,lastOccupied:this.t});
+  }
+  tickDungeons(){
+    for(const [id,run] of this.dungeonRuns){
+      const occupied=[...this.players.values()].some(p=>p.connected&&!p.dead&&dungeonAt(p)?.id===id&&!dungeonSafe(p));
+      if(occupied)run.lastOccupied=this.t;
+      // No respawn over a player still exploring the cleared rooms. Foyer stays safe.
+      if(!occupied&&((run.resetAt>0&&this.t>=run.resetAt)||this.t-run.lastOccupied>=DUNGEON_ABANDON_SECONDS*1000))this.resetDungeon(id);
+    }
+  }
+  tickBoss(m:Mob,dt:number){
+    const cfg=mobConfig(m),home={x:m.homeX,z:m.homeZ};
+    const candidates=[...this.players.values()].filter(p=>p.connected&&!p.dead&&!safe(p)&&sameLocation(p,m)&&distance(p,home)<22&&clearPath(m,p));
+    const target=candidates.find(p=>p.id===m.target)??candidates.sort((a,b)=>distance(a,m)-distance(b,m))[0];
+    if(!target){
+      delete m.telegraph;m.target=null;
+      const d=distance(m,home);
+      if(d>.2){m.state='return';const yaw=Math.atan2(home.x-m.x,home.z-m.z);m.yaw=turnTowards(m.yaw,yaw,dt,8);m.speed=translate(m,Math.sin(yaw)*cfg.speed*dt,Math.cos(yaw)*cfg.speed*dt,cfg.radius,true)/dt;}
+      else{if(m.state!=='idle'){m.state='idle';m.timer=5;}m.timer-=dt;if(m.timer<=0){m.hp=cfg.hp;m.contributors.clear();}}
+      m.gait+=m.speed*dt*5.8;return;
+    }
+    m.target=target.id;
+    if(m.telegraph){
+      m.state='windup';m.telegraph.remaining=Math.max(0,m.telegraph.remaining-dt);m.timer=m.telegraph.remaining;
+      if(m.timer<=0){const warning=m.telegraph;for(const p of candidates)if(inBossTelegraph(warning,p)&&clearPath(warning,p))this.damagePlayer(p,cfg.damage*(warning.kind==='circle'?1.25:warning.kind==='ring'?1.05:.85));delete m.telegraph;m.state='recover';m.timer=1.2;m.age=0;}
+      return;
+    }
+    if(m.state==='recover'){m.timer-=dt;if(m.timer>0)return;}
+    const yaw=Math.atan2(target.x-m.x,target.z-m.z);m.yaw=turnTowards(m.yaw,yaw,dt,8);
+    if(distance(target,m)>8){m.state='chase';m.speed=translate(m,Math.sin(yaw)*cfg.speed*dt,Math.cos(yaw)*cfg.speed*dt,cfg.radius,true)/dt;m.gait+=m.speed*dt*5.8;return;}
+    const turn=this.bossTurns.get(m.id)??0,kind=(['cone','circle','ring'] as const)[turn%3];this.bossTurns.set(m.id,turn+1);
+    const duration=kind==='cone'?1.15:kind==='circle'?1.7:1.9,origin=kind==='circle'?{x:target.x,z:target.z}:{x:m.x,z:m.z};
+    m.telegraph={...origin,kind,yaw,radius:kind==='cone'?8:kind==='circle'?2.6:9,innerRadius:3.4,halfAngle:.65,duration,remaining:duration};m.targetYaw=yaw;m.yaw=yaw;m.state='windup';m.timer=duration;m.age=0;
+  }
   tick(dt: number,now=this.t+dt*1000){
     dt=Math.max(0,Math.min(.1,dt));this.t=now;this.age+=dt;
     this.groundLoot=this.groundLoot.filter(drop=>drop.expiresAt>this.t);
@@ -845,7 +894,7 @@ export class World{
       this.tickSkillRuntime(p,dt);
       const s=stats(p),before={gait:p.gait,x:p.x,z:p.z};p.speedScale=s.speedScale;if(!p.mobility)moveHero(p,dt,input);p.ack=p.input.seq;
       if(!p.afk&&!p.dead&&Math.hypot(input.x??0,input.z??0)>.01){
-        const passage=[...SNOW_PASSAGES,...WASTELAND_PASSAGES].find(gate=>sameLocation(p,gate)&&distance(before,gate)>gate.range&&distance(p,gate)<=gate.range);
+        const passage=ALL_PASSAGES.find(gate=>sameLocation(p,gate)&&distance(before,gate)>gate.range&&distance(p,gate)<=gate.range);
         if(passage)this.startPortal(p,passage.id);
       }
       this.settleSafe(p);
@@ -879,11 +928,15 @@ export class World{
         if(p.questKills>=5&&p.boss&&!p.questClaimed){p.questClaimed=true;p.gold+=50;this.emit('quest',{},p.id);}
       }
     }
-    this.tickSkillZones(dt);
+    this.tickSkillZones(dt);this.tickDungeons();
+    const activeLocations=new Set([...this.players.values()].map(p=>locationAt(p)));
     for(const m of this.mobs){
       this.tickDots(m,dt);
       const cfg=mobConfig(m),home={x:m.homeX,z:m.homeZ};m.age+=dt;m.flash=Math.max(0,m.flash-dt);m.speed=0;
-      if(m.state==='dead'){m.patrol=null;m.timer-=dt;if(m.timer<=0){Object.assign(m,{x:home.x,z:home.z,hp:cfg.hp,state:'idle',timer:1,age:0,target:null,slowUntil:0});m.contributors.clear();}continue;}
+      if(m.state==='dead'){if(m.dungeonId)continue;m.patrol=null;m.timer-=dt;if(m.timer<=0){Object.assign(m,{x:home.x,z:home.z,hp:cfg.hp,state:'idle',timer:1,age:0,target:null,slowUntil:0});m.contributors.clear();}continue;}
+      if(!activeLocations.has(locationAt(m)))continue;
+      if(m.bossLocked){m.state='idle';m.target=null;continue;}
+      if(m.bossId){this.tickBoss(m,dt);continue;}
       const spot=m.spotId?AFK_SPOTS.find(candidate=>candidate.id===m.spotId):null;
       let p=m.target===null?undefined:this.players.get(m.target);
       if(m.state==='idle'){
@@ -973,6 +1026,7 @@ export class World{
   }
   snapshot(forId: string): WorldSnapshot{
     const p=this.players.get(forId);
-    return {t:this.t,skillZones:this.skillZones.filter(z=>!p||sameLocation(p,z)).map(({budget,attackId,yaw,damage,automatic,...z})=>z),players:[...this.players.values()].filter(other=>!p||sameLocation(p,other)).map(p=>({id:p.id,name:p.name,classId:p.classId,x:p.x,z:p.z,yaw:p.yaw,weapon:p.weapon,hp:p.hp,maxHp:stats(p).maxHp,level:p.level,dead:p.dead,hurt:p.hurt,attack:p.attack,moveBlend:p.moveBlend,runBlend:p.runBlend,gait:p.gait,vx:p.vx,vz:p.vz,connected:p.connected,effects:p.effects,appearance:equipmentAppearance(p)})),mobs:this.mobs.filter(m=>!p||sameLocation(p,m)).map(({contributors,patrol,slowUntil,rootUntil,rootImmunityUntil,dots,slow,...m})=>({...m,slow:Math.max(0,((slowUntil??0)-this.t)/1000)})),projectiles:this.projectiles.filter(b=>!p||sameLocation(p,b)).map(({damage,aoe,maxTargets,hitIds,pierce,damageScaleOnPierce,slowMs,automatic,dot,rootMs,...b})=>b),groundLoot:this.groundLoot.filter(drop=>drop.owner===forId&&(!p||sameLocation(p,drop))).map(({owner,...drop})=>drop),self:p?{...stats(p),...persistentHero(p),appearance:equipmentAppearance(p),attackPower:stats(p).attack,targetYaw:p.targetYaw,vx:p.vx,vz:p.vz,hurt:p.hurt,gait:p.gait,moveBlend:p.moveBlend,runBlend:p.runBlend,ack:p.ack,afk:p.afk,afkRadius:this.afkRadius(p),interactionTarget:p.interactionTarget,shopActive:p.shopActive,stashActive:p.stashActive}:null,events:this.events.filter(e=>(!e.owner||e.owner===forId)&&(!p||!('x' in e&&'z' in e)||sameLocation(p,e)))};
+    const dungeon=p?dungeonAt(p):undefined,run=dungeon?this.dungeonRuns.get(dungeon.id):undefined;
+    return {dungeon:dungeon?{id:dungeon.id,guardsRemaining:this.mobs.filter(m=>m.dungeonId===dungeon.id&&!m.bossId&&m.state!=='dead').length,bossDefeated:this.mobs.some(m=>m.bossId===dungeon.id&&m.state==='dead'),resetIn:run?.resetAt?Math.max(0,(run.resetAt-this.t)/1000):0}:undefined,t:this.t,skillZones:this.skillZones.filter(z=>!p||sameLocation(p,z)).map(({budget,attackId,yaw,damage,automatic,...z})=>z),players:[...this.players.values()].filter(other=>!p||sameLocation(p,other)).map(p=>({id:p.id,name:p.name,classId:p.classId,x:p.x,z:p.z,yaw:p.yaw,weapon:p.weapon,hp:p.hp,maxHp:stats(p).maxHp,level:p.level,dead:p.dead,hurt:p.hurt,attack:p.attack,moveBlend:p.moveBlend,runBlend:p.runBlend,gait:p.gait,vx:p.vx,vz:p.vz,connected:p.connected,effects:p.effects,appearance:equipmentAppearance(p)})),mobs:this.mobs.filter(m=>!p||sameLocation(p,m)).map(({contributors,patrol,slowUntil,rootUntil,rootImmunityUntil,dots,slow,...m})=>({...m,slow:Math.max(0,((slowUntil??0)-this.t)/1000)})),projectiles:this.projectiles.filter(b=>!p||sameLocation(p,b)).map(({damage,aoe,maxTargets,hitIds,pierce,damageScaleOnPierce,slowMs,automatic,dot,rootMs,...b})=>b),groundLoot:this.groundLoot.filter(drop=>drop.owner===forId&&(!p||sameLocation(p,drop))).map(({owner,...drop})=>drop),self:p?{...stats(p),...persistentHero(p),appearance:equipmentAppearance(p),attackPower:stats(p).attack,targetYaw:p.targetYaw,vx:p.vx,vz:p.vz,hurt:p.hurt,gait:p.gait,moveBlend:p.moveBlend,runBlend:p.runBlend,ack:p.ack,afk:p.afk,afkRadius:this.afkRadius(p),interactionTarget:p.interactionTarget,shopActive:p.shopActive,stashActive:p.stashActive}:null,events:this.events.filter(e=>(!e.owner||e.owner===forId)&&(!p||!('x' in e&&'z' in e)||sameLocation(p,e)))};
   }
 }

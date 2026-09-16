@@ -1,3 +1,5 @@
+import {lateRegionAt} from './late-world.js';
+import {dungeonAt} from './dungeons.js';
 import {WASTELAND_BOUNDS,WASTELAND_ROADS,WASTELAND_LANDMARKS} from './wasteland.js';
 import {SNOW_BOUNDS,SNOW_ROADS,SNOW_LANDMARKS} from './snow.js';
 import {WORLD_BOUNDS,WORLD_CLEARINGS,WORLD_ROADS,WORLD_LANDMARKS,locationAt} from './world-layout.js';
@@ -6,6 +8,7 @@ import type {Position} from './motion.js';
 
 /** Draw before actors/AFK rings; coordinates match scene.mapPosition's padding. */
 export function drawWorldMapBackdrop(ctx:CanvasRenderingContext2D,width:number,height:number,position:Position={x:0,z:0}){
+  const late=lateRegionAt(position),dungeon=dungeonAt(position);if(late||dungeon){const region=(late??dungeon)!;const b=region.bounds,sx=(width-20)/(b.maxX-b.minX),sz=(height-16)/(b.maxZ-b.minZ),at=(p:Position)=>({x:10+(p.x-b.minX)*sx,y:8+(p.z-b.minZ)*sz});ctx.save();ctx.clearRect(0,0,width,height);ctx.fillStyle=dungeon?dungeon.floor:'#2b3b36';ctx.fillRect(0,0,width,height);ctx.strokeStyle=dungeon?.color??'#9aab87';ctx.lineWidth=1;if(late)for(const road of late.roads){ctx.beginPath();road.points.forEach((p,i)=>{const q=at(p);if(i)ctx.lineTo(q.x,q.y);else ctx.moveTo(q.x,q.y);});ctx.stroke();}if(dungeon)for(const wall of dungeon.walls){const p=at(wall);ctx.fillStyle=dungeon.color;ctx.fillRect(p.x-(wall.w??1.6)*sx/2,p.y-(wall.d??1.6)*sz/2,Math.max(1,(wall.w??1.6)*sx),Math.max(1,(wall.d??1.6)*sz));}ctx.restore();return;}
   if(locationAt(position)==='wasteland'){drawWastelandMap(ctx,width,height);return;}
   if(locationAt(position)==='snow'){drawSnowMap(ctx,width,height);return;}
   if(locationAt(position)==='stadium'){drawStadiumMap(ctx,width,height);return;}

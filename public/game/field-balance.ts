@@ -31,4 +31,4 @@ export const FIELD_BALANCE:Readonly<Record<FieldMobType,Readonly<FieldMobBalance
   scarab:frozen({level:39,hp:1250,damage:31,xp:849,coins:120}),
 });
 
-export const fieldBalance=(type:MobType)=>FIELD_BALANCE[type as FieldMobType];
+export const fieldBalance=(type:MobType):Readonly<FieldMobBalance>|undefined=>FIELD_BALANCE[type as FieldMobType];

@@ -1,3 +1,5 @@
+import {fieldBalance} from './field-balance.js';
+import {baseExperience} from './progression-curve.js';
 import {LATE_SPAWNS,LATE_MOB_TYPES,LATE_ELITE_TYPES,lateSafe} from './late-world.js';
 import {DUNGEON_SPAWNS,dungeonById,dungeonSafe} from './dungeons.js';
 import {WASTELAND_SPAWNS,wastelandSafe} from './wasteland.js';
@@ -49,9 +51,9 @@ export const ELITE_TYPES=Object.freeze({
 });
 export function mobConfig(m:{type:MobType;eliteId?:string;bossId?:string;dungeonId?:string}){
  const elite=m.eliteId?ELITE_TYPES[m.eliteId as keyof typeof ELITE_TYPES]:undefined;
- const base={level:1,...MOB_TYPES[m.type]},dungeon=dungeonById(m.dungeonId);
- if(dungeon){const boss=!!m.bossId;return {...base,level:dungeon.level,name:boss?dungeon.bossName:`Страж · ${base.name}`,hp:Math.round(base.hp*(boss?10:2)),damage:Math.round(base.damage*(boss?1.8:1.15)),xp:Math.round(base.xp*(boss?12:2)),coins:Math.round(base.coins*(boss?15:2)),scale:base.scale*(boss?1.6:1.13),aggro:boss?12:6,respawn:180};}
- return {...base,respawn:24,...(elite?.type===m.type?elite:{})};
+ const base={level:1,...MOB_TYPES[m.type],...fieldBalance(m.type)},dungeon=dungeonById(m.dungeonId);
+ if(dungeon){const boss=!!m.bossId;return {...base,level:dungeon.level,name:boss?dungeon.bossName:`Страж · ${base.name}`,hp:Math.round(base.hp*(boss?10:2)),damage:Math.round(base.damage*(boss?1.8:1.15)),xp:baseExperience(dungeon.level)*(boss?12:2),coins:Math.round(base.coins*(boss?15:2)),scale:base.scale*(boss?1.6:1.13),aggro:boss?12:6,respawn:180};}
+ return {...base,respawn:24,...(elite?.type===m.type?{...elite,level:Math.min(100,base.level+2),xp:baseExperience(base.level+2)*3}:{})};
 }
 export const SPAWNS:readonly Readonly<Position & {type:MobType;spotId?:AfkSpotId;eliteId?:string;bossId?:import('../../shared/types.js').DungeonId;dungeonId?:import('../../shared/types.js').DungeonId;bossLocked?:boolean}>[]=Object.freeze([
   {type:'wolf',x:7.6,z:1.8},{type:'wolf',x:10.4,z:-4},{type:'boar',x:12.4,z:6.4},

@@ -1,3 +1,8 @@
+import {createLateWorldEnvironment} from './late-world-environment.js';
+import {lateRegionAt} from './late-world.js';
+import {createDungeonEnvironment} from './dungeon-environment.js';
+import {dungeonAt} from './dungeons.js';
+import {createBossEffects} from './boss-effects.js';
 import {bindAfkSettings} from './afk-settings-ui.js';
 import {bindSkillbook} from './skillbook-ui.js';
 import {bindTargetPresentation} from './target-presentation.js';
@@ -16,7 +21,7 @@ import {SNOW_PASSAGES} from './snow.js';
 import {createSnowEnvironment} from './snow-environment.js';
 import {createWastelandEnvironment} from './wasteland-environment.js';
 import {WASTELAND_PASSAGES} from './wasteland.js';
-import {PORTALS} from './stadium.js';
+import {PORTALS,ALL_PORTALS} from './stadium.js';
 import {createStadiumEnvironment} from './stadium-environment.js';
 import {angleDelta,gaitProfile} from './motion.js';
 import {CAMERA,WEAPONS,mobConfig,safe,AFK_SPOTS,afkSpotAt} from './location.js';
@@ -50,6 +55,7 @@ let selectedEntity:{kind:'vendor'|'player';id:string}|null=null,updateTarget:Ret
 let width=innerWidth,height=innerHeight,selected:number|null=null,pendingWeapon:WeaponId|null=null;
 let noticeTimer:ReturnType<typeof setTimeout>|undefined=undefined,lastSafeToast=0,uiTimer=0,frames:number[]=[],frameCounter=0,paused=false;
 let snow:ReturnType<typeof createSnowEnvironment>,wasteland:ReturnType<typeof createWastelandEnvironment>,forestRegion:T.Scene,stadiumRegion:T.Scene;
+let lateWorld:ReturnType<typeof createLateWorldEnvironment>,dungeonWorld:ReturnType<typeof createDungeonEnvironment>,bossEffects:ReturnType<typeof createBossEffects>;
 let mobAssets:MobAssets,stadium:ReturnType<typeof createStadiumEnvironment>;
 let targetZoom=1,interfaceUI:ReturnType<typeof bindInterface>;
 const remoteModels=new Map<string,RemoteWarrior>(),loadingPlayers=new Set<string>(),visualHeroes=new Map<string,VisualHero>(),visualMobs=new Map<number,PublicMob>(),shots=new Map<string,T.Group>();
@@ -212,8 +218,8 @@ function drawMap(){
   const BOUNDS=boundsForPosition(game.player);
   for(const spot of AFK_SPOTS){if(!sameLocation(spot,game.player))continue;const p=mapPosition(spot);map.strokeStyle='#82a497';map.lineWidth=1.2;map.beginPath();map.ellipse(p.x,p.y,spot.radius/(BOUNDS.maxX-BOUNDS.minX)*(mini.width-20),spot.radius/(BOUNDS.maxZ-BOUNDS.minZ)*(mini.height-16),0,0,Math.PI*2);map.stroke();}
   if(game.player.afk){const p=mapPosition(game.player.afk.anchor??game.player),radius=game.player.afkRadius??0;map.strokeStyle='#dfc98a';map.lineWidth=1.5;map.beginPath();map.ellipse(p.x,p.y,radius/(BOUNDS.maxX-BOUNDS.minX)*(mini.width-20),radius/(BOUNDS.maxZ-BOUNDS.minZ)*(mini.height-16),0,0,Math.PI*2);map.stroke();}
-  for(const portal of [...PORTALS,...SNOW_PASSAGES,...WASTELAND_PASSAGES]){if(!sameLocation(portal,game.player))continue;const p=mapPosition(portal);map.strokeStyle='#86dfe4';map.lineWidth=2;map.strokeRect(p.x-3,p.y-3,6,6);}
-  for(const m of game.mobs){if(m.state==='dead')continue;const p=mapPosition(m);map.fillStyle=m.eliteId?'#edba70':'#c27461';map.beginPath();map.arc(p.x,p.y,m.eliteId?3:2.2,0,Math.PI*2);map.fill();}
+  for(const portal of ALL_PORTALS){if(!sameLocation(portal,game.player))continue;const p=mapPosition(portal);map.strokeStyle='#86dfe4';map.lineWidth=2;map.strokeRect(p.x-3,p.y-3,6,6);}
+  for(const m of game.mobs){if(m.state==='dead')continue;const p=mapPosition(m);map.fillStyle=m.bossId?'#c999f1':m.eliteId?'#edba70':'#c27461';map.beginPath();map.arc(p.x,p.y,m.bossId?4:m.eliteId?3:2.2,0,Math.PI*2);map.fill();}
   for(const other of game.players){if(other.id===game.id)continue;const p=mapPosition(other);map.fillStyle='#80cddd';map.beginPath();map.arc(p.x,p.y,2.8,0,Math.PI*2);map.fill();}
   const p=mapPosition(game.player);map.fillStyle='#f4e5bb';map.beginPath();map.arc(p.x,p.y,3,0,Math.PI*2);map.fill();map.strokeStyle='#eff3d0';map.beginPath();map.moveTo(p.x,p.y);map.lineTo(p.x+Math.sin(game.player.yaw)*7,p.y+Math.cos(game.player.yaw)*7);map.stroke();
 }
@@ -223,9 +229,14 @@ function updateUI(){
   $('map-legend').innerHTML=inWasteland?'<span>ЗАПАДНЫЙ ПОСТ</span><span>◯ СПОТЫ</span><span>ПЕПЕЛЬНЫЙ ШПИЛЬ</span>':inSnow?'<span>ПЕРЕВАЛ</span><span>◯ СПОТЫ</span><span>ЛЕДНИК</span>':inStadium?'<span>I · ВОЛКИ</span><span>II · КАБАНЫ</span><span>III · ВОЖАКИ</span><span>IV · МЕДВЕДИ</span>':'<span>ЛАГЕРЬ</span><span>◯ СПОТЫ</span><span>РУИНЫ</span>';
   mini.setAttribute('aria-label',inWasteland?'Пепельные пустоши: западный пост, восемь спотов и пепельный шпиль на востоке.':inSnow?'Снежный предел: перевал на западе, восемь спотов и ледник на востоке.':inStadium?'Стадиум: четыре загона на севере, безопасная площадка и портал на юге.':'Карта Пепельной опушки: лагерь, пять спотов и руины.');
   $('forest-quest').hidden=region!=='forest';$('stadium-guide').hidden=!inStadium;document.getElementById('snow-guide')!.hidden=!inSnow;document.getElementById('wasteland-guide')!.hidden=!inWasteland;
+  const expansion=lateRegionAt(hero),dungeon=dungeonAt(hero);
+  if(expansion||dungeon){$('location-name').textContent=(expansion??dungeon)!.name;$('map-legend').innerHTML=dungeon?'<span>ВХОД</span><span>СТРАЖИ</span><span>БОСС</span>':'<span>УКРЫТИЕ</span><span>◯ СПОТЫ</span><span>ПОДЗЕМЕЛЬЕ</span>';mini.setAttribute('aria-label',`Карта: ${(expansion??dungeon)!.name}`);}
+  let guide=document.getElementById('dungeon-progress');if(!guide){guide=document.createElement('aside');guide.id='dungeon-progress';guide.className='quest-card';guide.style.cssText='position:absolute;top:145px;left:24px;max-width:235px;pointer-events:none';document.body.append(guide);}
+  guide.hidden=!dungeon;if(dungeon){const p=game.dungeon;guide.textContent=p?.bossDefeated?`Босс повержен. Выход у входа. Новый поход через ${Math.ceil(p.resetIn)} с после освобождения залов.`:(p?.guardsRemaining??12)>0?`${dungeon.name} · стражей осталось: ${p?.guardsRemaining??12} / 12. Печать босса снимется после их гибели.`:`${dungeon.bossName} · печать снята. Уклоняйтесь от отмеченных атак.`;}
   const spot=afkSpotAt(hero);
   const clearing=WORLD_CLEARINGS.find(field=>Math.hypot(hero.x-field.x,hero.z-field.z)<field.radius);
   $('zone-state').textContent=camp?(inWasteland?'Безопасный пост':inSnow?'Укрытие у перевала':inStadium?'Безопасная площадка':'Безопасный лагерь'):spot?spot.name:inWasteland?'Пепельные пустоши · опасная зона':inSnow?'Снежный предел · опасная зона':inStadium?'Стадиум · входы в загоны':Math.hypot(hero.x-25,hero.z+1.2)<6?'Старые руины · вожак':clearing?`${clearing.id==='camp'?'Окраина лагеря':clearing.name} · опасная зона`:'Пепельная опушка · опасная зона';
+  if(expansion||dungeon)$('zone-state').textContent=camp?'Безопасное укрытие':spot?.name??`${(expansion??dungeon)!.name} · опасная зона`;
   const afk=$('afk-toggle');afk.disabled=!game.connected||!!hero.dead;afk.setAttribute('aria-pressed',String(!!hero.afk));afk.title=hero.afk?`Остановить автоохоту · F. Радиус атак: ${(hero.afkRadius??0).toFixed(1)} м.`:'Включить автоохоту здесь · F. Герой остаётся на месте; в безопасной зоне ждёт.';
   $('afk-status').textContent=hero.afk?(camp?'Автоохота · ожидание':'Автоохота включена'):'Автоохота';$('zone-state').classList.toggle('safe',camp);
   $('hp-text').textContent=`${Math.ceil(hero.hp)} / ${Math.ceil(hero.maxHp)}`;$('hp-fill').style.height=`${Math.max(0,Math.min(1,hero.hp/hero.maxHp||0))*100}%`;
@@ -249,7 +260,7 @@ function updateUI(){
     if(sameLocation(SHOP,hero)&&distance(SHOP,hero)<23)updateTarget?.({kind:'vendor',id:SHOP.id,name:SHOP.name,subtitle:'Снаряжение и припасы',x:SHOP.x,z:SHOP.z});else{selectedEntity=null;updateTarget?.(null);}
   }else if(selectedEntity?.kind==='player'){
     const other=game.players.find(p=>p.id===selectedEntity?.id);if(other&&other.connected&&sameLocation(other,hero)&&distance(other,hero)<23)updateTarget?.({kind:'player',...other});else{selectedEntity=null;updateTarget?.(null);}
-  }else updateTarget?.(mob&&mob.state!=='dead'&&distance(mob,hero)<23?{kind:'mob',type:mob.type,eliteId:mob.eliteId,name:mobConfig(mob).name,x:mob.x,z:mob.z,hp:mob.hp,maxHp:mobConfig(mob).hp}:null);
+  }else updateTarget?.(mob&&mob.state!=='dead'&&distance(mob,hero)<23?{kind:'mob',type:mob.type,eliteId:mob.eliteId,...{bossId:mob.bossId,dungeonId:mob.dungeonId},name:mobConfig(mob).name,x:mob.x,z:mob.z,hp:mob.hp,maxHp:mobConfig(mob).hp}:null);
   for(const button of document.querySelectorAll<HTMLButtonElement>('[data-weapon]')){const active=button.dataset.weapon===hero.weapon;button.classList.toggle('selected',active);button.setAttribute('aria-pressed',String(active));button.disabled=!!hero.dead||!!hero.items.find(item=>item.id===hero.equipment.weapon&&item.definitionId);}
   $('cooldown').style.transform=`scaleX(${hero.attack?1-hero.attack.age/hero.attack.duration:0})`;
   interfaceUI.update();afkSettings?.update();skillbook?.update();drawMap();
@@ -300,7 +311,7 @@ function renderShots(){
 function ensureMobModel(mob:PublicMob){
   let model=models.get(mob.id);
   if(!model){
-    model=Object.assign(createMob(mob.type,mobAssets,mob.eliteId),{pickMeshes:[] as T.Mesh[]});
+    model=Object.assign(createMob(mob.type,mobAssets,mob.eliteId,mob.dungeonId,mob.bossId),{pickMeshes:[] as T.Mesh[]});
     model.pickRoot.traverse(object=>{if(object instanceof T.Mesh){object.userData.mob=mob.id;model!.pickMeshes.push(object);}});
     models.set(mob.id,model);scene.add(model.root);
   }
@@ -316,8 +327,8 @@ function render(dt:number){
   warrior.animate(dt,hero,!benchmark?.freezeAnimations);
   marker.position.set(hero.x,.03,hero.z);marker.rotation.y=hero.yaw;marker.visible=!hero.dead;
   const region=locationAt(hero);document.body.classList.toggle('snow-region',region==='snow');document.body.classList.toggle('wasteland-region',region==='wasteland');forestRegion.visible=region==='forest';stadiumRegion.visible=region==='stadium';
-  world.marker.visible=false;if(forestRegion.visible)world.animate(time);if(stadiumRegion.visible)stadium.animate(time);snow.animate(time,hero,region==='snow');wasteland.animate(time,hero,region==='wasteland');
-  const sky=region==='snow'?'#859eac':region==='wasteland'?'#9a775e':'#485b58';(scene.background as T.Color).set(sky);if(scene.fog instanceof T.FogExp2){scene.fog.color.set(sky);scene.fog.density=region==='snow'?.009:region==='wasteland'?.012:.014;}sun.color.set(region==='snow'?'#e2f0ff':region==='wasteland'?'#ffe0b0':'#ffe4bc');
+  world.marker.visible=false;if(forestRegion.visible)world.animate(time);if(stadiumRegion.visible)stadium.animate(time);snow.animate(time,hero,region==='snow');wasteland.animate(time,hero,region==='wasteland');lateWorld.updateRegion(region);lateWorld.update(dt);dungeonWorld.update(region,time,game.dungeon?.guardsRemaining??0);bossEffects.sync(game.mobs);
+  const sky=dungeonAt(hero)?'#1e252b':lateRegionAt(hero)?'#455052':region==='snow'?'#859eac':region==='wasteland'?'#9a775e':'#485b58';(scene.background as T.Color).set(sky);if(scene.fog instanceof T.FogExp2){scene.fog.color.set(sky);scene.fog.density=region==='snow'?.009:region==='wasteland'?.012:.014;}sun.color.set(region==='snow'?'#e2f0ff':region==='wasteland'?'#ffe0b0':'#ffe4bc');
   world.campHouse.update(game.player);renderPlayers(dt);renderShots();skillEffects?.update(dt);skillEffects?.slowMobs(game.mobs);persistentSkillEffects?.sync(game.players,game.mobs,game.skillZones,time);
   const presentMobIds=new Set(game.mobs.map(mob=>mob.id));
   for(const [id,model] of models)if(!presentMobIds.has(id)){model.root.visible=false;visualMobs.delete(id);}
@@ -360,12 +371,12 @@ async function start(){
     }
     const pmrem=new T.PMREMGenerator(renderer);scene.environment=pmrem.fromScene(lightRoom,.08).texture;scene.environmentIntensity=.38;pmrem.dispose();for(const p of lightPanels){p.geometry.dispose();p.material.dispose();}
 
-    forestRegion=new T.Scene();stadiumRegion=new T.Scene();scene.add(forestRegion,stadiumRegion);world=createEnvironment(forestRegion);stadium=createStadiumEnvironment(stadiumRegion);snow=createSnowEnvironment(scene);wasteland=createWastelandEnvironment(scene);updateTarget=bindTargetPresentation(scene);skillEffects=createSkillEffects(scene);persistentSkillEffects=createPersistentSkillEffects(scene,skillOriginFor);game=new NetworkGame();interfaceUI=bindInterface(game,toast,clearInput);afkSettings=bindAfkSettings(game,toast);skillbook=bindSkillbook(game,toast);bindResponsiveChat();
+    forestRegion=new T.Scene();stadiumRegion=new T.Scene();scene.add(forestRegion,stadiumRegion);world=createEnvironment(forestRegion);stadium=createStadiumEnvironment(stadiumRegion);snow=createSnowEnvironment(scene);wasteland=createWastelandEnvironment(scene);lateWorld=createLateWorldEnvironment(scene);dungeonWorld=createDungeonEnvironment(scene);bossEffects=createBossEffects(scene);updateTarget=bindTargetPresentation(scene);skillEffects=createSkillEffects(scene);persistentSkillEffects=createPersistentSkillEffects(scene,skillOriginFor);game=new NetworkGame();interfaceUI=bindInterface(game,toast,clearInput);afkSettings=bindAfkSettings(game,toast);skillbook=bindSkillbook(game,toast);bindResponsiveChat();
     $('load-progress').textContent='Загружаем персонажа и обитателей леса…';
     mobAssets=await loadMobAssets();
     $('load-progress').textContent='Подключаем героя к общему миру…';const stressMode=await stressEnabled();if(stressMode){const response=await fetch('/api/stress-session',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});if(!response.ok)throw new Error('Не удалось открыть изолированную FPS-сессию');const data=await response.json() as {character:{id:string}};await game.connect({heroId:data.character.id});}else await interfaceUI.join();
     warrior=await loadWarrior(game.player.classId);scene.add(warrior.root);
-    worldInteractions=await createWorldInteractions(scene,game,chooseInteraction,[...stadium.portals,...snow.passages,...wasteland.passages],world.campHouse);
+    worldInteractions=await createWorldInteractions(scene,game,chooseInteraction,[...stadium.portals,...snow.passages,...wasteland.passages,...dungeonWorld.portals],world.campHouse);
     for(const mob of game.mobs)ensureMobModel(mob);
     const ring=mesh(marker,new T.RingGeometry(.43,.451,40),new T.MeshBasicMaterial({color:'#dac593',transparent:true,opacity:.62,side:T.DoubleSide,depthWrite:false}));ring.rotation.x=-Math.PI/2;ring.castShadow=false;ring.receiveShadow=false;scene.add(marker);
     $('load-progress').textContent='Загружаем материалы леса…';await world.ready;ready=true;if(stressMode){const link=document.createElement('link');link.rel='stylesheet';link.href='/game/benchmark.css';document.head.append(link);benchmark=new Benchmark({renderer,scene,camera,game,modelsReady:()=>remoteModels.size===game.players.length-1&&loadingPlayers.size===0,setVariant:variant=>{renderer.shadowMap.enabled=variant!=='no-shadows';fitCamera();world.setTreesVisible?.(variant!=='no-trees');}});}

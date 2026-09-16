@@ -1,3 +1,4 @@
+import {xpNeeded} from './game/progression-curve.js';
 import {activeSetBonuses} from './game/equipment-sets.js';
 import {itemDefinition,ITEM_STAT_LABELS,rollValue} from './game/equipment-items.js';
 import type {Attributes, ClassId, EquipmentSlot, Item, StatSource, CharacterStats} from '../shared/types.js';
@@ -75,7 +76,7 @@ export function characterStats(p: StatSource): CharacterStats{
     // Dexterity already grants the archer damage and accuracy. Its armor bonus
     // approaches 21, so investing in damage cannot replace defensive equipment.
     armor:attributes.dexterity*.35/(1+attributes.dexterity/60),hitChance:Math.min(.95,.72+.23*attributes.dexterity/(attributes.dexterity+18)),
-    attackSpeed:0,speedScale:1,range:c.range,xpNeeded:level*65,specialManaCost:progression.specialManaCost,damageReduction:0,attackPower:0};
+    attackSpeed:0,speedScale:1,range:c.range,xpNeeded:xpNeeded(level),specialManaCost:progression.specialManaCost,damageReduction:0,attackPower:0};
   for(const [slot,definition] of Object.entries(EQUIPMENT_SLOTS) as [EquipmentSlot, (typeof EQUIPMENT_SLOTS)[EquipmentSlot]][]){
     const item=p.items?.find(i=>i.id===p.equipment?.[slot]&&i.slot===slot&&canEquip(p,i));
     if(!item)continue;

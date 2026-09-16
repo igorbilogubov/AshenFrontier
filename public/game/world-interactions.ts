@@ -3,6 +3,7 @@ import {loadWarrior} from './character.js';
 import {mesh} from './models.js';
 import {itemArtwork} from './item-icons.js';
 import {SHOP} from './shop.js';
+import type {SNOW_PASSAGES} from './snow.js';
 import type {Portal} from './stadium.js';
 import {sameLocation} from './world-layout.js';
 import {PERSONAL_CHEST,insideHouse} from './camp-layout.js';
@@ -12,7 +13,7 @@ import type {NetworkGame} from './network.js';
 import type {GroundDrop} from '../../shared/types.js';
 import type {WarriorPose} from './render-types.js';
 
-export async function createWorldInteractions(scene:T.Scene,game:NetworkGame,choose:(kind:InteractionKind,id:string)=>void,portals:readonly {portal:Portal;object:T.Group}[]=[],campHouse?:ReturnType<typeof createCampHouse>) {
+export async function createWorldInteractions(scene:T.Scene,game:NetworkGame,choose:(kind:InteractionKind,id:string)=>void,portals:readonly {portal:Portal|typeof SNOW_PASSAGES[number];object:T.Group}[]=[],campHouse?:ReturnType<typeof createCampHouse>) {
   const layer=document.createElement('div');layer.className='world-interaction-layer';layer.setAttribute('aria-label','Добыча, торговец и порталы');document.body.append(layer);
   const vendor=await loadWarrior('mage');vendor.root.position.set(SHOP.x,0,SHOP.z);vendor.root.rotation.y=.4;scene.add(vendor.root);
   const idle:WarriorPose={classId:'mage',weapon:'sword',dead:0,attack:null,hurt:0,gait:0,moveBlend:0,runBlend:0,appearance:{weapon:null,armor:'acolyte-armor',helmet:null,boots:'acolyte-boots'}};
@@ -22,8 +23,8 @@ export async function createWorldInteractions(scene:T.Scene,game:NetworkGame,cho
   const portalLabels=portals.map(entry=>{
     const label=document.createElement('button');label.type='button';label.className='vendor-world-label portal-world-label';
     const title=document.createElement('span');title.textContent=entry.portal.name;
-    const hint=document.createElement('small');hint.textContent='Портал · ЛКМ';label.append(title,hint);
-    label.setAttribute('aria-label',`Портал: ${entry.portal.name}`);label.onclick=()=>choose('portal',entry.portal.id);layer.append(label);
+    const hint=document.createElement('small');hint.textContent='minLevel' in entry.portal?'Проход · ЛКМ или идите вперёд':'Портал · ЛКМ';label.append(title,hint);
+    label.setAttribute('aria-label',`${'minLevel' in entry.portal?'Проход':'Портал'}: ${entry.portal.name}`);label.onclick=()=>choose('portal',entry.portal.id);layer.append(label);
     return {...entry,label};
   });
   const drops=new Map<string,{model:T.Group;label:HTMLButtonElement}>();

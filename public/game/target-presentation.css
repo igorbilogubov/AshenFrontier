@@ -20,3 +20,5 @@ html,body,#scene{cursor:url('/game/cursors/ashen-pointer.svg') 2 2,auto}
 button,select,summary,[role="button"],.vendor-world-label,.ground-loot-label{cursor:url('/game/cursors/ashen-interact.svg') 2 2,pointer}
 input,textarea,[contenteditable="true"]{cursor:text}
 input[type="button"],input[type="submit"],input[type="checkbox"],input[type="radio"]{cursor:url('/game/cursors/ashen-interact.svg') 2 2,pointer}
+
+#target-panel.elite-target{border-color:#c7a16a;box-shadow:0 0 0 1px #c7a16a30,inset 0 0 16px #b58a3712}#target-panel.elite-target #target-name{color:#f4cf86}#snow-guide p:not(.eyebrow){font-size:11px;color:#b7cdd3;line-height:1.55}

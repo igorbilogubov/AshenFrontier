@@ -1,9 +1,11 @@
+import {SNOW_BOUNDS,SNOW_ROADS,SNOW_LANDMARKS} from './snow.js';
 import {WORLD_BOUNDS,WORLD_CLEARINGS,WORLD_ROADS,WORLD_LANDMARKS,locationAt} from './world-layout.js';
 import {STADIUM_BOUNDS,STADIUM_PENS,STADIUM_HUB} from './stadium.js';
 import type {Position} from './motion.js';
 
 /** Draw before actors/AFK rings; coordinates match scene.mapPosition's padding. */
 export function drawWorldMapBackdrop(ctx:CanvasRenderingContext2D,width:number,height:number,position:Position={x:0,z:0}){
+  if(locationAt(position)==='snow'){drawSnowMap(ctx,width,height);return;}
   if(locationAt(position)==='stadium'){drawStadiumMap(ctx,width,height);return;}
   const sx=(width-20)/(WORLD_BOUNDS.maxX-WORLD_BOUNDS.minX),sz=(height-16)/(WORLD_BOUNDS.maxZ-WORLD_BOUNDS.minZ);
   const at=(p:Position)=>({x:10+(p.x-WORLD_BOUNDS.minX)*sx,y:8+(p.z-WORLD_BOUNDS.minZ)*sz});
@@ -31,4 +33,14 @@ function drawStadiumMap(ctx:CanvasRenderingContext2D,width:number,height:number)
   }
   const hub=at(STADIUM_HUB);ctx.strokeStyle='#bdac7b';ctx.beginPath();ctx.ellipse(hub.x,hub.y,STADIUM_HUB.r*sx,STADIUM_HUB.r*sz,0,0,Math.PI*2);ctx.stroke();
   ctx.restore();
+}
+
+function drawSnowMap(ctx:CanvasRenderingContext2D,width:number,height:number){
+  const sx=(width-20)/(SNOW_BOUNDS.maxX-SNOW_BOUNDS.minX),sz=(height-16)/(SNOW_BOUNDS.maxZ-SNOW_BOUNDS.minZ);
+  const at=(p:Position)=>({x:10+(p.x-SNOW_BOUNDS.minX)*sx,y:8+(p.z-SNOW_BOUNDS.minZ)*sz});
+  ctx.save();ctx.clearRect(0,0,width,height);ctx.fillStyle='#334b57';ctx.fillRect(0,0,width,height);
+  const lake=at({x:367,z:39});ctx.fillStyle='#567f90';ctx.beginPath();ctx.ellipse(lake.x,lake.y,15*sx,8*sz,0,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='#a4bfca';ctx.lineCap='round';ctx.lineJoin='round';ctx.lineWidth=1.4;
+  for(const road of SNOW_ROADS){ctx.beginPath();road.points.forEach((point,i)=>{const p=at(point);if(i)ctx.lineTo(p.x,p.y);else ctx.moveTo(p.x,p.y);});ctx.stroke();}
+  for(const landmark of SNOW_LANDMARKS){const p=at(landmark);ctx.strokeRect(p.x-2,p.y-2,4,4);}ctx.restore();
 }

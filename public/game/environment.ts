@@ -217,6 +217,13 @@ export function createEnvironment(scene:T.Scene){
     const rock=mesh(scene,new T.DodecahedronGeometry(.35,0),rocks[2],x,.11,z);rock.scale.set(1.4,.5,1);rock.rotation.y=x;
     for(let i=0;i<3;i++){const fern=mesh(scene,fernGeometry(),fernMaterial,x+(random()-.5)*.7,.025,z+(random()-.5)*.7);fern.rotation.y=random()*6;fern.scale.setScalar(.75);fern.castShadow=false;}
   }
+  // Eastern mountain passage: snow appears along the open road, not as a magic portal.
+  const passSnow=material('#bdcdd1');
+  for(const side of [-1,1])for(let i=0;i<4;i++){
+    const cliff=mesh(scene,new T.DodecahedronGeometry(1,0),rocks[i%3],73+i*2,1.2,5+side*(5+i));cliff.scale.set(2.2,2+i*.3,1.8);
+    const cap=mesh(scene,new T.DodecahedronGeometry(1,0),passSnow,73+i*2,2.8+i*.3,5+side*(5+i));cap.scale.set(2.1,.45,1.7);
+  }
+  for(let i=0;i<12;i++){const drift=mesh(scene,new T.CircleGeometry(.5+i*.07,12),passSnow,65+(i%4)*1.4,.02,2+Math.floor(i/4)*2.8);drift.rotation.x=-Math.PI/2;drift.scale.y=.6;drift.castShadow=false;}
   const marker=mesh(scene,new T.RingGeometry(.18,.21,40),new T.MeshBasicMaterial({color:'#d5bb80',transparent:true,opacity:.8,side:T.DoubleSide}));marker.rotation.x=-Math.PI/2;marker.position.y=.025;marker.visible=false;marker.userData.dynamic=true;
   // Bake static scenery per material. Hundreds of slate tiles and beams become
   // a few draw calls; the fire, instanced forest and animated actors stay separate.

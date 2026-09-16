@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {testAccount,removeAccountSchema,ownMigratedFixture} from './helpers/historical-schema.mjs';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import pg from 'pg';
@@ -62,55 +63,59 @@ test('assigned AFK bottles follow resource type after swapping Q/W and honor thr
 });
 
 test('schema 3 to 4 migration preserves exact old heroes and full bags, then overflow only shrinks',{skip:!hasTestDatabase},async()=>{
-  const db=await createTestDatabase(),token=randomUUID();let store=await openHeroStore({connectionString:db.url});
+  const db=await createTestDatabase();let store=await openHeroStore({connectionString:db.url});
+  let accountId=await testAccount(store);
   try{
     const p=newHero('Старый полный');p.consumableInventory=[];fill(p);p.gold=321;p.level=5;p.allocatedStats={strength:2,dexterity:1,vitality:2,energy:0};p.statRevision=3;p.mana=7;p.hp=31;
-    const saved=persistentHero(p);await store.commit([{token,hero:saved,expectedRevision:0}],randomUUID());await store.close();store=null;
+    const saved=persistentHero(p);await store.commit([{accountId,hero:saved,expectedRevision:0}],randomUUID());await store.close();store=null;
     const client=new pg.Client({connectionString:db.url});await client.connect();let before;
     try{
+      await removeAccountSchema(client);
       await client.query('DROP TABLE consumable_stacks');
       await client.query('ALTER TABLE heroes DROP COLUMN quick_slot_q,DROP COLUMN quick_slot_w,DROP COLUMN consumable_overflow');
       await client.query('DELETE FROM schema_migrations WHERE version=4');
       await client.query('UPDATE heroes SET potions=50,mana_potions=17 WHERE id=$1',[p.id]);
       before=(await client.query('SELECT * FROM heroes WHERE id=$1',[p.id])).rows[0];
     }finally{await client.end();}
-    store=await openHeroStore({connectionString:db.url});const result=await store.load(token),hero=result.hero;
-    assert.equal(await store.schemaVersion(),4);assert.equal(await store.health(),true);assert.equal(result.revision,1);
+    store=await openHeroStore({connectionString:db.url});accountId=await ownMigratedFixture(store,db.url,p.id);const result=await store.load(p.id,accountId),hero=result.hero;
+    assert.equal(await store.schemaVersion(),5);assert.equal(await store.health(),true);assert.equal(result.revision,1);
     assert.equal(hero.potions,50);assert.equal(hero.manaPotions,17);assert.equal(hero.consumableOverflow,2);assert.equal(backpackUsage(hero),18);
     assert.deepEqual(hero.items,saved.items);assert.deepEqual(hero.equipment,saved.equipment);assert.deepEqual(hero.allocatedStats,saved.allocatedStats);assert.equal(hero.mana,7);assert.equal(hero.hp,31);assert.equal(hero.gold,321);
-    const verify=new pg.Client({connectionString:db.url});await verify.connect();try{const after=(await verify.query('SELECT * FROM heroes WHERE id=$1',[p.id])).rows[0];for(const key of Object.keys(before))assert.deepEqual(after[key],before[key],key);}finally{await verify.end();}
+    const verify=new pg.Client({connectionString:db.url});await verify.connect();try{const after=(await verify.query('SELECT * FROM heroes WHERE id=$1',[p.id])).rows[0];for(const key of Object.keys(before).filter(key=>key!=='token_hash'))assert.deepEqual(after[key],before[key],key);}finally{await verify.end();}
     const runtime=safeHero(hero);assert.equal(runtime.mana,7);assert.deepEqual(runtime.allocatedStats,saved.allocatedStats);
     const w=new World();w.add(runtime);w.vendorAvailable=()=>true;runtime.shopActive=true;
     assert.equal(w.buy(runtime,'copper-ring','overflow-block'),false);
     runtime.consumableInventory=runtime.consumableInventory.filter(stack=>stack.definitionId!=='mana-basic');
     const shrunk=persistentHero(runtime);assert.equal(shrunk.consumableOverflow,1);
-    const entry={token,hero:shrunk,expectedRevision:1},op=randomUUID();await store.commit([entry],op);await store.commit([entry],op);
-    assert.deepEqual((await store.load(token)).hero,shrunk);
+    const entry={accountId,hero:shrunk,expectedRevision:1},op=randomUUID();await store.commit([entry],op);await store.commit([entry],op);
+    assert.deepEqual((await store.load(hero.id,accountId)).hero,shrunk);
     const invalid=structuredClone(shrunk);invalid.consumableOverflow=2;
-    await assert.rejects(()=>store.commit([{token,hero:invalid,expectedRevision:2}],randomUUID()),/overflow cannot increase/);
-    await store.close();store=await openHeroStore({connectionString:db.url});assert.deepEqual((await store.load(token)).hero,shrunk);
+    await assert.rejects(()=>store.commit([{accountId,hero:invalid,expectedRevision:2}],randomUUID()),/overflow cannot increase/);
+    await store.close();store=await openHeroStore({connectionString:db.url});assert.deepEqual((await store.load(hero.id,accountId)).hero,shrunk);
   }finally{if(store)await store.close();await db.close();}
 });
 
 test('stack IDs, quantities, assignments and economic replay persist atomically in PostgreSQL',{skip:!hasTestDatabase},async()=>{
   const db=await createTestDatabase(),store=await openHeroStore({connectionString:db.url});
   try{
-    const {p,w}=fixture(),token=randomUUID();await store.commit([{token,hero:persistentHero(p),expectedRevision:0}],randomUUID());
+    const {p,w}=fixture(),accountId=await testAccount(store);await store.commit([{accountId,hero:persistentHero(p),expectedRevision:0}],randomUUID());
     const hpId=p.consumableInventory[0].id;p.hp=1;p.quickSlots={q:'mana-basic',w:'hp-basic'};assert(w.useConsumable(p,'w'));
-    const hero=persistentHero(p),entry={token,hero,expectedRevision:1},op=randomUUID();await store.commit([entry],op);await store.commit([entry],op);
-    const loaded=await store.load(token);assert.equal(loaded.revision,2);assert.deepEqual(loaded.hero,hero);assert.equal(loaded.hero.consumableInventory[0].id,hpId);
+    const hero=persistentHero(p),entry={accountId,hero,expectedRevision:1},op=randomUUID();await store.commit([entry],op);await store.commit([entry],op);
+    const loaded=await store.load(hero.id,accountId);assert.equal(loaded.revision,2);assert.deepEqual(loaded.hero,hero);assert.equal(loaded.hero.consumableInventory[0].id,hpId);
     const bad=structuredClone(hero);bad.consumableInventory[0].quantity=-1;
-    await assert.rejects(()=>store.commit([{token,hero:bad,expectedRevision:2}],randomUUID()),/consumable/);
-    assert.equal(consumableQuantity((await store.load(token)).hero,'hp-basic'),2);
+    await assert.rejects(()=>store.commit([{accountId,hero:bad,expectedRevision:2}],randomUUID()),/consumable/);
+    assert.equal(consumableQuantity((await store.load(hero.id,accountId)).hero,'hp-basic'),2);
   }finally{await store.close();await db.close();}
 });
 
 test('schema 4 migration cannot copy counters while a schema 3 writer is still live',{skip:!hasTestDatabase},async()=>{
-  const db=await createTestDatabase(),token=randomUUID(),hero=persistentHero(newHero('Старый writer'));
+  const db=await createTestDatabase(),hero=persistentHero(newHero('Старый writer'));
   let store=await openHeroStore({connectionString:db.url});
+  let accountId=await testAccount(store);
   const oldWriter=new pg.Client({connectionString:db.url});await oldWriter.connect();
   try{
-    await store.commit([{token,hero,expectedRevision:0}],randomUUID());await store.close();store=null;
+    await store.commit([{accountId,hero,expectedRevision:0}],randomUUID());await store.close();store=null;
+    await removeAccountSchema(oldWriter);
     await oldWriter.query('DROP TABLE consumable_stacks');
     await oldWriter.query('ALTER TABLE heroes DROP COLUMN quick_slot_q,DROP COLUMN quick_slot_w,DROP COLUMN consumable_overflow');
     await oldWriter.query('DELETE FROM schema_migrations WHERE version=4');
@@ -122,7 +127,8 @@ test('schema 4 migration cannot copy counters while a schema 3 writer is still l
     await oldWriter.query('UPDATE heroes SET potions=potions+1 WHERE id=$1',[hero.id]);
     await oldWriter.query('SELECT pg_advisory_unlock(8675309,4732)');
     store=await openHeroStore({connectionString:db.url,writer:true});
-    assert.equal((await store.load(token)).hero.potions,4);assert.equal(await store.health(),true);
-    const reader=await openHeroStore({connectionString:db.url});try{assert.equal((await reader.load(token)).hero.potions,4);}finally{await reader.close();}
+    accountId=await ownMigratedFixture(store,db.url,hero.id);
+    assert.equal((await store.load(hero.id,accountId)).hero.potions,4);assert.equal(await store.health(),true);
+    const reader=await openHeroStore({connectionString:db.url});try{assert.equal((await reader.load(hero.id,accountId)).hero.potions,4);}finally{await reader.close();}
   }finally{if(store)await store.close();await oldWriter.end();await db.close();}
 });

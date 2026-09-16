@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {testAccount,removeAccountSchema,ownMigratedFixture} from './helpers/historical-schema.mjs';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import pg from 'pg';
@@ -67,19 +68,19 @@ test('PostgreSQL stores stash locations and exact rolled item identity through w
   {skip:!hasTestDatabase},async()=>{
   const db=await createTestDatabase(),store=await openHeroStore({connectionString:db.url});
   try{
-    const token=randomUUID(),p=newHero('Сундук'),item=rollEquipment('copper-ring',randomUUID(),()=>.42),hero=persistentHero(p);
+    const accountId=await testAccount(store),p=newHero('Сундук'),item=rollEquipment('copper-ring',randomUUID(),()=>.42),hero=persistentHero(p);
     hero.items.push(item);hero.stash.push(item.id);setBottles(hero,'hp',11);setBottles(hero,'mana',9);
-    await store.commit([{token,hero,expectedRevision:0}],randomUUID(),'test chest deposit');
-    assert.deepEqual((await store.load(token)).hero,hero);
+    await store.commit([{accountId,hero,expectedRevision:0}],randomUUID(),'test chest deposit');
+    assert.deepEqual((await store.load(hero.id,accountId)).hero,hero);
     const client=new pg.Client({connectionString:db.url});await client.connect();
     try{
       const row=(await client.query('SELECT kind,position FROM inventory_locations WHERE item_id=$1',[item.id])).rows[0];
       assert.deepEqual(row,{kind:'stash',position:0});
-      assert.equal(Number((await client.query('SELECT max(version) AS version FROM schema_migrations')).rows[0].version),4);
+      assert.equal(Number((await client.query('SELECT max(version) AS version FROM schema_migrations')).rows[0].version),5);
     }finally{await client.end();}
     const withdrawn=structuredClone(hero);withdrawn.stash=[];
-    await store.commit([{token,hero:withdrawn,expectedRevision:1}],randomUUID(),'test chest withdraw');
-    assert.deepEqual((await store.load(token)).hero,withdrawn);
+    await store.commit([{accountId,hero:withdrawn,expectedRevision:1}],randomUUID(),'test chest withdraw');
+    assert.deepEqual((await store.load(hero.id,accountId)).hero,withdrawn);
     assert.deepEqual(withdrawn.items.find(candidate=>candidate.id===item.id),item);
   }finally{await store.close();await db.close();}
 });
@@ -87,14 +88,16 @@ test('PostgreSQL stores stash locations and exact rolled item identity through w
 test('additive migrations through schema 4 preserve a version 1 hero and rolled bag item',
   {skip:!hasTestDatabase},async()=>{
   const db=await createTestDatabase();let store=await openHeroStore({connectionString:db.url});
-  const token=randomUUID(),hero=persistentHero(newHero('Старый герой')),item=rollEquipment('copper-ring',randomUUID(),()=>.53);
+  let accountId=await testAccount(store);
+  const hero=persistentHero(newHero('Старый герой')),item=rollEquipment('copper-ring',randomUUID(),()=>.53);
   hero.items.push(item);setBottles(hero,'hp',2);
   try{
-    await store.commit([{token,hero,expectedRevision:0}],randomUUID(),'old hero fixture');await store.close();store=null;
+    await store.commit([{accountId,hero,expectedRevision:0}],randomUUID(),'old hero fixture');await store.close();store=null;
     const client=new pg.Client({connectionString:db.url});await client.connect();
     try{
       await client.query('BEGIN');
       await client.query('DELETE FROM schema_migrations WHERE version IN (2,3,4)');
+      await removeAccountSchema(client);
       await client.query('DROP TABLE consumable_stacks');
       await client.query('ALTER TABLE heroes DROP COLUMN quick_slot_q,DROP COLUMN quick_slot_w,DROP COLUMN consumable_overflow');
       await client.query('ALTER TABLE heroes DROP COLUMN afk_preferences');
@@ -108,7 +111,8 @@ test('additive migrations through schema 4 preserve a version 1 hero and rolled 
       await client.query('COMMIT');
     }catch(error){await client.query('ROLLBACK');throw error;}finally{await client.end();}
     store=await openHeroStore({connectionString:db.url});
-    const loaded=await store.load(token);
+    accountId=await ownMigratedFixture(store,db.url,hero.id);
+    const loaded=await store.load(hero.id,accountId);
     assert.equal(loaded.revision,1);assert.equal(loaded.hero.id,hero.id);
     assert.equal(loaded.hero.potions,2);assert.equal(loaded.hero.manaPotions,3);
     assert.deepEqual(loaded.hero.stash,[]);assert.deepEqual(loaded.hero.items.find(candidate=>candidate.id===item.id),item);

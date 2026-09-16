@@ -76,7 +76,7 @@ test('PostgreSQL stores stash locations and exact rolled item identity through w
     try{
       const row=(await client.query('SELECT kind,position FROM inventory_locations WHERE item_id=$1',[item.id])).rows[0];
       assert.deepEqual(row,{kind:'stash',position:0});
-      assert.equal(Number((await client.query('SELECT max(version) AS version FROM schema_migrations')).rows[0].version),5);
+      assert.equal(Number((await client.query('SELECT max(version) AS version FROM schema_migrations')).rows[0].version),6);
     }finally{await client.end();}
     const withdrawn=structuredClone(hero);withdrawn.stash=[];
     await store.commit([{accountId,hero:withdrawn,expectedRevision:1}],randomUUID(),'test chest withdraw');

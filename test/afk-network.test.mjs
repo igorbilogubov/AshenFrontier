@@ -27,7 +27,7 @@ test('real online AFK stops with the socket and never resumes from saved V3 afte
     assert.equal(owner.state.self.afk,null);
     owner.ws.send(JSON.stringify({type:'afk',enabled:true,spotId:'forged',anchor:{x:160,z:15},afkRadius:999999,damage:999999}));
     await until(()=>owner.state?.self.afk);
-    assert.deepEqual(owner.state.self.afk.anchor,anchor);assert.equal(owner.state.self.afk.spotId,undefined);assert.equal(owner.state.self.afkRadius,2.5);
+    assert.deepEqual(owner.state.self.afk.anchor,anchor);assert.equal(owner.state.self.afk.spotId,undefined);assert.equal(owner.state.self.afkRadius,2.25);
     await until(()=>owner.state.self.attackSerial>0);await delay(250);
     assert(owner.states.filter(state=>state.self.afk).every(state=>state.self.x===anchor.x&&state.self.z===anchor.z));
     assert(!('afk' in observer.state.players.find(player=>player.id===hero.id)));

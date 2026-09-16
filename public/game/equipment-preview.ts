@@ -20,9 +20,9 @@ const plinth=new T.Mesh(new T.CylinderGeometry(1.3,1.38,.06,64),new T.MeshStanda
 const rim=new T.Mesh(new T.TorusGeometry(1.23,.006,4,80),new T.MeshStandardMaterial({color:'#7b7451',metalness:.5,roughness:.55}));rim.rotation.x=Math.PI/2;rim.position.y=.003;scene.add(rim);
 const random=()=>crypto.getRandomValues(new Uint32Array(1))[0]/4294967296;
 const samples=new Map<string,Item>(EQUIPMENT_ITEMS.map(definition=>[definition.id,rollEquipment(definition.id,crypto.randomUUID(),random)]));
-type PreviewRarity=1|2|3|4;
+type PreviewRarity=0|1|2|3|4;
 type EnhanceableModel=Awaited<ReturnType<typeof loadWarrior>>&{applyEnhancement?:(level:number)=>void};
-const rarityNames:Readonly<Record<PreviewRarity,string>>={1:'НЕОБЫЧНЫЙ',2:'РЕДКИЙ',3:'ВОЗВЫШЕННЫЙ',4:'СЕТОВЫЙ'};
+const rarityNames:Readonly<Record<PreviewRarity,string>>={0:'ОБЫЧНЫЙ',1:'НЕОБЫЧНЫЙ',2:'РЕДКИЙ',3:'ВОЗВЫШЕННЫЙ',4:'СЕТОВЫЙ'};
 const wardrobes:Record<ClassId,Equipment>={warrior:{},archer:{},mage:{}};let equipment=wardrobes.warrior;let selected='watch-armor',warrior:EnhanceableModel,clip:WarriorClip='Idle',elapsed=0,last=0,paused=false,feedback='';
 let previewClass:ClassId='warrior',loadSequence=0;let previewRegion:GearRegion='forest',previewRarity:PreviewRarity=1,enhancement=0;
 const previewItems=()=>regionalEquipment(previewClass,previewRegion,previewRarity);

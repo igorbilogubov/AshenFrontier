@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {testAccount,removeAccountSchema,ownMigratedFixture} from './helpers/historical-schema.mjs';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {once} from 'node:events';
@@ -104,24 +105,28 @@ test('AFK uses each action range and target body allowance without casting an un
 
 test('schema 3 migration keeps a schema 2 hero, stash, potions and class-specific default preferences',
   {skip:!hasTestDatabase},async()=>{
-  const db=await createTestDatabase(),token=randomUUID(),hero=persistentHero(newHero('Старый','mage'));
+  const db=await createTestDatabase(),hero=persistentHero(newHero('Старый','mage'));
   let store=await openHeroStore({connectionString:db.url});
+  let accountId=await testAccount(store);
   const item=rollEquipment('moon-amulet',randomUUID(),()=>.42);
   hero.items.push(item);hero.stash.push(item.id);hero.gold=31;setBottles(hero,'hp',7);setBottles(hero,'mana',4);
   try{
-    await store.commit([{token,hero,expectedRevision:0}],randomUUID(),'schema2 fixture');await store.close();store=null;
+    await store.commit([{accountId,hero,expectedRevision:0}],randomUUID(),'schema2 fixture');await store.close();store=null;
     const client=new pg.Client({connectionString:db.url});await client.connect();
     try{
       await client.query('BEGIN');
-      await client.query('DELETE FROM schema_migrations WHERE version=3');
+      await removeAccountSchema(client);
+      await client.query('DELETE FROM schema_migrations WHERE version IN (3,4)');
       await client.query('ALTER TABLE heroes DROP COLUMN afk_preferences');
+      await client.query('DROP TABLE consumable_stacks');
+      await client.query('ALTER TABLE heroes DROP COLUMN quick_slot_q,DROP COLUMN quick_slot_w,DROP COLUMN consumable_overflow');
       await client.query('COMMIT');
     }catch(error){await client.query('ROLLBACK');throw error;}finally{await client.end();}
-    store=await openHeroStore({connectionString:db.url});const restored=await store.load(token);
+    store=await openHeroStore({connectionString:db.url});accountId=await ownMigratedFixture(store,db.url,hero.id);const restored=await store.load(hero.id,accountId);
     assert.equal(restored.revision,1);assert.equal(restored.hero.gold,31);assert.equal(restored.hero.potions,7);assert.equal(restored.hero.manaPotions,4);
     assert.deepEqual(restored.hero.items,hero.items);assert.deepEqual(restored.hero.stash,hero.stash);
     assert.deepEqual(restored.hero.afkPreferences,defaultAfkPreferences('mage'));
-    assert.equal(await store.schemaVersion(),4);assert.equal(await store.health(),true);
+    assert.equal(await store.schemaVersion(),5);assert.equal(await store.health(),true);
   }finally{if(store)await store.close();await db.close();}
 });
 

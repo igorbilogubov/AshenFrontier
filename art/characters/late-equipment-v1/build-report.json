@@ -1,0 +1,389 @@
+{
+  "generator": "Blender 5.2.1 LTS",
+  "classes": {
+    "warrior": {
+      "file": "ashen-warrior-late-equipment-v1.glb",
+      "bytes": 2041204,
+      "bones": 67,
+      "collections": 4,
+      "parts": [
+        {
+          "name": "bogwarden-weapon",
+          "vertices": 195,
+          "triangles": 342
+        },
+        {
+          "name": "bogwarden-armor",
+          "vertices": 582,
+          "triangles": 990
+        },
+        {
+          "name": "bogwarden-helmet",
+          "vertices": 155,
+          "triangles": 260
+        },
+        {
+          "name": "bogwarden-boots",
+          "vertices": 186,
+          "triangles": 316
+        },
+        {
+          "name": "bogwarden-ring",
+          "vertices": 208,
+          "triangles": 408
+        },
+        {
+          "name": "bogwarden-amulet",
+          "vertices": 194,
+          "triangles": 372
+        },
+        {
+          "name": "ironbound-weapon",
+          "vertices": 203,
+          "triangles": 354
+        },
+        {
+          "name": "ironbound-armor",
+          "vertices": 720,
+          "triangles": 1226
+        },
+        {
+          "name": "ironbound-helmet",
+          "vertices": 227,
+          "triangles": 380
+        },
+        {
+          "name": "ironbound-boots",
+          "vertices": 216,
+          "triangles": 368
+        },
+        {
+          "name": "ironbound-ring",
+          "vertices": 208,
+          "triangles": 408
+        },
+        {
+          "name": "ironbound-amulet",
+          "vertices": 194,
+          "triangles": 372
+        },
+        {
+          "name": "riftbreaker-weapon",
+          "vertices": 235,
+          "triangles": 406
+        },
+        {
+          "name": "riftbreaker-armor",
+          "vertices": 768,
+          "triangles": 1306
+        },
+        {
+          "name": "riftbreaker-helmet",
+          "vertices": 251,
+          "triangles": 420
+        },
+        {
+          "name": "riftbreaker-boots",
+          "vertices": 264,
+          "triangles": 448
+        },
+        {
+          "name": "riftbreaker-ring",
+          "vertices": 208,
+          "triangles": 408
+        },
+        {
+          "name": "riftbreaker-amulet",
+          "vertices": 194,
+          "triangles": 372
+        },
+        {
+          "name": "dreadsovereign-weapon",
+          "vertices": 243,
+          "triangles": 418
+        },
+        {
+          "name": "dreadsovereign-armor",
+          "vertices": 858,
+          "triangles": 1462
+        },
+        {
+          "name": "dreadsovereign-helmet",
+          "vertices": 336,
+          "triangles": 562
+        },
+        {
+          "name": "dreadsovereign-boots",
+          "vertices": 294,
+          "triangles": 500
+        },
+        {
+          "name": "dreadsovereign-ring",
+          "vertices": 208,
+          "triangles": 408
+        },
+        {
+          "name": "dreadsovereign-amulet",
+          "vertices": 194,
+          "triangles": 372
+        }
+      ]
+    },
+    "archer": {
+      "file": "ashen-archer-late-equipment-v1.glb",
+      "bytes": 1999544,
+      "bones": 67,
+      "collections": 4,
+      "parts": [
+        {
+          "name": "reedstalker-weapon",
+          "vertices": 238,
+          "triangles": 432
+        },
+        {
+          "name": "reedstalker-armor",
+          "vertices": 573,
+          "triangles": 972
+        },
+        {
+          "name": "reedstalker-helmet",
+          "vertices": 128,
+          "triangles": 188
+        },
+        {
+          "name": "reedstalker-boots",
+          "vertices": 186,
+          "triangles": 316
+        },
+        {
+          "name": "reedstalker-ring",
+          "vertices": 208,
+          "triangles": 408
+        },
+        {
+          "name": "reedstalker-amulet",
+          "vertices": 194,
+          "triangles": 372
+        },
+        {
+          "name": "deepdelver-weapon",
+          "vertices": 262,
+          "triangles": 472
+        },
+        {
+          "name": "deepdelver-armor",
+          "vertices": 702,
+          "triangles": 1190
+        },
+        {
+          "name": "deepdelver-helmet",
+          "vertices": 128,
+          "triangles": 188
+        },
+        {
+          "name": "deepdelver-boots",
+          "vertices": 216,
+          "triangles": 368
+        },
+        {
+          "name": "deepdelver-ring",
+          "vertices": 208,
+          "triangles": 408
+        },
+        {
+          "name": "deepdelver-amulet",
+          "vertices": 194,
+          "triangles": 372
+        },
+        {
+          "name": "emberhawk-weapon",
+          "vertices": 286,
+          "triangles": 512
+        },
+        {
+          "name": "emberhawk-armor",
+          "vertices": 783,
+          "triangles": 1328
+        },
+        {
+          "name": "emberhawk-helmet",
+          "vertices": 128,
+          "triangles": 188
+        },
+        {
+          "name": "emberhawk-boots",
+          "vertices": 264,
+          "triangles": 448
+        },
+        {
+          "name": "emberhawk-ring",
+          "vertices": 208,
+          "triangles": 408
+        },
+        {
+          "name": "emberhawk-amulet",
+          "vertices": 194,
+          "triangles": 372
+        },
+        {
+          "name": "nightsovereign-weapon",
+          "vertices": 310,
+          "triangles": 552
+        },
+        {
+          "name": "nightsovereign-armor",
+          "vertices": 840,
+          "triangles": 1426
+        },
+        {
+          "name": "nightsovereign-helmet",
+          "vertices": 144,
+          "triangles": 220
+        },
+        {
+          "name": "nightsovereign-boots",
+          "vertices": 294,
+          "triangles": 500
+        },
+        {
+          "name": "nightsovereign-ring",
+          "vertices": 208,
+          "triangles": 408
+        },
+        {
+          "name": "nightsovereign-amulet",
+          "vertices": 194,
+          "triangles": 372
+        }
+      ]
+    },
+    "mage": {
+      "file": "ashen-mage-late-equipment-v1.glb",
+      "bytes": 2148460,
+      "bones": 67,
+      "collections": 4,
+      "parts": [
+        {
+          "name": "mireoracle-weapon",
+          "vertices": 208,
+          "triangles": 380
+        },
+        {
+          "name": "mireoracle-armor",
+          "vertices": 560,
+          "triangles": 938
+        },
+        {
+          "name": "mireoracle-helmet",
+          "vertices": 316,
+          "triangles": 596
+        },
+        {
+          "name": "mireoracle-boots",
+          "vertices": 186,
+          "triangles": 316
+        },
+        {
+          "name": "mireoracle-ring",
+          "vertices": 208,
+          "triangles": 408
+        },
+        {
+          "name": "mireoracle-amulet",
+          "vertices": 194,
+          "triangles": 372
+        },
+        {
+          "name": "crystalweaver-weapon",
+          "vertices": 208,
+          "triangles": 380
+        },
+        {
+          "name": "crystalweaver-armor",
+          "vertices": 656,
+          "triangles": 1098
+        },
+        {
+          "name": "crystalweaver-helmet",
+          "vertices": 340,
+          "triangles": 636
+        },
+        {
+          "name": "crystalweaver-boots",
+          "vertices": 216,
+          "triangles": 368
+        },
+        {
+          "name": "crystalweaver-ring",
+          "vertices": 208,
+          "triangles": 408
+        },
+        {
+          "name": "crystalweaver-amulet",
+          "vertices": 194,
+          "triangles": 372
+        },
+        {
+          "name": "voidcaller-weapon",
+          "vertices": 208,
+          "triangles": 380
+        },
+        {
+          "name": "voidcaller-armor",
+          "vertices": 704,
+          "triangles": 1178
+        },
+        {
+          "name": "voidcaller-helmet",
+          "vertices": 364,
+          "triangles": 676
+        },
+        {
+          "name": "voidcaller-boots",
+          "vertices": 264,
+          "triangles": 448
+        },
+        {
+          "name": "voidcaller-ring",
+          "vertices": 208,
+          "triangles": 408
+        },
+        {
+          "name": "voidcaller-amulet",
+          "vertices": 194,
+          "triangles": 372
+        },
+        {
+          "name": "astralsovereign-weapon",
+          "vertices": 408,
+          "triangles": 776
+        },
+        {
+          "name": "astralsovereign-armor",
+          "vertices": 728,
+          "triangles": 1218
+        },
+        {
+          "name": "astralsovereign-helmet",
+          "vertices": 404,
+          "triangles": 748
+        },
+        {
+          "name": "astralsovereign-boots",
+          "vertices": 294,
+          "triangles": 500
+        },
+        {
+          "name": "astralsovereign-ring",
+          "vertices": 208,
+          "triangles": 408
+        },
+        {
+          "name": "astralsovereign-amulet",
+          "vertices": 194,
+          "triangles": 372
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,510 @@
+{
+  "generator": "Blender 5.2.1 LTS",
+  "size": 256,
+  "icons": [
+    {
+      "id": "bogwarden-weapon-v1",
+      "parts": [
+        "bogwarden-weapon"
+      ],
+      "bytes": 35114
+    },
+    {
+      "id": "bogwarden-armor-v1",
+      "parts": [
+        "bogwarden-armor"
+      ],
+      "bytes": 43197
+    },
+    {
+      "id": "bogwarden-helmet-v1",
+      "parts": [
+        "bogwarden-helmet"
+      ],
+      "bytes": 54345
+    },
+    {
+      "id": "bogwarden-boots-v1",
+      "parts": [
+        "bogwarden-boots"
+      ],
+      "bytes": 53183
+    },
+    {
+      "id": "bogwarden-ring-v1",
+      "parts": [
+        "bogwarden-ring"
+      ],
+      "bytes": 47905
+    },
+    {
+      "id": "bogwarden-amulet-v1",
+      "parts": [
+        "bogwarden-amulet"
+      ],
+      "bytes": 43395
+    },
+    {
+      "id": "ironbound-weapon-v1",
+      "parts": [
+        "ironbound-weapon"
+      ],
+      "bytes": 36008
+    },
+    {
+      "id": "ironbound-armor-v1",
+      "parts": [
+        "ironbound-armor"
+      ],
+      "bytes": 46399
+    },
+    {
+      "id": "ironbound-helmet-v1",
+      "parts": [
+        "ironbound-helmet"
+      ],
+      "bytes": 55772
+    },
+    {
+      "id": "ironbound-boots-v1",
+      "parts": [
+        "ironbound-boots"
+      ],
+      "bytes": 60761
+    },
+    {
+      "id": "ironbound-ring-v1",
+      "parts": [
+        "ironbound-ring"
+      ],
+      "bytes": 49742
+    },
+    {
+      "id": "ironbound-amulet-v1",
+      "parts": [
+        "ironbound-amulet"
+      ],
+      "bytes": 43268
+    },
+    {
+      "id": "riftbreaker-weapon-v1",
+      "parts": [
+        "riftbreaker-weapon"
+      ],
+      "bytes": 36763
+    },
+    {
+      "id": "riftbreaker-armor-v1",
+      "parts": [
+        "riftbreaker-armor"
+      ],
+      "bytes": 47611
+    },
+    {
+      "id": "riftbreaker-helmet-v1",
+      "parts": [
+        "riftbreaker-helmet"
+      ],
+      "bytes": 50191
+    },
+    {
+      "id": "riftbreaker-boots-v1",
+      "parts": [
+        "riftbreaker-boots"
+      ],
+      "bytes": 62581
+    },
+    {
+      "id": "riftbreaker-ring-v1",
+      "parts": [
+        "riftbreaker-ring"
+      ],
+      "bytes": 51924
+    },
+    {
+      "id": "riftbreaker-amulet-v1",
+      "parts": [
+        "riftbreaker-amulet"
+      ],
+      "bytes": 42940
+    },
+    {
+      "id": "dreadsovereign-weapon-v1",
+      "parts": [
+        "dreadsovereign-weapon"
+      ],
+      "bytes": 37991
+    },
+    {
+      "id": "dreadsovereign-armor-v1",
+      "parts": [
+        "dreadsovereign-armor"
+      ],
+      "bytes": 51849
+    },
+    {
+      "id": "dreadsovereign-helmet-v1",
+      "parts": [
+        "dreadsovereign-helmet"
+      ],
+      "bytes": 54200
+    },
+    {
+      "id": "dreadsovereign-boots-v1",
+      "parts": [
+        "dreadsovereign-boots"
+      ],
+      "bytes": 66856
+    },
+    {
+      "id": "dreadsovereign-ring-v1",
+      "parts": [
+        "dreadsovereign-ring"
+      ],
+      "bytes": 52044
+    },
+    {
+      "id": "dreadsovereign-amulet-v1",
+      "parts": [
+        "dreadsovereign-amulet"
+      ],
+      "bytes": 42687
+    },
+    {
+      "id": "reedstalker-weapon-v1",
+      "parts": [
+        "reedstalker-weapon"
+      ],
+      "bytes": 32728
+    },
+    {
+      "id": "reedstalker-armor-v1",
+      "parts": [
+        "reedstalker-armor"
+      ],
+      "bytes": 42382
+    },
+    {
+      "id": "reedstalker-helmet-v1",
+      "parts": [
+        "reedstalker-helmet"
+      ],
+      "bytes": 55527
+    },
+    {
+      "id": "reedstalker-boots-v1",
+      "parts": [
+        "reedstalker-boots"
+      ],
+      "bytes": 50564
+    },
+    {
+      "id": "reedstalker-ring-v1",
+      "parts": [
+        "reedstalker-ring"
+      ],
+      "bytes": 47905
+    },
+    {
+      "id": "reedstalker-amulet-v1",
+      "parts": [
+        "reedstalker-amulet"
+      ],
+      "bytes": 43395
+    },
+    {
+      "id": "deepdelver-weapon-v1",
+      "parts": [
+        "deepdelver-weapon"
+      ],
+      "bytes": 34492
+    },
+    {
+      "id": "deepdelver-armor-v1",
+      "parts": [
+        "deepdelver-armor"
+      ],
+      "bytes": 44618
+    },
+    {
+      "id": "deepdelver-helmet-v1",
+      "parts": [
+        "deepdelver-helmet"
+      ],
+      "bytes": 56217
+    },
+    {
+      "id": "deepdelver-boots-v1",
+      "parts": [
+        "deepdelver-boots"
+      ],
+      "bytes": 57675
+    },
+    {
+      "id": "deepdelver-ring-v1",
+      "parts": [
+        "deepdelver-ring"
+      ],
+      "bytes": 49742
+    },
+    {
+      "id": "deepdelver-amulet-v1",
+      "parts": [
+        "deepdelver-amulet"
+      ],
+      "bytes": 43268
+    },
+    {
+      "id": "emberhawk-weapon-v1",
+      "parts": [
+        "emberhawk-weapon"
+      ],
+      "bytes": 34231
+    },
+    {
+      "id": "emberhawk-armor-v1",
+      "parts": [
+        "emberhawk-armor"
+      ],
+      "bytes": 45880
+    },
+    {
+      "id": "emberhawk-helmet-v1",
+      "parts": [
+        "emberhawk-helmet"
+      ],
+      "bytes": 52650
+    },
+    {
+      "id": "emberhawk-boots-v1",
+      "parts": [
+        "emberhawk-boots"
+      ],
+      "bytes": 60533
+    },
+    {
+      "id": "emberhawk-ring-v1",
+      "parts": [
+        "emberhawk-ring"
+      ],
+      "bytes": 51924
+    },
+    {
+      "id": "emberhawk-amulet-v1",
+      "parts": [
+        "emberhawk-amulet"
+      ],
+      "bytes": 42940
+    },
+    {
+      "id": "nightsovereign-weapon-v1",
+      "parts": [
+        "nightsovereign-weapon"
+      ],
+      "bytes": 36191
+    },
+    {
+      "id": "nightsovereign-armor-v1",
+      "parts": [
+        "nightsovereign-armor"
+      ],
+      "bytes": 46984
+    },
+    {
+      "id": "nightsovereign-helmet-v1",
+      "parts": [
+        "nightsovereign-helmet"
+      ],
+      "bytes": 50383
+    },
+    {
+      "id": "nightsovereign-boots-v1",
+      "parts": [
+        "nightsovereign-boots"
+      ],
+      "bytes": 62728
+    },
+    {
+      "id": "nightsovereign-ring-v1",
+      "parts": [
+        "nightsovereign-ring"
+      ],
+      "bytes": 52044
+    },
+    {
+      "id": "nightsovereign-amulet-v1",
+      "parts": [
+        "nightsovereign-amulet"
+      ],
+      "bytes": 42687
+    },
+    {
+      "id": "mireoracle-weapon-v1",
+      "parts": [
+        "mireoracle-weapon"
+      ],
+      "bytes": 31167
+    },
+    {
+      "id": "mireoracle-armor-v1",
+      "parts": [
+        "mireoracle-armor"
+      ],
+      "bytes": 48779
+    },
+    {
+      "id": "mireoracle-helmet-v1",
+      "parts": [
+        "mireoracle-helmet"
+      ],
+      "bytes": 46950
+    },
+    {
+      "id": "mireoracle-boots-v1",
+      "parts": [
+        "mireoracle-boots"
+      ],
+      "bytes": 50471
+    },
+    {
+      "id": "mireoracle-ring-v1",
+      "parts": [
+        "mireoracle-ring"
+      ],
+      "bytes": 47905
+    },
+    {
+      "id": "mireoracle-amulet-v1",
+      "parts": [
+        "mireoracle-amulet"
+      ],
+      "bytes": 43395
+    },
+    {
+      "id": "crystalweaver-weapon-v1",
+      "parts": [
+        "crystalweaver-weapon"
+      ],
+      "bytes": 31411
+    },
+    {
+      "id": "crystalweaver-armor-v1",
+      "parts": [
+        "crystalweaver-armor"
+      ],
+      "bytes": 50125
+    },
+    {
+      "id": "crystalweaver-helmet-v1",
+      "parts": [
+        "crystalweaver-helmet"
+      ],
+      "bytes": 51952
+    },
+    {
+      "id": "crystalweaver-boots-v1",
+      "parts": [
+        "crystalweaver-boots"
+      ],
+      "bytes": 57849
+    },
+    {
+      "id": "crystalweaver-ring-v1",
+      "parts": [
+        "crystalweaver-ring"
+      ],
+      "bytes": 49742
+    },
+    {
+      "id": "crystalweaver-amulet-v1",
+      "parts": [
+        "crystalweaver-amulet"
+      ],
+      "bytes": 43268
+    },
+    {
+      "id": "voidcaller-weapon-v1",
+      "parts": [
+        "voidcaller-weapon"
+      ],
+      "bytes": 31508
+    },
+    {
+      "id": "voidcaller-armor-v1",
+      "parts": [
+        "voidcaller-armor"
+      ],
+      "bytes": 49802
+    },
+    {
+      "id": "voidcaller-helmet-v1",
+      "parts": [
+        "voidcaller-helmet"
+      ],
+      "bytes": 47497
+    },
+    {
+      "id": "voidcaller-boots-v1",
+      "parts": [
+        "voidcaller-boots"
+      ],
+      "bytes": 60598
+    },
+    {
+      "id": "voidcaller-ring-v1",
+      "parts": [
+        "voidcaller-ring"
+      ],
+      "bytes": 51924
+    },
+    {
+      "id": "voidcaller-amulet-v1",
+      "parts": [
+        "voidcaller-amulet"
+      ],
+      "bytes": 42940
+    },
+    {
+      "id": "astralsovereign-weapon-v1",
+      "parts": [
+        "astralsovereign-weapon"
+      ],
+      "bytes": 32089
+    },
+    {
+      "id": "astralsovereign-armor-v1",
+      "parts": [
+        "astralsovereign-armor"
+      ],
+      "bytes": 49678
+    },
+    {
+      "id": "astralsovereign-helmet-v1",
+      "parts": [
+        "astralsovereign-helmet"
+      ],
+      "bytes": 59114
+    },
+    {
+      "id": "astralsovereign-boots-v1",
+      "parts": [
+        "astralsovereign-boots"
+      ],
+      "bytes": 62670
+    },
+    {
+      "id": "astralsovereign-ring-v1",
+      "parts": [
+        "astralsovereign-ring"
+      ],
+      "bytes": 52044
+    },
+    {
+      "id": "astralsovereign-amulet-v1",
+      "parts": [
+        "astralsovereign-amulet"
+      ],
+      "bytes": 42687
+    }
+  ]
+}

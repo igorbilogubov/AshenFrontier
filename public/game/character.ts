@@ -1,3 +1,4 @@
+import {attachLateEquipment,createLateEquipmentVisuals,lateEquipmentUrl} from './late-equipment-visuals.js';
 import {createBowPresentation} from './bow-presentation.js';
 import {createRegionalEquipmentVisuals} from './regional-equipment-visuals.js';
 import {createSkillMotion} from './skill-motion.js';
@@ -20,10 +21,12 @@ const IMPACT_PHASE={Attack_Sword_1:.5,Attack_Sword_2:.445};
 
 export const CHARACTER_URLS:Record<ClassId,string>={warrior:CHARACTER_URL,archer:new URL('./characters/ashen-archer-equipment-v1.glb',import.meta.url).href,mage:new URL('./characters/ashen-mage-equipment-v1.glb',import.meta.url).href};
 const assetPromises=new Map<ClassId,Promise<GLTF>>();
+const lateAssetPromises=new Map<ClassId,Promise<GLTF>>();
 export async function loadWarrior(classId:ClassId='warrior'){
   let promise=assetPromises.get(classId);if(!promise){promise=new GLTFLoader().loadAsync(CHARACTER_URLS[classId]);assetPromises.set(classId,promise);}
-  try{const [asset,combatClips]=await Promise.all([promise,loadCombatClips()]);return createAnimatedWarrior({...asset,scene:clone(asset.scene)},classId,combatClips);}
-  catch(error){assetPromises.delete(classId);throw error;}
+  let latePromise=lateAssetPromises.get(classId);if(!latePromise){latePromise=new GLTFLoader().loadAsync(lateEquipmentUrl(classId));lateAssetPromises.set(classId,latePromise);}
+  try{const [asset,combatClips,late]=await Promise.all([promise,loadCombatClips(),latePromise]);return createAnimatedWarrior({...asset,scene:clone(asset.scene)},classId,combatClips,late.scene);}
+  catch(error){assetPromises.delete(classId);lateAssetPromises.delete(classId);throw error;}
 }
 
 
@@ -47,9 +50,9 @@ function shareCharacterSkeletons(model:T.Object3D){
 }
 
 // Exported separately so animation/respawn transitions can be tested on the real asset.
-export function createAnimatedWarrior(gltf:{scene:T.Object3D;animations:T.AnimationClip[]},classId:ClassId='warrior',combatClips:T.AnimationClip[]=[]){
+export function createAnimatedWarrior(gltf:{scene:T.Object3D;animations:T.AnimationClip[]},classId:ClassId='warrior',combatClips:T.AnimationClip[]=[],lateSource?:T.Object3D){
   const root=new T.Group();root.name='Warrior';
-  const model=gltf.scene;shareCharacterSkeletons(model);model.scale.setScalar(1.12);root.add(model);
+  const model=gltf.scene;if(lateSource)attachLateEquipment(model,lateSource);shareCharacterSkeletons(model);model.scale.setScalar(1.12);root.add(model);
   contactShadow(root,1.05,.84);
   const tuned=new Set<T.Material>();
   model.traverse(o=>{if(o instanceof T.Mesh){o.material=Array.isArray(o.material)?o.material.map(m=>m.clone()):o.material.clone();o.castShadow=true;o.receiveShadow=true;
@@ -103,9 +106,10 @@ export function createAnimatedWarrior(gltf:{scene:T.Object3D;animations:T.Animat
   const parts=Object.fromEntries(['Base_Body','Base_Head','Base_Feet','Traveller_Armor','Traveller_Hood','Traveller_Boots','Traveller_Limbs','Traveller_Coif','Traveller_Cape','Weapon_WatchSword','Copper_Ring','Ember_Amulet','Armor_Body','Helmet','Boots','Cape','Class_Base_Body','Class_Base_Head','Class_Base_Boots','Class_Base_Hair',...CLASS_ITEMS.archer.map(item=>item.appearance),...CLASS_ITEMS.mage.map(item=>item.appearance)].map(name=>[name,model.getObjectByName(name)]));
   let appearanceKey='';
   const regionalVisuals=createRegionalEquipmentVisuals(model);
+  const lateVisuals=createLateEquipmentVisuals(model,classId);
   function equipment(weapon:WeaponId,classId:ClassId='warrior',rawAppearance?:ItemAppearance){
     const key=JSON.stringify([weapon,classId,rawAppearance]);if(key===appearanceKey)return;appearanceKey=key;
-    const appearance=regionalVisuals(rawAppearance,classId);
+    const appearance=regionalVisuals(lateVisuals.apply(rawAppearance),classId);
     const show=(name:string,visible:boolean)=>{if(parts[name])parts[name]!.visible=visible;};
     if(classId!=='warrior'&&parts.Class_Base_Body){
       const catalog=CLASS_ITEMS[classId];
@@ -203,6 +207,6 @@ export function createAnimatedWarrior(gltf:{scene:T.Object3D;animations:T.Animat
   }
   // Initialize the skeleton before the first rendered frame, avoiding a T-pose flash.
   mixer.update(0);bowPresentation.update({weapon:'sword',classId,dead:0,attack:null,moveBlend:0,runBlend:0,gait:0,hurt:0},0);root.updateMatrixWorld(true);
-  return {root,model,mixer,clips,animate,equipment,previewClip,samplePreview,disposeExtras:()=>{bowPresentation.dispose();skillCharge.dispose();},
+  return {root,model,mixer,clips,animate,equipment,previewClip,samplePreview,applyEnhancement:lateVisuals.applyEnhancement,disposeExtras:()=>{bowPresentation.dispose();skillCharge.dispose();},
     get state(){return state;},get weights(){return {...weights};}};
 }

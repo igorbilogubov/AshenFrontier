@@ -13,7 +13,8 @@ export function createBowPresentation(model:T.Object3D){
   const ranger=model.getObjectByName('ranger-bow'),sentinel=model.getObjectByName('sentinel-bow');
   if(!left||!right||!ranger)return {update(_hero:WarriorPose,_dt=1/60){},dispose(){}};
   const ownedGeometry:T.BufferGeometry[]=[];
-  const bows=[ranger,...sentinel?[sentinel]:[]];
+  const lateBows:T.Object3D[]=[];model.traverse(o=>{if(o.userData.lateBow)lateBows.push(o);});
+  const bows=[ranger,...sentinel?[sentinel]:[],...lateBows];
   for(const bow of bows){
     const primitives:T.SkinnedMesh[]=[];bow.traverse(o=>{if(o instanceof T.SkinnedMesh)primitives.push(o);});
     for(const primitive of primitives){
@@ -40,7 +41,7 @@ export function createBowPresentation(model:T.Object3D){
   const a=new T.Vector3(),b=new T.Vector3(),nock=new T.Vector3(),grip=new T.Vector3(),direction=new T.Vector3(),up=new T.Vector3(0,1,0),rightLocal=new T.Vector3(),offset=new T.Vector3();
   let drawWeight=0,drawAngle=-Math.PI/2;
   return {dispose(){geometry.dispose();string.material.dispose();arrow.geometry.dispose();tip.geometry.dispose();arrowMaterial.dispose();tipMaterial.dispose();glow.geometry.dispose();glow.material.dispose();for(const geometry of ownedGeometry)geometry.dispose();},update(hero:WarriorPose,dt=1/60){
-    const active=sentinel?.visible?sentinel:ranger,armed=bows.some(bow=>bow.visible);string.visible=armed;arrow.visible=false;glow.visible=false;for(const extra of fanArrows)extra.visible=false;if(!armed)return;
+    const active=bows.find(bow=>bow.visible)??ranger,armed=bows.some(bow=>bow.visible);string.visible=armed;arrow.visible=false;glow.visible=false;for(const extra of fanArrows)extra.visible=false;if(!armed)return;
     model.updateWorldMatrix(true,true);
     const attacking=!!hero.attack&&!hero.dead&&(!hero.attack.skillId||SKILLS[hero.attack.skillId].kind==='attack'),phase=hero.attack?hero.attack.age/hero.attack.duration:1,contact=hero.attack?.skillId?SKILLS[hero.attack.skillId].hitFraction:.49,draw=attacking&&phase<contact;
     drawWeight+=((attacking?1:0)-drawWeight)*(1-Math.exp(-Math.max(0,dt)*24));
@@ -56,7 +57,7 @@ export function createBowPresentation(model:T.Object3D){
       offset.copy(sourceGrip).applyQuaternion(bow.quaternion);
       bow.position.set(BOW_GRIP.x-offset.x,BOW_GRIP.y-offset.y,BOW_GRIP.z-offset.z);
     }
-    model.updateWorldMatrix(true,true);const length=active===sentinel?62:55;
+    model.updateWorldMatrix(true,true);const length=typeof active.userData.bowLength==='number'?active.userData.bowLength:active===sentinel?62:55;
     model.worldToLocal(active.localToWorld(a.set(-length,0,-8)));model.worldToLocal(active.localToWorld(b.set(length,0,-8)));
     nock.copy(a).add(b).multiplyScalar(.5);
     if(draw){

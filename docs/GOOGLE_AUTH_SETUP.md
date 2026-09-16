@@ -1,12 +1,14 @@
 # Вход через Google
 
-Локальная реализация от 16 сентября 2026; публикация и настоящая проверка Google требуют настроенного OAuth-клиента. Наличие кода и тестов не означает, что Google Cloud уже настроен.
+Настроено 16 сентября 2026: Google Cloud проект `ashen-frontier`, клиент `Ashen Frontier Web`, тип Web application, аудитория External / In production. Публичный origin — `https://ashen-frontier.91.99.21.123.sslip.io`; разрешены production callback и `http://localhost:4732/auth/google/callback`. Секреты находятся в закрытых `/opt/ashen-frontier/ops/database.env`, локальных `.env` и `data/google-oauth-client.json` (0600, исключены из Git). На текущем consent screen виден домен `sslip.io`; проверка фирменного имени/логотипа не выполнялась.
+
+Релиз `20260916-world100-01` запущен с `configured:true`. Настоящий переход в Google дошёл до запроса имени, фото и email; пользователь решил завершить его самостоятельно. Callback/игровой вход и локальный OAuth пока не считаются подтверждёнными этим сеансом. Общий 4732 не перезапускался. [Доказательства](../DEPLOYMENT.md).
 
 ## Настройка
 
 1. В Google Cloud / Google Auth Platform выбрать проект игры. Настроить Branding и Audience; для режима Testing добавить тестовые Google-аккаунты.
 
-Для Branding текущего production использовать homepage `https://ashen-frontier.91.99.21.123.sslip.io/`, Privacy Policy `https://ashen-frontier.91.99.21.123.sslip.io/privacy.html` и Terms of Service `https://ashen-frontier.91.99.21.123.sslip.io/terms.html`. Те же ссылки доступны на экране входа; перед публикацией страницы должны отвечать публично на этом домене.
+   Для Branding текущего production использовать homepage `https://ashen-frontier.91.99.21.123.sslip.io/`, Privacy Policy `https://ashen-frontier.91.99.21.123.sslip.io/privacy.html` и Terms of Service `https://ashen-frontier.91.99.21.123.sslip.io/terms.html`. Те же ссылки доступны на экране входа; перед публикацией страницы должны отвечать публично на этом домене.
 2. Создать OAuth Client типа **Web application**. Разрешить точный redirect URI для каждого используемого окружения:
    - `http://localhost:4732/auth/google/callback` для локального входа;
    - `https://<домен-игры>/auth/google/callback` для сервера.

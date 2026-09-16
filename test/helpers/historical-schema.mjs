@@ -16,7 +16,7 @@ export async function removeExpandedConsumableSchema(client){
     ALTER TABLE heroes ADD CONSTRAINT heroes_mana_potions_check CHECK (mana_potions BETWEEN 0 AND 50);
     ALTER TABLE consumable_stacks DROP CONSTRAINT consumable_stacks_quantity_check;
     ALTER TABLE consumable_stacks ADD CONSTRAINT consumable_stacks_quantity_check CHECK (quantity BETWEEN 1 AND 50);
-    DELETE FROM schema_migrations WHERE version=7;
+    DELETE FROM schema_migrations WHERE version IN (7,8);
   `);
 }
 export async function removeBuildSchema(client){

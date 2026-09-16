@@ -137,7 +137,7 @@ test('schema 3 to 4 migration preserves exact old heroes and full bags, then ove
       before=(await client.query('SELECT * FROM heroes WHERE id=$1',[p.id])).rows[0];
     }finally{await client.end();}
     store=await openHeroStore({connectionString:db.url});accountId=await ownMigratedFixture(store,db.url,p.id);const result=await store.load(p.id,accountId),hero=result.hero;
-    assert.equal(await store.schemaVersion(),7);assert.equal(await store.health(),true);assert.equal(result.revision,1);
+    assert.equal(await store.schemaVersion(),8);assert.equal(await store.health(),true);assert.equal(result.revision,1);
     assert.equal(hero.potions,50);assert.equal(hero.manaPotions,17);assert.equal(hero.consumableOverflow,2);assert.equal(backpackUsage(hero),18);
     assert.deepEqual(hero.items,saved.items);assert.deepEqual(hero.equipment,saved.equipment);assert.deepEqual(hero.allocatedStats,saved.allocatedStats);assert.equal(hero.mana,7);assert.equal(hero.hp,31);assert.equal(hero.gold,321);
     const verify=new pg.Client({connectionString:db.url});await verify.connect();try{const after=(await verify.query('SELECT * FROM heroes WHERE id=$1',[p.id])).rows[0];for(const key of Object.keys(before).filter(key=>key!=='token_hash'))assert.deepEqual(after[key],before[key],key);}finally{await verify.end();}

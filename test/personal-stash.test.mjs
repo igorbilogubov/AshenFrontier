@@ -7,9 +7,14 @@ import {World,newHero,makeLoot,persistentHero,safeHero} from '../dist/world.js';
 import {openHeroStore} from '../dist/storage/postgres.js';
 import {rollEquipment} from '../dist/public/game/equipment-items.js';
 import {BAG_CAPACITY,STASH_CAPACITY,backpackItems} from '../dist/public/rules.js';
-import {CONSUMABLES,CONSUMABLE_LIMIT} from '../dist/public/game/consumables.js';
+import {CONSUMABLES,CONSUMABLE_CATALOG,CONSUMABLE_LIMIT,CONSUMABLE_STACK_LIMIT} from '../dist/public/game/consumables.js';
 import {createTestDatabase,hasTestDatabase} from './helpers/postgres.mjs';
-const setBottles=(p,kind,quantity)=>{const id=kind==='hp'?'hp-basic':'mana-basic';p.consumableInventory=p.consumableInventory.filter(stack=>stack.definitionId!==id);if(quantity)p.consumableInventory.push({id:crypto.randomUUID(),definitionId:id,quantity});p[kind==='hp'?'potions':'manaPotions']=quantity;};
+const setBottles=(p,kind,quantity)=>{
+  const definitions=Object.values(CONSUMABLE_CATALOG).filter(definition=>definition.kind===kind);
+  p.consumableInventory=p.consumableInventory.filter(stack=>!definitions.some(definition=>definition.id===stack.definitionId));
+  for(const definition of definitions){const amount=Math.min(quantity,CONSUMABLE_STACK_LIMIT);if(amount)p.consumableInventory.push({id:crypto.randomUUID(),definitionId:definition.id,quantity:amount});quantity-=amount;}
+  p[kind==='hp'?'potions':'manaPotions']=p.consumableInventory.filter(stack=>definitions.some(definition=>definition.id===stack.definitionId)).reduce((sum,stack)=>sum+stack.quantity,0);
+};
 
 
 test('personal chest transfers only loose owned instances and cannot bypass bag or gear rules',()=>{

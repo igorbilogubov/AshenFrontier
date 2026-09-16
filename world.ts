@@ -107,7 +107,7 @@ export function safeHero(saved: unknown): Hero{
   const restoredAttack=legacy?null:savedAttack(raw.attack,classId);
   const oldConsumables=raw.consumableInventory===undefined;
   const consumableInventory:ConsumableStack[]=oldConsumables?(['hp','mana'] as const).flatMap(kind=>{
-    const quantity=Math.min(CONSUMABLE_LIMIT,Math.floor(nonnegative(kind==='hp'?raw.potions:raw.manaPotions,3)));
+    const quantity=Math.min(consumable(kind)!.stackLimit,Math.floor(nonnegative(kind==='hp'?raw.potions:raw.manaPotions,3)));
     return quantity?[{id:randomUUID(),definitionId:consumable(kind)!.id,quantity}]:[];
   }):raw.consumableInventory as ConsumableStack[];
   const quickSlots:QuickSlots=oldConsumables?{q:'hp-basic',w:'mana-basic'}:raw.quickSlots as QuickSlots;
@@ -301,24 +301,26 @@ export class World{
     }
     this.notice(p,`Куплено: ${item.name}`);return true;
   }
-  buyConsumable(p:Hero,kind:unknown,requestId:unknown){
+  buyConsumable(p:Hero,kindOrDefinitionId:unknown,requestId?:unknown,quantity:unknown=1){
     if(!p.shopActive||!this.vendorAvailable(p))return false;
-    const listing=consumable(kind);if(!listing)return false;
+    const listing=consumable(kindOrDefinitionId)??consumableDefinition(kindOrDefinitionId);if(!listing)return false;
+    if(quantity!==1&&quantity!==50)return false;
     if(typeof requestId==='string'){
       if(!requestId.length||requestId.length>80||this.purchaseReceipts.get(p.id)?.includes(requestId))return false;
     }else if(requestId!==undefined)return false;
     const count=consumableKindQuantity(p,listing.kind),stack=p.consumableInventory.find(stack=>stack.definitionId===listing.id);
-    if(count>=CONSUMABLE_LIMIT){this.notice(p,'Запас зелий полон');return false;}
-    if(p.gold<listing.price){this.notice(p,'Не хватает золота');return false;}
+    if(count+quantity>CONSUMABLE_LIMIT||stack&&stack.quantity+quantity>listing.stackLimit){this.notice(p,'Запас зелий полон');return false;}
+    const price=listing.price*quantity;
+    if(p.gold<price){this.notice(p,'Не хватает золота');return false;}
     if(!stack&&backpackUsage(p)>=BAG_CAPACITY){this.notice(p,'Рюкзак полон');return false;}
-    p.gold-=listing.price;
-    if(stack)stack.quantity++;else p.consumableInventory.push({id:randomUUID(),definitionId:listing.id,quantity:1});
+    p.gold-=price;
+    if(stack)stack.quantity+=quantity;else p.consumableInventory.push({id:randomUUID(),definitionId:listing.id,quantity});
     p.potions=consumableKindQuantity(p,'hp');p.manaPotions=consumableKindQuantity(p,'mana');
     if(typeof requestId==='string'){
       const receipts=this.purchaseReceipts.get(p.id)??[];receipts.push(requestId);
       if(receipts.length>64)receipts.shift();this.purchaseReceipts.set(p.id,receipts);
     }
-    this.notice(p,`Куплено: ${listing.name}`);return true;
+    this.notice(p,`Куплено: ${listing.name}${quantity===1?'':` × ${quantity}`}`);return true;
   }
   interactionInput(p:Hero){
     const target=p.interactionTarget;if(!target)return {x:0,z:0,aim:null};
@@ -580,7 +582,13 @@ export class World{
     if(msg.type==='cancelInteraction'){this.stopInteraction(p);return;}
     if(msg.type==='portal'){this.startPortal(p,msg.portalId);return;}
     if(msg.type==='buy'){this.buy(p,msg.definitionId,msg.requestId);return;}
-    if(msg.type==='buyConsumable'){this.buyConsumable(p,msg.kind,msg.requestId);return;}
+    if(msg.type==='buyConsumable'){
+      if('definitionId' in msg){
+        if((msg.quantity!==1&&msg.quantity!==50)||!consumableDefinition(msg.definitionId))return;
+        this.buyConsumable(p,msg.definitionId,msg.requestId,msg.quantity);
+      }else this.buyConsumable(p,msg.kind,msg.requestId);
+      return;
+    }
     if(msg.type==='run'&&typeof msg.running==='boolean'&&!p.dead){p.running=msg.running;return;}
     if(msg.type==='weapon'&&isWeaponId(msg.weapon)&&!p.attack&&!p.dead){const weapon=p.items.find(item=>item.id===p.equipment.weapon);if(weapon?.definitionId){this.notice(p,'Вид оружия определяется надетым предметом');return;}p.weapon=msg.weapon;return;}
     if(msg.type==='camp'){
@@ -945,7 +953,8 @@ export class World{
         if(a.age>=a.duration){if(p.channel)a.age=0;else if(!p.mobility)p.attack=null;}
       }
       const atCamp=safe(p);
-      if(p.combatUntil<=this.t)p.hp=Math.min(s.maxHp,p.hp+(s.hpRegen+(atCamp?18:0))*dt);
+      const hpRegen=atCamp?s.hpRegen+18:p.combatUntil>this.t?s.hpRegen/3:s.hpRegen;
+      p.hp=Math.min(s.maxHp,p.hp+hpRegen*dt);
       p.mana=Math.min(s.maxMana,p.mana+(s.manaRegen+(atCamp?12:0))*dt);
       if(atCamp){
         if(p.questKills>=5&&p.boss&&!p.questClaimed){p.questClaimed=true;p.gold+=50;this.emit('quest',{},p.id);}

@@ -186,10 +186,11 @@ test('ranged projectiles also use server accuracy at collision and disappear on 
   }
 });
 
-test('vitality regenerates only outside combat; mana regenerates alive, with camp recovery and full respawn',()=>{
+test('vitality regenerates at one-third speed in combat; mana and camp recovery remain unchanged',()=>{
   const {w,p}=fixture('mage');allocate(w,p,{vitality:2,energy:3});w.mobs=[];
   Object.assign(p,{x:8,z:2,hp:20,mana:0,combatUntil:w.t+1000});const s=stats(p);
-  step(w,10);assert.equal(p.hp,20);assert(Math.abs(p.mana-s.manaRegen*.5)<1e-9);
+  step(w,10);assert(Math.abs(p.hp-(20+s.hpRegen*.5/3))<1e-9);assert(Math.abs(p.mana-s.manaRegen*.5)<1e-9);
+  p.hp=20;
   p.combatUntil=0;const mana=p.mana;step(w,10);
   assert(Math.abs(p.hp-(20+s.hpRegen*.5))<1e-9);assert(Math.abs(p.mana-(mana+s.manaRegen*.5))<1e-9);
   const hp=p.hp,mp=p.mana;w.camp(p,false);assert.equal(p.hp,hp);assert.equal(p.mana,mp);

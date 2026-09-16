@@ -4,12 +4,71 @@ import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import pg from 'pg';
 import {World,newHero,makeLoot,persistentHero,safeHero,stats} from '../dist/world.js';
-import {backpackUsage,consumableQuantity} from '../dist/public/game/consumables.js';
+import {backpackUsage,consumableQuantity,CONSUMABLE_CATALOG,CONSUMABLE_LIMIT,CONSUMABLE_STACK_LIMIT} from '../dist/public/game/consumables.js';
+import {shopConsumables} from '../dist/public/game/shop.js';
 import {openHeroStore} from '../dist/storage/postgres.js';
 import {createTestDatabase,hasTestDatabase} from './helpers/postgres.mjs';
 
 const fixture=()=>{const p=newHero('Зелья'),w=new World();w.add(p);w.mobs=[];return {p,w};};
 const fill=p=>{while(backpackUsage(p)<16)p.items.push(makeLoot(p.classId,1,0,'ring'));};
+
+test('catalog exposes four server-authoritative potion sizes for each resource',()=>{
+  assert.equal(CONSUMABLE_STACK_LIMIT,999);assert.equal(CONSUMABLE_LIMIT,3996);
+  assert.deepEqual(Object.values(CONSUMABLE_CATALOG).map(({id,kind,restore,price,cooldown,stackLimit})=>({id,kind,restore,price,cooldown,stackLimit})),[
+    {id:'hp-basic',kind:'hp',restore:45,price:6,cooldown:4,stackLimit:999},
+    {id:'hp-medium',kind:'hp',restore:180,price:24,cooldown:4,stackLimit:999},
+    {id:'hp-large',kind:'hp',restore:600,price:80,cooldown:4,stackLimit:999},
+    {id:'hp-greater',kind:'hp',restore:1800,price:240,cooldown:4,stackLimit:999},
+    {id:'mana-basic',kind:'mana',restore:40,price:8,cooldown:4,stackLimit:999},
+    {id:'mana-medium',kind:'mana',restore:160,price:32,cooldown:4,stackLimit:999},
+    {id:'mana-large',kind:'mana',restore:500,price:100,cooldown:4,stackLimit:999},
+    {id:'mana-greater',kind:'mana',restore:1500,price:300,cooldown:4,stackLimit:999}
+  ]);
+  assert.deepEqual(shopConsumables(),Object.values(CONSUMABLE_CATALOG));
+});
+
+test('vendor buys one or fifty bottles atomically by definition and keeps legacy basic purchases',()=>{
+  const {p,w}=fixture();w.vendorAvailable=()=>true;p.shopActive=true;p.gold=100000;
+  w.command(p,{type:'buyConsumable',definitionId:'hp-large',quantity:50,requestId:'large-50'});
+  assert.equal(consumableQuantity(p,'hp-large'),50);assert.equal(p.gold,96000);
+  w.command(p,{type:'buyConsumable',definitionId:'hp-large',quantity:50,requestId:'large-50'});
+  assert.equal(consumableQuantity(p,'hp-large'),50);assert.equal(p.gold,96000);
+  assert.equal(w.buyConsumable(p,'mana-greater','greater-one',1),true);
+  assert.equal(consumableQuantity(p,'mana-greater'),1);assert.equal(p.gold,95700);
+  assert.equal(w.buyConsumable(p,'mana','legacy-basic'),true);
+  assert.equal(consumableQuantity(p,'mana-basic'),4);assert.equal(p.gold,95692);
+
+  for(const [definitionId,quantity] of [['missing',50],['hp-large',2],['hp-large',0],['hp-large',51],['hp-large','50'],['hp-large',null],['hp-large',undefined]]){
+    const before=structuredClone(p.consumableInventory),gold=p.gold;
+    const message={type:'buyConsumable',definitionId,requestId:`invalid-${definitionId}-${quantity}`};if(quantity!==undefined)message.quantity=quantity;
+    w.command(p,message);
+    assert.deepEqual(p.consumableInventory,before);assert.equal(p.gold,gold);
+  }
+
+  const large=p.consumableInventory.find(stack=>stack.definitionId==='hp-large');large.quantity=950;
+  const beforeGold=p.gold;assert.equal(w.buyConsumable(p,'hp-large','over-stack',50),false);
+  assert.equal(large.quantity,950);assert.equal(p.gold,beforeGold);
+  large.quantity=949;assert.equal(w.buyConsumable(p,'hp-large','fill-stack',50),true);
+  assert.equal(large.quantity,999);assert.equal(p.gold,beforeGold-4000);
+
+  const poor=fixture();poor.w.vendorAvailable=()=>true;poor.p.shopActive=true;poor.p.gold=3999;
+  const poorInventory=structuredClone(poor.p.consumableInventory);
+  assert.equal(poor.w.buyConsumable(poor.p,'hp-large','too-expensive',50),false);
+  assert.deepEqual(poor.p.consumableInventory,poorInventory);assert.equal(poor.p.gold,3999);
+});
+
+test('larger bottles restore their configured amount and share cooldown by resource kind',()=>{
+  const {p,w}=fixture();p.level=100;p.allocatedStats={strength:0,dexterity:0,vitality:250,energy:250};p.consumableInventory.push(
+    {id:randomUUID(),definitionId:'hp-large',quantity:1},
+    {id:randomUUID(),definitionId:'hp-greater',quantity:1},
+    {id:randomUUID(),definitionId:'mana-medium',quantity:1}
+  );
+  p.quickSlots={q:'hp-large',w:'hp-greater'};p.hp=1;
+  assert(w.useConsumable(p,'q'));assert.equal(p.hp,601);assert.equal(p.potionCooldown,4);
+  assert.equal(w.useConsumable(p,'w'),false);assert.equal(consumableQuantity(p,'hp-greater'),1);
+  p.quickSlots.q='mana-medium';p.mana=0;
+  assert(w.useConsumable(p,'q'));assert.equal(p.mana,160);assert.equal(p.manaPotionCooldown,4);
+});
 
 test('bottles occupy shared cells; owned type assignment alone neither drinks nor duplicates',()=>{
   const {p,w}=fixture();assert.equal(backpackUsage(p),2);

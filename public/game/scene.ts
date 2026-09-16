@@ -40,6 +40,7 @@ import {createSkillProjectile,updateSkillProjectile,disposeSkillProjectile} from
 import {classFor} from '../rules.js';
 import {Benchmark,stressEnabled} from './benchmark.js';
 import {bindTravelPanel,createTravelPortals} from './travel-ui.js';
+import {MouseWalk} from './mouse-walk.js';
 import {element as $,errorMessage} from './ui-types.js';
 import type {Point,PublicPlayer,PublicMob,WeaponId} from '../../shared/types.js';
 type Warrior=Awaited<ReturnType<typeof loadWarrior>>;
@@ -68,6 +69,7 @@ const keys=new Set<string>(),models=new Map<number,MobModel>(),particles:Particl
 let heldHudSkill:number|null=null,channelSlot:number|null=null,lastChannelPulse=0;
 const raycaster=new T.Raycaster(),ndc=new T.Vector2(),groundPlane=new T.Plane(new T.Vector3(0,1,0),0),cameraTarget=new T.Vector3(.5,.3,2),skillOrigin=new T.Vector3();
 const mouse:HeldMouse={x:0,y:0,active:false,point:null,attacking:false,casting:false,pointerId:null,};
+const mouseWalk=new MouseWalk();
 // Five metres cover the full animated actor and its shadow beyond the viewport.
 // Keep pose bookkeeping current, but sample/draw only groups near the camera.
 const actorFrustum=new T.Frustum(),actorProjection=new T.Matrix4(),actorBounds=new T.Sphere(new T.Vector3(),5);
@@ -169,6 +171,7 @@ function castSkill(slot:number,held=false){
 }
 function releaseMovement(){
   const id=mouse.pointerId;
+  if(mouseWalk.release())game?.stopInput();
   if(mouse.casting&&channelSlot===4)stopChannel();
   mouse.attacking=false;mouse.casting=false;mouse.pointerId=null;
   if(id!==null&&canvas.hasPointerCapture(id))canvas.releasePointerCapture(id);
@@ -219,13 +222,18 @@ function processEvents(){
 }
 function tick(dt:number){
   processEvents();
-  if(!game.connected){processEvents();return;}
+  if(!game.connected){releaseMovement();processEvents();return;}
   const hero=game.player;
   if(hero.afk){game.update(dt,{x:0,z:0,aim:null});processEvents();return;}
-  const input={x:0,z:0,aim:null};
+  let input:{x:number;z:number;aim:number|null}={x:0,z:0,aim:null};
   const keyboardSkill=['Digit1','Digit2','Digit3','Digit4'].findIndex(code=>keys.has(code)),heldSkill=keyboardSkill>=0?keyboardSkill:mouse.casting?4:heldHudSkill;
   if(heldSkill!==null&&heldSkill>=0&&!safe(hero)){input.x=input.z=0;castSkill(heldSkill,true);}
   else if(mouse.attacking&&!safe(hero)){input.x=input.z=0;attackAt();}
+  else {
+    const walk=mouseWalk.sample(hero,mouse.point,performance.now());
+    if(walk.takeover)game.send({type:'cancelInteraction'});
+    input=walk.input;
+  }
   game.update(dt,input);
   if(pendingWeapon&&!hero.attack)chooseWeapon(pendingWeapon);
   processEvents();
@@ -406,7 +414,7 @@ async function start(){
 canvas.addEventListener('pointermove',event=>{
   if(mouse.pointerId!==null&&event.pointerId!==mouse.pointerId)return;
   mouse.x=event.clientX;mouse.y=event.clientY;mouse.active=true;
-  if((mouse.attacking||mouse.casting)&&(!(event.buttons&(mouse.casting?2:1))||document.elementFromPoint(event.clientX,event.clientY)!==canvas))releaseMovement();
+  if((mouseWalk.pressed||mouse.attacking||mouse.casting)&&(!(event.buttons&(mouse.casting?2:1))||document.elementFromPoint(event.clientX,event.clientY)!==canvas))releaseMovement();
 });
 canvas.addEventListener('pointerleave',()=>{releaseMovement();mouse.active=false;mouse.point=null;});
 canvas.addEventListener('pointerdown',event=>{
@@ -421,7 +429,10 @@ canvas.addEventListener('pointerdown',event=>{
   for(const [id,model] of remoteModels){if(!model.root.visible)continue;const hit=raycaster.intersectObject(model.root,true)[0];if(hit&&hit.distance<nearest){nearest=hit.distance;pickedPlayer=id;}}
   if(pickedPlayer){selected=null;selectedEntity={kind:'player',id:pickedPlayer};updateUI();return;}
   selected=null;selectedEntity=null;
-  if(mouse.point)game.send({type:'moveTo',target:{x:mouse.point.x,z:mouse.point.z}});
+  if(mouse.point){
+    mouseWalk.press(performance.now());mouse.pointerId=event.pointerId;canvas.setPointerCapture(event.pointerId);
+    game.send({type:'moveTo',target:{x:mouse.point.x,z:mouse.point.z}});
+  }
 });
 addEventListener('pointerup',event=>{if(event.pointerId===mouse.pointerId)releaseMovement();});
 addEventListener('pointercancel',event=>{if(event.pointerId===mouse.pointerId)clearInput();});

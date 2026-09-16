@@ -1,3 +1,4 @@
+import {WASTELAND_OBSTACLES} from './wasteland.js';
 import {SNOW_OBSTACLES} from './snow.js';
 import {CAMP_OBSTACLES,campSafe,insideHouse} from './camp-layout.js';
 import {STADIUM_OBSTACLES} from './stadium.js';
@@ -66,6 +67,7 @@ export const OBSTACLES:readonly Readonly<Obstacle>[]=Object.freeze([
   ...LANDMARK_OBSTACLES,
   ...STADIUM_OBSTACLES,
   ...SNOW_OBSTACLES,
+  ...WASTELAND_OBSTACLES,
   ...trees.filter(t=>t.solid).map(({x,z})=>({x,z,r:.32}))
 ].map(o=>Object.freeze(o)));
 

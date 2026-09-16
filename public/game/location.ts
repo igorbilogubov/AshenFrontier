@@ -1,3 +1,4 @@
+import {WASTELAND_SPAWNS,wastelandSafe} from './wasteland.js';
 import {SNOW_SPAWNS,snowSafe} from './snow.js';
 import {campSafe} from './camp-layout.js';
 import {canOccupy,turnTowards,gaitProfile} from './motion.js';
@@ -28,9 +29,15 @@ export const MOB_TYPES=Object.freeze({
   yak:{name:'Шерстистый як',hp:330,damage:25,speed:1.4,range:1.8,windup:1.15,cooldown:1.6,aggro:4.8,coins:36,xp:62,radius:.72,scale:1},
   'frost-spider':{name:'Морозный паук',hp:285,damage:28,speed:1.8,range:1.6,windup:.85,cooldown:1.25,aggro:5.1,coins:40,xp:72,radius:.58,scale:1},
   'ice-golem':{name:'Ледяной голем',hp:460,damage:36,speed:1.2,range:1.9,windup:1.3,cooldown:1.7,aggro:5,coins:52,xp:95,radius:.76,scale:1},
+  'ash-jackal':{name:'Пепельный шакал',hp:620,damage:38,speed:2.35,range:1.5,windup:.78,cooldown:1.2,aggro:5.5,coins:70,xp:135,radius:.44,scale:1},
+  scorpion:{name:'Обсидиановый скорпион',hp:800,damage:46,speed:1.6,range:1.75,windup:1.02,cooldown:1.4,aggro:5.2,coins:84,xp:168,radius:.68,scale:1},
+  'monitor-lizard':{name:'Пустынный варан',hp:960,damage:54,speed:1.75,range:1.85,windup:1.1,cooldown:1.45,aggro:5.3,coins:100,xp:205,radius:.7,scale:1},
+  scarab:{name:'Панцирный скарабей',hp:1250,damage:63,speed:1.4,range:1.9,windup:1.25,cooldown:1.6,aggro:5.2,coins:120,xp:255,radius:.76,scale:1},
   alpha:{name:'Седой вожак',hp:190,damage:17,speed:2.02,range:1.75,windup:1.05,cooldown:1.3,aggro:5.1,coins:35,xp:55,radius:.52,scale:1.4},
 });
 export const ELITE_TYPES=Object.freeze({
+ 'obsidian-stinger':{type:'scorpion',name:'Обсидиановое жало',hp:2900,damage:75,coins:320,xp:640,scale:1.4,respawn:240},
+ 'sun-devourer':{type:'scarab',name:'Пожиратель солнца',hp:3900,damage:88,coins:420,xp:850,scale:1.4,respawn:300},
  'grey-alpha':{type:'alpha',name:'Седой вожак',hp:190,damage:17,coins:35,xp:55,scale:1.4,respawn:180},
  'elder-bear':{type:'bear',name:'Древний буролом',hp:420,damage:25,coins:65,xp:110,scale:1.65,respawn:240},
  'frost-matriarch':{type:'yak',name:'Матриарх метели',hp:1100,damage:40,coins:130,xp:230,scale:1.45,respawn:240},
@@ -52,8 +59,9 @@ export const SPAWNS:readonly Readonly<Position & {type:MobType;spotId?:AfkSpotId
   ...STADIUM_SPAWNS.slice(18),
   {type:'bear',eliteId:'elder-bear',x:-20,z:-16},
   ...SNOW_SPAWNS,
+  ...WASTELAND_SPAWNS,
 ]);
-export const safe=(p:Position)=>campSafe(p)||stadiumSafe(p)||snowSafe(p);
+export const safe=(p:Position)=>campSafe(p)||stadiumSafe(p)||snowSafe(p)||wastelandSafe(p);
 
 export const stand=(x:number,z:number,r=.29)=>Number.isFinite(x)&&Number.isFinite(z)&&canOccupy(x,z,nearbyObstacles(x,z,r),r,boundsForPosition({x,z}));
 export const distance=(a:Position,b:Position)=>Math.hypot(a.x-b.x,a.z-b.z);

@@ -44,7 +44,7 @@ export function createSnowEnvironment(scene:T.Scene){
   for(let side=0;side<4;side++)for(let i=0;i<24;i++){
     const x=side<2?SNOW_BOUNDS.minX+i*8:side===2?SNOW_BOUNDS.minX-5:SNOW_BOUNDS.maxX+5;
     const z=side<2?(side===0?SNOW_BOUNDS.minZ-5:SNOW_BOUNDS.maxZ+5):SNOW_BOUNDS.minZ+i*7;
-    if(side===2&&Math.abs(z-SNOW_ENTRY.z)<10)continue;
+    if(side===2&&Math.abs(z-SNOW_ENTRY.z)<10||side===3&&Math.abs(z-12)<10)continue;
     const cliff=mesh(staticRoot,new T.DodecahedronGeometry(1,0),i%3?rock:dark,x,1.7,z);cliff.scale.set(3.5,2.3+i%4,3);cliff.rotation.y=i*.91;
     const cap=mesh(staticRoot,new T.DodecahedronGeometry(1,0),snow,x,3.4+i%4*.8,z);cap.scale.set(3.6,.55,3.1);cap.rotation.y=i*.91;
   }

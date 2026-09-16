@@ -1,3 +1,4 @@
+import {WASTELAND_BOUNDS,inWasteland} from './wasteland.js';
 import {SNOW_BOUNDS,inSnow} from './snow.js';
 import type {Position} from './motion.js';
 import type {MobType} from '../../shared/types.js';
@@ -5,9 +6,9 @@ import {STADIUM_BOUNDS,inStadium} from './stadium.js';
 
 /** Shared metres: terrain, server bounds, roads and minimap read this layout. */
 export const WORLD_BOUNDS=Object.freeze({minX:-37,maxX:73,minZ:-45,maxZ:45});
-export type LocationId='forest'|'stadium'|'snow';
-export const locationAt=(point:Position):LocationId=>inSnow(point)?'snow':inStadium(point)?'stadium':'forest';
-export const boundsForPosition=(point:Position)=>inSnow(point)?SNOW_BOUNDS:inStadium(point)?STADIUM_BOUNDS:WORLD_BOUNDS;
+export type LocationId='forest'|'stadium'|'snow'|'wasteland';
+export const locationAt=(point:Position):LocationId=>inWasteland(point)?'wasteland':inSnow(point)?'snow':inStadium(point)?'stadium':'forest';
+export const boundsForPosition=(point:Position)=>inWasteland(point)?WASTELAND_BOUNDS:inSnow(point)?SNOW_BOUNDS:inStadium(point)?STADIUM_BOUNDS:WORLD_BOUNDS;
 export const sameLocation=(a:Position,b:Position)=>locationAt(a)===locationAt(b);
 export interface WorldClearing extends Position {readonly id:string;readonly name:string;readonly radius:number;readonly tint:string}
 export const WORLD_CLEARINGS:readonly Readonly<WorldClearing>[]=Object.freeze([

@@ -1,3 +1,4 @@
+import {WASTELAND_BOUNDS,WASTELAND_ROADS,WASTELAND_LANDMARKS} from './wasteland.js';
 import {SNOW_BOUNDS,SNOW_ROADS,SNOW_LANDMARKS} from './snow.js';
 import {WORLD_BOUNDS,WORLD_CLEARINGS,WORLD_ROADS,WORLD_LANDMARKS,locationAt} from './world-layout.js';
 import {STADIUM_BOUNDS,STADIUM_PENS,STADIUM_HUB} from './stadium.js';
@@ -5,6 +6,7 @@ import type {Position} from './motion.js';
 
 /** Draw before actors/AFK rings; coordinates match scene.mapPosition's padding. */
 export function drawWorldMapBackdrop(ctx:CanvasRenderingContext2D,width:number,height:number,position:Position={x:0,z:0}){
+  if(locationAt(position)==='wasteland'){drawWastelandMap(ctx,width,height);return;}
   if(locationAt(position)==='snow'){drawSnowMap(ctx,width,height);return;}
   if(locationAt(position)==='stadium'){drawStadiumMap(ctx,width,height);return;}
   const sx=(width-20)/(WORLD_BOUNDS.maxX-WORLD_BOUNDS.minX),sz=(height-16)/(WORLD_BOUNDS.maxZ-WORLD_BOUNDS.minZ);
@@ -43,4 +45,12 @@ function drawSnowMap(ctx:CanvasRenderingContext2D,width:number,height:number){
   ctx.strokeStyle='#a4bfca';ctx.lineCap='round';ctx.lineJoin='round';ctx.lineWidth=1.4;
   for(const road of SNOW_ROADS){ctx.beginPath();road.points.forEach((point,i)=>{const p=at(point);if(i)ctx.lineTo(p.x,p.y);else ctx.moveTo(p.x,p.y);});ctx.stroke();}
   for(const landmark of SNOW_LANDMARKS){const p=at(landmark);ctx.strokeRect(p.x-2,p.y-2,4,4);}ctx.restore();
+}
+
+function drawWastelandMap(ctx:CanvasRenderingContext2D,width:number,height:number){
+ const sx=(width-20)/160,sz=(height-16)/160,at=(p:Position)=>({x:10+(p.x-WASTELAND_BOUNDS.minX)*sx,y:8+(p.z-WASTELAND_BOUNDS.minZ)*sz});
+ ctx.save();ctx.clearRect(0,0,width,height);ctx.fillStyle='#3d3a30';ctx.fillRect(0,0,width,height);ctx.strokeStyle='#bca27d';ctx.lineCap='round';ctx.lineJoin='round';ctx.lineWidth=1.4;
+ for(const road of WASTELAND_ROADS){ctx.beginPath();road.points.forEach((p,i)=>{const q=at(p);if(i)ctx.lineTo(q.x,q.y);else ctx.moveTo(q.x,q.y);});ctx.stroke();}
+ for(const mark of WASTELAND_LANDMARKS){const p=at(mark);ctx.strokeStyle='#cfb786';ctx.strokeRect(p.x-2,p.y-2,4,4);}
+ const camp=at({x:526,z:0});ctx.fillStyle='#839e91';ctx.beginPath();ctx.ellipse(camp.x,camp.y,6*sx,6*sz,0,0,Math.PI*2);ctx.fill();ctx.restore();
 }

@@ -20,9 +20,9 @@ export const SNOW_SPAWNS:readonly Readonly<Position & {type:MobType;spotId?:Snow
  {type:'ice-golem',eliteId:'glacier-warden',x:423,z:-29},
 ]);
 export const SNOW_ROADS=Object.freeze([
- {id:'snow-main',width:5,points:[SNOW_ENTRY,{x:287,z:8},{x:315,z:6},{x:350,z:3},{x:380,z:12},{x:416,z:12}]},
+ {id:'snow-main',width:5,points:[SNOW_ENTRY,{x:287,z:8},{x:315,z:6},{x:350,z:3},{x:380,z:12},{x:416,z:12},{x:437,z:12}]},
  {id:'snow-north',width:4,points:[{x:287,z:8},{x:288,z:-12},{x:304,z:-36},{x:326,z:-46},{x:371,z:-55},{x:412,z:-57}]},
- {id:'snow-south',width:4,points:[{x:287,z:8},{x:294,z:40},{x:324,z:58},{x:353,z:62},{x:402,z:44},{x:416,z:12}]},
+ {id:'snow-south',width:4,points:[{x:287,z:8},{x:294,z:40},{x:324,z:58},{x:353,z:62},{x:402,z:44},{x:416,z:12},{x:437,z:12}]},
 ]);
 export const SNOW_LANDMARKS=Object.freeze([{id:'snow-obelisk',name:'Ледяной обелиск',kind:'obelisk',x:360,z:-30},{id:'snow-ruins',name:'Застывшие руины',kind:'ruins',x:413,z:56},{id:'snow-crystals',name:'Сердце ледника',kind:'crystals',x:426,z:-66}]);
 const LANDMARK_OBSTACLES:readonly Readonly<Obstacle>[]=Object.freeze([{x:360,z:-30,r:2.2},{x:413,z:56,w:6,d:2},{x:426,z:-66,r:2.5}]);

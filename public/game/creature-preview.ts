@@ -6,7 +6,7 @@ import {element as $,errorMessage} from './ui-types.js';
 type MobModel=ReturnType<typeof createMob>;
 type MobType=keyof typeof MOB_TYPES;
 type CreatureKey=MobType|'wolf-before';
-const creatureType=(value:string):MobType=>value==='boar'||value==='alpha'||value==='bear'?value:'wolf';
+const creatureType=(value:string):MobType=>Object.hasOwn(MOB_TYPES,value)?value as MobType:'wolf';
 const renderer=new T.WebGLRenderer({canvas:$('portrait'),antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.1;
 const scene=new T.Scene();scene.background=new T.Color('#192125');scene.fog=new T.Fog('#192125',10,24);

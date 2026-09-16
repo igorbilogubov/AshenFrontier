@@ -27,6 +27,14 @@ export function createLateWorldEnvironment(scene:T.Scene){
    if(region.id==='citadel'){for(let j=0;j<3;j++)box(statics,1.2,.02,.65,j%2?stone:trim,x+j*1.27,-.006,z);}
    if(region.id==='mines'){const sleeper=box(statics,3,.025,.23,wood,x,-.005,z);sleeper.rotation.y=i*.5;}
   }
+  // Three substantial landmarks establish the biome at walking-camera scale.
+  // Their four-metre bases are exported in late-world.ts as solid circles.
+  for(const [dx,z] of [[20,-55],[160,45],[20,50]]){const x=region.bounds.minX+dx;
+   if(region.id==='swamp'){cylinder(statics,3.8,4,.8,wood,x,.4,z,11);cylinder(statics,.8,1.4,7.5,wood,x,4,z,9);for(let k=0;k<6;k++){const a=k*Math.PI/3,g=joint(statics,x,0,z);g.rotation.y=a;const branch=cylinder(g,.08,.27,4.5,wood,1.2,5.3,0,7);branch.rotation.z=-.65;const canopy=mesh(g,new T.IcosahedronGeometry(1,1),stone,2.7,6.6,0);canopy.scale.set(2.2,.8,1.6);for(let j=0;j<4;j++)cylinder(g,.018,.04,2.2,trim,2+j*.35,5.4,.6,4);}}
+   if(region.id==='mines'){cylinder(statics,3.5,4,1.2,stone,x,.6,z,9);for(let k=0;k<7;k++){const a=k*.9,c=cylinder(statics,0,.5,3+k%3,accent,x+Math.cos(a)*2,2.2,z+Math.sin(a)*2,5);c.rotation.z=Math.cos(a)*.23;c.rotation.x=Math.sin(a)*.23;}}
+   if(region.id==='rift'){cylinder(statics,3,4,2.7,stone,x,1.35,z,9);cylinder(statics,2.65,2.8,.08,accent,x,2.73,z,16);for(let k=0;k<9;k++){const a=k*Math.PI*2/9,lip=mesh(statics,new T.DodecahedronGeometry(.7,0),stone,x+Math.cos(a)*3,2.8,z+Math.sin(a)*3);lip.scale.y=.7;}}
+   if(region.id==='citadel'){cylinder(statics,3.7,4,7,stone,x,3.5,z,8);cylinder(statics,4,3.9,.5,trim,x,7.25,z,8);for(let k=0;k<8;k++){const a=k*Math.PI/4;box(statics,.7,1,.7,trim,x+Math.cos(a)*3.6,8,z+Math.sin(a)*3.6);}for(const side of [-1,1])box(statics,.15,2,.03,accent,x+side*1.2,4.5,z+3.7);}
+  }
   // Distant silhouettes outside playable bounds; both horizontal passages stay open.
   for(let side=0;side<4;side++)for(let i=0;i<25;i++){const x=side<2?region.bounds.minX+i*7.5:side===2?region.bounds.minX-6:region.bounds.maxX+6,z=side<2?(side===0?-96:96):-90+i*7.5;if(side>=2&&Math.abs(z)<13)continue;const m=mesh(statics,new T.DodecahedronGeometry(1,0),stone,x,2,z);m.scale.set(4,3+i%4,4);if(region.id==='citadel'){box(statics,5,6+i%4,3,stone,x,3,z);box(statics,5.4,.5,3.4,trim,x,6+i%4,z);}}
   // Region-specific dungeon facade is open in its center. Only side pillars are solid.

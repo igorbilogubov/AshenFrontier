@@ -17,3 +17,8 @@ test('map routes and dungeon entrances have no invisible obstructions',()=>{
  assert.equal(new Set(LATE_PASSAGES.map(p=>p.id)).size,8);
  for(const p of LATE_PASSAGES){const destination=LATE_REGIONS.find(r=>lateRegionAt(p.destination)?.id===r.id);if(destination)assert(canOccupy(p.destination.x,p.destination.z,destination.obstacles,.3,destination.bounds));assert(LATE_PASSAGES.every(t=>Math.hypot(t.x-p.destination.x,t.z-p.destination.z)>t.range+.3),'arrival retriggers transition');}
 });
+test('inactive late environments are hidden and static geometry stays batched',async()=>{
+ const T=await import('../dist/public/game/vendor/three.module.js'),{createLateWorldEnvironment}=await import('../dist/public/game/late-world-environment.js');const scene=new T.Scene(),env=createLateWorldEnvironment(scene);assert.equal(env.roots.size,4);
+ for(const r of LATE_REGIONS){env.updateRegion(r.id);assert.equal([...env.roots.values()].filter(g=>g.visible).length,1);let draws=0,triangles=0;env.roots.get(r.id).traverse(o=>{if(o.isMesh){draws++;triangles+=(o.geometry.index?.count??o.geometry.attributes.position.count)/3;}});assert(draws<=12,`${r.id}: ${draws} unbatched draw calls`);assert(triangles<150000,`${r.id}: ${triangles} triangles`);env.update(.016);}
+ env.updateRegion('forest');assert([...env.roots.values()].every(g=>!g.visible));env.dispose();assert.equal(scene.children.length,0);
+});

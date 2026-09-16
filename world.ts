@@ -182,6 +182,11 @@ export class World{
     if(!p.interactionTarget)return false;
     p.interactionTarget=null;p.input={...p.input,x:0,z:0,aim:null};p.vx=p.vz=0;return true;
   }
+  refreshCombat(p:Hero){
+    if(p.combatUntil<=this.t||p.attack||p.channel)return;
+    const engaged=this.mobs.some(m=>liveMob(m)&&sameLocation(p,m)&&m.target===p.id&&['chase','windup','recover'].includes(m.state));
+    if(!engaged)p.combatUntil=this.t;
+  }
   addGroundDrop(owner:string,drop:GroundDrop){
     this.groundLoot=this.groundLoot.filter(candidate=>candidate.expiresAt>this.t);
     while(this.groundLoot.filter(candidate=>candidate.owner===owner).length>=MAX_GROUND_DROPS_PER_HERO){
@@ -260,6 +265,7 @@ export class World{
   }
   portalAvailable(p:Hero){
     this.settleSafe(p);
+    this.refreshCombat(p);
     return p.connected&&!p.dead&&!p.attack&&p.combatUntil<=this.t&&!this.mobs.some(m=>m.target===p.id&&['chase','windup','recover'].includes(m.state));
   }
   usePortal(p:Hero,id:unknown){
@@ -908,6 +914,7 @@ export class World{
     dt=Math.max(0,Math.min(.1,dt));this.t=now;this.age+=dt;
     this.groundLoot=this.groundLoot.filter(drop=>drop.expiresAt>this.t);
     for(const p of this.players.values()){
+      this.refreshCombat(p);
       if(p.shopActive&&!this.vendorAvailable(p))p.shopActive=false;
       if(p.stashActive&&!this.chestAvailable(p))p.stashActive=false;
       p.hurt=Math.max(0,p.hurt-dt);p.potionCooldown=Math.max(0,p.potionCooldown-dt);p.manaPotionCooldown=Math.max(0,p.manaPotionCooldown-dt);
@@ -1008,6 +1015,7 @@ export class World{
       }
       m.gait+=m.speed*dt*5.8;
     }
+    for(const p of this.players.values())this.refreshCombat(p);
     for(let i=this.projectiles.length-1;i>=0;i--){
       const b=this.projectiles[i],owner=this.players.get(b.owner);let hit=false;
       const steps=Math.max(1,Math.ceil(b.speed*dt/.15));

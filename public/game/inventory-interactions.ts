@@ -1,6 +1,6 @@
 import type {Item,ClassId,EquipmentSlot,WorldEvent,ClientCommand} from '../../shared/types.js';
 import type {NetworkGame} from './network.js';
-import {MAX_STASH_CAPACITY,STASH_SLOT_PRICE,backpackItems,canEquip,CLASSES,EQUIPMENT_SLOTS,itemBonus,itemClassName,itemWrongClass} from '../rules.js';
+import {MAX_STASH_CAPACITY,STASH_SLOT_PRICE,backpackItems,canEquip,CLASSES,EQUIPMENT_SLOTS,itemBonus,itemClassName,itemShownClass,itemWrongClass} from '../rules.js';
 import {safe,distance} from './location.js';
 import {renderItemRolls} from './item-details.js';
 import {itemArtwork} from './item-icons.js';
@@ -13,11 +13,12 @@ import {equippedSetCounts,itemSet} from './equipment-sets.js';
 
 export const RARITY_LABELS=['Обычный','Необычный','Редкий','Возвышенный','Сетовый'] as const;
 const node=<K extends keyof HTMLElementTagNameMap>(tag:K,className='',text='')=>{const value=document.createElement(tag);value.className=className;value.textContent=text;return value;};
-export function paintItemClass(host:HTMLElement,item:{classId?:Item['classId']}|undefined,heroClass:ClassId){
+export function paintItemClass(host:HTMLElement,item:{classId?:Item['classId'];slot?:Item['slot']}|undefined,heroClass:ClassId){
   let mark=host.querySelector<HTMLElement>(':scope > .item-class');
-  if(!item?.classId){mark?.remove();return;}
+  const classId=itemShownClass(item);
+  if(!classId){mark?.remove();return;}
   if(!mark){mark=node('b','item-class');host.append(mark);}
-  mark.textContent=itemClassName(item.classId);
+  mark.textContent=itemClassName(classId);
   mark.classList.toggle('wrong-class',itemWrongClass({classId:heroClass},item));
 }
 export function tooltipPosition(anchor:Pick<DOMRect,'left'|'right'|'top'|'bottom'>,width:number,height:number,viewportWidth:number,viewportHeight:number){
@@ -89,7 +90,7 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
     stashCount.textContent=`${p.stash.length} / ${p.stashCapacity} ячеек · вещи сохранены у этого героя`;stashGrid.replaceChildren();
     for(let i=0;i<p.stashCapacity;i++){
       const item=p.items.find(item=>item.id===p.stash[i]),button=node('button',`bag-cell ${item?'rarity-'+item.rarity:'empty'}`);button.type='button';
-      if(item){button.dataset.itemId=item.id;button.innerHTML=itemArtwork(item,item.classId||p.classId);button.setAttribute('aria-label',`${itemDisplayName(item.name)} · ${itemClassName(item.classId)}`);paintItemClass(button,item,p.classId);}else button.setAttribute('aria-label','Пустая ячейка сундука');
+      if(item){button.dataset.itemId=item.id;button.innerHTML=itemArtwork(item,item.classId||p.classId);button.setAttribute('aria-label',`${itemDisplayName(item.name)} · ${itemClassName(itemShownClass(item))}`);paintItemClass(button,item,p.classId);}else button.setAttribute('aria-label','Пустая ячейка сундука');
       stashGrid.append(button);
     }
     if(p.stashCapacity<MAX_STASH_CAPACITY){
@@ -118,7 +119,7 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
     const head=node('div','tooltip-heading'),art=node('div','tooltip-art');art.innerHTML=itemArtwork(item,item.classId||game.player.classId);
     const text=node('div');text.append(node('p',`eyebrow rarity-text-${item.rarity}`,`${RARITY_LABELS[item.rarity]||RARITY_LABELS[0]} · ${EQUIPMENT_SLOTS[item.slot].name}`),node('h3','',itemDisplayName(item.name)));head.append(art,text);
     const wrong=itemWrongClass(game.player,item);
-    const requirement=node('p',`tooltip-requirements${wrong?' wrong-class':''}`,wrong?`${itemClassName(item.classId)} · нельзя надеть`:`${itemClassName(item.classId)} · уровень предмета ${item.itemLevel||1}`);
+    const requirement=node('p',`tooltip-requirements${wrong?' wrong-class':''}`,wrong?`${itemClassName(itemShownClass(item))} · нельзя надеть`:`${itemClassName(itemShownClass(item))} · уровень предмета ${item.itemLevel||1}`);
     tooltip.append(head,requirement);
     const values=node('div','item-rolls');renderItemRolls(values,item,game.player.items.find(other=>other.id===game.player.equipment[item.slot]));
     if(!item.rolls)values.append(node('p','',itemBonus(item)));tooltip.append(values);
@@ -185,12 +186,12 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
   function renderShop(){
     wares.replaceChildren();tabs.replaceChildren();
     for(const classId of ['warrior','archer','mage'] as const){const button=node('button',classId===tab?'selected':'',CLASSES[classId].name);button.type='button';button.setAttribute('aria-pressed',String(classId===tab));button.onclick=()=>{tab=classId;hideTooltip();renderShop();};tabs.append(button);}
-    for(const listing of shopItems().filter(value=>value.classId===tab)){
+    for(const listing of shopItems().filter(value=>value.classId===tab||value.slot==='ring'||value.slot==='amulet')){
       const button=node('button','vendor-item');button.type='button';button.dataset.definitionId=listing.definitionId;button.draggable=false;
       const image=node('span','vendor-item-art');image.innerHTML=itemArtwork(vendorSamples.get(listing.definitionId)!,listing.classId);
       button.append(image,node('span','vendor-item-name',listing.name),node('span','vendor-price',`${listing.price} зол.`));
       paintItemClass(button,listing,game.player.classId);
-      button.setAttribute('aria-label',`${listing.name} · ${itemClassName(listing.classId)} · ${listing.price} золота. Правая кнопка — купить`);
+      button.setAttribute('aria-label',`${listing.name} · ${itemClassName(itemShownClass(listing))} · ${listing.price} золота. Правая кнопка — купить`);
       button.onclick=()=>showTooltip(button);button.ondblclick=()=>buy(listing.definitionId);wares.append(button);
     }
   }

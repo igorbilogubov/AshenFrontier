@@ -3,7 +3,7 @@ import {loadWarrior} from './character.js';
 import {mesh} from './models.js';
 import {itemArtwork} from './item-icons.js';
 import {itemDisplayName} from './equipment-items.js';
-import {itemClassName,itemWrongClass} from '../rules.js';
+import {itemClassName,itemShownClass,itemWrongClass} from '../rules.js';
 import {SHOP} from './shop.js';
 import {sameLocation} from './world-layout.js';
 import {PERSONAL_CHEST,insideHouse} from './camp-layout.js';
@@ -55,8 +55,8 @@ export async function createWorldInteractions(scene:T.Scene,game:NetworkGame,cho
       const icon=document.createElement('span');icon.className='ground-loot-icon';icon.innerHTML=itemArtwork(drop.item,drop.item.classId||game.player.classId);label.append(icon);
       const text=document.createElement('span');text.className='ground-loot-text';
       const name=document.createElement('span');name.className='ground-loot-name';name.textContent=itemDisplayName(drop.item.name);
-      const klass=document.createElement('small');klass.className='ground-loot-class';klass.textContent=itemClassName(drop.item.classId);
-      if(itemWrongClass(game.player,drop.item)){label.classList.add('wrong-class');klass.textContent=`${itemClassName(drop.item.classId)} · нельзя надеть`;}
+      const klass=document.createElement('small');klass.className='ground-loot-class';klass.textContent=itemClassName(itemShownClass(drop.item));
+      if(itemWrongClass(game.player,drop.item)){label.classList.add('wrong-class');klass.textContent=`${itemClassName(itemShownClass(drop.item))} · нельзя надеть`;}
       text.append(name,klass);label.append(text);label.setAttribute('aria-label',`Подобрать: ${name.textContent} · ${klass.textContent}`);
     }else{
       const name=document.createElement('span');name.textContent=`${drop.amount||0} золота`;label.append(name);label.setAttribute('aria-label',`Подобрать: ${name.textContent}`);

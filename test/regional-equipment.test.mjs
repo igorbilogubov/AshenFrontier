@@ -16,7 +16,10 @@ test('regional collections have six slots, enforce level/class, preserve ranges 
   assert.equal(definitions.length,6);assert.equal(new Set(definitions.map(d=>d.slot)).size,6);
   for(const definition of definitions){
    const item=rollEquipment(definition.id,definition.id,()=>.6);validateEquipment(item);validateEquipment(JSON.parse(JSON.stringify(item)));
-   assert.equal(item.itemLevel,level);assert.equal(item.rarity,rarity);assert(!canEquip({classId,level:level-1},item));assert(canEquip({classId,level},item));assert(!canEquip({classId:classes.find(c=>c!==classId),level},item));
+   assert.equal(item.itemLevel,level);assert.equal(item.rarity,rarity);assert(!canEquip({classId,level:level-1},item));assert(canEquip({classId,level},item));
+   const other=classes.find(c=>c!==classId);
+   if(definition.slot==='ring'||definition.slot==='amulet')assert(canEquip({classId:other,level},item));
+   else assert(!canEquip({classId:other,level},item));
    assert.equal(regionalAppearance(definition.appearance).region,region);
    const png=await fs.readFile(new URL('../public/game/item-icons/'+itemArtKey(item)+'.png',import.meta.url));assert.equal(png.readUInt32BE(16),256);assert.equal(png.readUInt32BE(20),256);
   }

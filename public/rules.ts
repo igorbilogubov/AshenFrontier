@@ -74,9 +74,11 @@ export function swapBag(source:BagSource,id:unknown,slot:unknown):(string|null)[
 const validClass=(id: unknown): ClassId=>id==='warrior'||id==='archer'||id==='mage'?id:'warrior';
 export const classFor=(id: unknown)=>CLASSES[validClass(id)];
 export const weaponClass=(item: Item | null | undefined)=>item?.classId||'warrior';
-export const canEquip=(hero: Pick<StatSource, 'classId'|'level'>,item: Item | null | undefined)=>!!item&&Object.hasOwn(EQUIPMENT_SLOTS,item.slot)&&(item.definitionId?(!!itemDefinition(item.definitionId)&&item.classId===(hero.classId||'warrior')&&(hero.level??1)>=(item.itemLevel??1)):(item.slot!=='weapon'||weaponClass(item)===(hero.classId||'warrior')));
+export const sharedEquipmentSlot=(slot:unknown)=>slot==='ring'||slot==='amulet';
+export const canEquip=(hero: Pick<StatSource, 'classId'|'level'>,item: Item | null | undefined)=>!!item&&Object.hasOwn(EQUIPMENT_SLOTS,item.slot)&&(item.definitionId?(!!itemDefinition(item.definitionId)&&(sharedEquipmentSlot(item.slot)||item.classId===(hero.classId||'warrior'))&&(hero.level??1)>=(item.itemLevel??1)):(item.slot!=='weapon'||weaponClass(item)===(hero.classId||'warrior')));
+export const itemShownClass=(item:{classId?:Item['classId'];slot?:Item['slot']}|null|undefined)=>item&&!sharedEquipmentSlot(item.slot)?item.classId:undefined;
 export const itemClassName=(classId:unknown)=>typeof classId==='string'&&Object.hasOwn(CLASSES,classId)?CLASSES[classId as ClassId].name:'Все классы';
-export const itemWrongClass=(hero:Pick<StatSource,'classId'>,item:Pick<Item,'classId'>|null|undefined)=>!!item?.classId&&item.classId!==(hero.classId||'warrior');
+export const itemWrongClass=(hero:Pick<StatSource,'classId'>,item:{classId?:Item['classId'];slot?:Item['slot']}|null|undefined)=>!!itemShownClass(item)&&itemShownClass(item)!==(hero.classId||'warrior');
 export const itemBonus=(item: Item)=>item.rolls?.map(roll=>`${ITEM_STAT_LABELS[roll.key]} ${rollValue(roll)}`).join(' · ')||`+${item.power} ${EQUIPMENT_SLOTS[item.slot]?.statName||''}`;
 
 // One ruleset drives the authoritative simulation and the allocation preview.

@@ -22,8 +22,9 @@ test('kills drop gear for every class, not only the killer',()=>{
     assert(drop);validateEquipment(drop.item);seen.add(drop.item.classId);
     assert.equal(itemDisplayName(drop.item.name),drop.item.name);
     assert.doesNotMatch(drop.item.name,/простого качества|превосходства|величия|наследия/);
-    assert.equal(itemWrongClass(p,drop.item),drop.item.classId!==p.classId);
-    if(drop.item.classId!==p.classId)assert.equal(canEquip(p,drop.item),false);
+    const accessory=drop.item.slot==='ring'||drop.item.slot==='amulet';
+    assert.equal(itemWrongClass(p,drop.item),!accessory&&drop.item.classId!==p.classId);
+    if(drop.item.classId!==p.classId)assert.equal(canEquip(p,drop.item),accessory);
   }
   assert.deepEqual([...seen].sort(),['archer','mage','warrior']);
 });
@@ -40,6 +41,17 @@ test('catalog names omit rarity quality; display helper strips old suffixes',()=
   const pool=regionalDropPool('forest',0);
   assert.equal(new Set(pool.map(item=>item.classId)).size,3);
   assert.equal(pool.length,COMMON_CLASS_ITEMS.warrior.length+COMMON_CLASS_ITEMS.archer.length+COMMON_CLASS_ITEMS.mage.length);
+});
+
+test('any class can wear rings and amulets rolled for another class',()=>{
+  const w=new World({random:()=>0}),p=newHero('Украшения','warrior');w.add(p);
+  const ring=rollEquipment('hawk-ring','any-ring',()=>.4),amulet=rollEquipment('moon-amulet','any-amulet',()=>.4);
+  p.items.push(ring,amulet);
+  assert(canEquip(p,ring));assert(canEquip(p,amulet));assert.equal(itemWrongClass(p,ring),false);assert.equal(itemWrongClass(p,amulet),false);
+  w.command(p,{type:'equip',id:ring.id});w.command(p,{type:'equip',id:amulet.id});
+  assert.equal(p.equipment.ring,ring.id);assert.equal(p.equipment.amulet,amulet.id);
+  const bow=rollEquipment('sentinel-bow','other-bow',()=>.4);p.items.push(bow);
+  assert.equal(canEquip(p,bow),false);w.command(p,{type:'equip',id:bow.id});assert.notEqual(p.equipment.weapon,bow.id);
 });
 
 test('saved archer and mage rolls keep their exact instance identity through load and equipment changes',()=>{

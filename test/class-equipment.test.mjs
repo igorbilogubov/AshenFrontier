@@ -27,7 +27,10 @@ test('each class has ten unique definitions and six slots, with stable validated
     for(const definition of catalog){
       for(const random of [()=>0,()=>.42,()=>1-Number.EPSILON]){
         const item=rollEquipment(definition.id,definition.id,random);assert.equal(item.classId,classId);validateEquipment(item);validateEquipment(JSON.parse(JSON.stringify(item)));
-        assert(canEquip({classId,level:1},item));assert(!canEquip({classId:classId==='mage'?'archer':'mage',level:1},item));
+        assert(canEquip({classId,level:1},item));
+        const other=classId==='mage'?'archer':'mage';
+        if(definition.slot==='ring'||definition.slot==='amulet')assert(canEquip({classId:other,level:1},item));
+        else assert(!canEquip({classId:other,level:1},item));
         const forged=structuredClone(item);forged.classId='warrior';assert.throws(()=>validateEquipment(forged));
         assert.equal(itemArtKey(item,classId),definition.id);
       }

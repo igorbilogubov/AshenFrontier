@@ -14,42 +14,46 @@ export const STADIUM_ROW_Z0=-6;
 export const STADIUM_ROW_PITCH=22;
 export const STADIUM_ROWS=7;
 export const STADIUM_COLS=4;
-/** First four pens keep historical SPAWNS indices; the other 24 append after dungeons. */
+/** First four pens keep historical SPAWNS indices; the other 24 append after dungeons. Extra homes append after large field packs. */
 export const STADIUM_EXPANSION_SPAWN_BASE=620;
+export const STADIUM_PEN_HOME=6;
+export const STADIUM_PEN_EXTRA=4;
+export const STADIUM_PEN_SIZE=STADIUM_PEN_HOME+STADIUM_PEN_EXTRA;
+export const STADIUM_EXTRA_SPAWN_BASE=1017;
 export const STADIUM_BOUNDS=Object.freeze({minX:133,maxX:205,minZ:-149,maxZ:23});
 export const STADIUM_HUB=Object.freeze({x:160,z:15,r:6.2});
 const ROMAN=['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII','XIII','XIV','XV','XVI','XVII','XVIII','XIX','XX','XXI','XXII','XXIII','XXIV','XXV','XXVI','XXVII','XXVIII'] as const;
 export type StadiumRank=typeof ROMAN[number];
-const ALPHA_MOBS=Object.freeze(['alpha','alpha','wolf','wolf','wolf','wolf'] as const satisfies readonly MobType[]);
+const ALPHA_MOBS=Object.freeze(['alpha','alpha','wolf','wolf','wolf','wolf','wolf','wolf','wolf','wolf'] as const satisfies readonly MobType[]);
 const DESIGNS=Object.freeze([
-  {id:'stadium-wolves',name:'Волчий загон',subtitle:'Волки · 6 существ',type:'wolf' as const,tint:'#819b94'},
-  {id:'stadium-boars',name:'Кабаний загон',subtitle:'Кабаны · 6 существ',type:'boar' as const,tint:'#b29a71'},
-  {id:'stadium-alphas',name:'Загон вожаков',subtitle:'2 вожака и 4 волка',type:'alpha' as const,tint:'#9b859e',mobs:ALPHA_MOBS},
-  {id:'stadium-bears',name:'Медвежий загон',subtitle:'Медведи · 6 существ',type:'bear' as const,tint:'#a68466'},
-  {id:'stadium-lynx',name:'Рысий загон',subtitle:'Снежные рыси · 6 существ',type:'lynx' as const,tint:'#8aa7b8'},
-  {id:'stadium-yak',name:'Загон яков',subtitle:'Шерстистые яки · 6 существ',type:'yak' as const,tint:'#c5d4dc'},
-  {id:'stadium-frost-spider',name:'Загон морозных пауков',subtitle:'Морозные пауки · 6 существ',type:'frost-spider' as const,tint:'#7b9aa8'},
-  {id:'stadium-ice-golem',name:'Загон ледяных големов',subtitle:'Ледяные големы · 6 существ',type:'ice-golem' as const,tint:'#9ec4d4'},
-  {id:'stadium-ash-jackal',name:'Шакалий загон',subtitle:'Пепельные шакалы · 6 существ',type:'ash-jackal' as const,tint:'#c4a070'},
-  {id:'stadium-scorpion',name:'Загон скорпионов',subtitle:'Обсидиановые скорпионы · 6 существ',type:'scorpion' as const,tint:'#b07a4a'},
-  {id:'stadium-monitor-lizard',name:'Загон варанов',subtitle:'Пустынные вараны · 6 существ',type:'monitor-lizard' as const,tint:'#9a6b3c'},
-  {id:'stadium-scarab',name:'Загон скарабеев',subtitle:'Панцирные скарабеи · 6 существ',type:'scarab' as const,tint:'#d4b06a'},
-  {id:'stadium-swamp-frog',name:'Жабий загон',subtitle:'Топяные жабы · 6 существ',type:'swamp-frog' as const,tint:'#6a8b62'},
-  {id:'stadium-marsh-crocodile',name:'Крокодилий загон',subtitle:'Болотные крокодилы · 6 существ',type:'marsh-crocodile' as const,tint:'#4e7a58'},
-  {id:'stadium-plague-mosquito',name:'Комариный загон',subtitle:'Чумные комары · 6 существ',type:'plague-mosquito' as const,tint:'#7a9a4a'},
-  {id:'stadium-bog-spider',name:'Загон топяных пауков',subtitle:'Топяные пауки · 6 существ',type:'bog-spider' as const,tint:'#3d6b52'},
-  {id:'stadium-cave-bat',name:'Загон нетопырей',subtitle:'Пещерные нетопыри · 6 существ',type:'cave-bat' as const,tint:'#8b7aad'},
-  {id:'stadium-cave-crawler',name:'Загон ползунов',subtitle:'Пещерные ползуны · 6 существ',type:'cave-crawler' as const,tint:'#6d6a8a'},
-  {id:'stadium-crystal-beetle',name:'Загон кристальных жуков',subtitle:'Кристальные жуки · 6 существ',type:'crystal-beetle' as const,tint:'#a090c4'},
-  {id:'stadium-stone-guardian',name:'Загон каменных стражей',subtitle:'Каменные стражи · 6 существ',type:'stone-guardian' as const,tint:'#7a758c'},
-  {id:'stadium-hellhound',name:'Загон адских гончих',subtitle:'Адские гончие · 6 существ',type:'hellhound' as const,tint:'#c45c3a'},
-  {id:'stadium-lava-elemental',name:'Загон элементалей',subtitle:'Лавовые элементали · 6 существ',type:'lava-elemental' as const,tint:'#d4783c'},
-  {id:'stadium-ember-crab',name:'Загон угольных крабов',subtitle:'Угольные крабы · 6 существ',type:'ember-crab' as const,tint:'#a84832'},
-  {id:'stadium-basalt-brute',name:'Загон громил',subtitle:'Базальтовые громилы · 6 существ',type:'basalt-brute' as const,tint:'#8a4038'},
-  {id:'stadium-bonehound',name:'Загон костяных гончих',subtitle:'Костяные гончие · 6 существ',type:'bonehound' as const,tint:'#6a6e7a'},
-  {id:'stadium-gargoyle',name:'Загон горгулий',subtitle:'Горгульи · 6 существ',type:'gargoyle' as const,tint:'#8a8494'},
-  {id:'stadium-void-stalker',name:'Загон ловчих пустоты',subtitle:'Ловчие пустоты · 6 существ',type:'void-stalker' as const,tint:'#4a4558'},
-  {id:'stadium-iron-warden',name:'Загон надзирателей',subtitle:'Железные надзиратели · 6 существ',type:'iron-warden' as const,tint:'#9a90a8'},
+  {id:'stadium-wolves',name:'Волчий загон',subtitle:'Волки · 10 существ',type:'wolf' as const,tint:'#819b94'},
+  {id:'stadium-boars',name:'Кабаний загон',subtitle:'Кабаны · 10 существ',type:'boar' as const,tint:'#b29a71'},
+  {id:'stadium-alphas',name:'Загон вожаков',subtitle:'2 вожака и 8 волков',type:'alpha' as const,tint:'#9b859e',mobs:ALPHA_MOBS},
+  {id:'stadium-bears',name:'Медвежий загон',subtitle:'Медведи · 10 существ',type:'bear' as const,tint:'#a68466'},
+  {id:'stadium-lynx',name:'Рысий загон',subtitle:'Снежные рыси · 10 существ',type:'lynx' as const,tint:'#8aa7b8'},
+  {id:'stadium-yak',name:'Загон яков',subtitle:'Шерстистые яки · 10 существ',type:'yak' as const,tint:'#c5d4dc'},
+  {id:'stadium-frost-spider',name:'Загон морозных пауков',subtitle:'Морозные пауки · 10 существ',type:'frost-spider' as const,tint:'#7b9aa8'},
+  {id:'stadium-ice-golem',name:'Загон ледяных големов',subtitle:'Ледяные големы · 10 существ',type:'ice-golem' as const,tint:'#9ec4d4'},
+  {id:'stadium-ash-jackal',name:'Шакалий загон',subtitle:'Пепельные шакалы · 10 существ',type:'ash-jackal' as const,tint:'#c4a070'},
+  {id:'stadium-scorpion',name:'Загон скорпионов',subtitle:'Обсидиановые скорпионы · 10 существ',type:'scorpion' as const,tint:'#b07a4a'},
+  {id:'stadium-monitor-lizard',name:'Загон варанов',subtitle:'Пустынные вараны · 10 существ',type:'monitor-lizard' as const,tint:'#9a6b3c'},
+  {id:'stadium-scarab',name:'Загон скарабеев',subtitle:'Панцирные скарабеи · 10 существ',type:'scarab' as const,tint:'#d4b06a'},
+  {id:'stadium-swamp-frog',name:'Жабий загон',subtitle:'Топяные жабы · 10 существ',type:'swamp-frog' as const,tint:'#6a8b62'},
+  {id:'stadium-marsh-crocodile',name:'Крокодилий загон',subtitle:'Болотные крокодилы · 10 существ',type:'marsh-crocodile' as const,tint:'#4e7a58'},
+  {id:'stadium-plague-mosquito',name:'Комариный загон',subtitle:'Чумные комары · 10 существ',type:'plague-mosquito' as const,tint:'#7a9a4a'},
+  {id:'stadium-bog-spider',name:'Загон топяных пауков',subtitle:'Топяные пауки · 10 существ',type:'bog-spider' as const,tint:'#3d6b52'},
+  {id:'stadium-cave-bat',name:'Загон нетопырей',subtitle:'Пещерные нетопыри · 10 существ',type:'cave-bat' as const,tint:'#8b7aad'},
+  {id:'stadium-cave-crawler',name:'Загон ползунов',subtitle:'Пещерные ползуны · 10 существ',type:'cave-crawler' as const,tint:'#6d6a8a'},
+  {id:'stadium-crystal-beetle',name:'Загон кристальных жуков',subtitle:'Кристальные жуки · 10 существ',type:'crystal-beetle' as const,tint:'#a090c4'},
+  {id:'stadium-stone-guardian',name:'Загон каменных стражей',subtitle:'Каменные стражи · 10 существ',type:'stone-guardian' as const,tint:'#7a758c'},
+  {id:'stadium-hellhound',name:'Загон адских гончих',subtitle:'Адские гончие · 10 существ',type:'hellhound' as const,tint:'#c45c3a'},
+  {id:'stadium-lava-elemental',name:'Загон элементалей',subtitle:'Лавовые элементали · 10 существ',type:'lava-elemental' as const,tint:'#d4783c'},
+  {id:'stadium-ember-crab',name:'Загон угольных крабов',subtitle:'Угольные крабы · 10 существ',type:'ember-crab' as const,tint:'#a84832'},
+  {id:'stadium-basalt-brute',name:'Загон громил',subtitle:'Базальтовые громилы · 10 существ',type:'basalt-brute' as const,tint:'#8a4038'},
+  {id:'stadium-bonehound',name:'Загон костяных гончих',subtitle:'Костяные гончие · 10 существ',type:'bonehound' as const,tint:'#6a6e7a'},
+  {id:'stadium-gargoyle',name:'Загон горгулий',subtitle:'Горгульи · 10 существ',type:'gargoyle' as const,tint:'#8a8494'},
+  {id:'stadium-void-stalker',name:'Загон ловчих пустоты',subtitle:'Ловчие пустоты · 10 существ',type:'void-stalker' as const,tint:'#4a4558'},
+  {id:'stadium-iron-warden',name:'Загон надзирателей',subtitle:'Железные надзиратели · 10 существ',type:'iron-warden' as const,tint:'#9a90a8'},
 ] as const);
 export type StadiumPenId=typeof DESIGNS[number]['id'];
 const LEGACY_SPAWN_IDS=Object.freeze([
@@ -59,9 +63,10 @@ const LEGACY_SPAWN_IDS=Object.freeze([
   Object.freeze([89,90,91,92,93,94]),
 ]);
 function spawnIdsFor(index:number):readonly number[]{
-  if(index<LEGACY_SPAWN_IDS.length)return LEGACY_SPAWN_IDS[index];
-  const base=STADIUM_EXPANSION_SPAWN_BASE+(index-LEGACY_SPAWN_IDS.length)*6;
-  return Object.freeze([0,1,2,3,4,5].map(j=>base+j));
+  const extra=Object.freeze(Array.from({length:STADIUM_PEN_EXTRA},(_,j)=>STADIUM_EXTRA_SPAWN_BASE+index*STADIUM_PEN_EXTRA+j));
+  if(index<LEGACY_SPAWN_IDS.length)return Object.freeze([...LEGACY_SPAWN_IDS[index],...extra]);
+  const base=STADIUM_EXPANSION_SPAWN_BASE+(index-LEGACY_SPAWN_IDS.length)*STADIUM_PEN_HOME;
+  return Object.freeze([...Array.from({length:STADIUM_PEN_HOME},(_,j)=>base+j),...extra]);
 }
 export interface StadiumPen extends Position {
   readonly id:StadiumPenId;readonly name:string;readonly subtitle:string;
@@ -71,7 +76,7 @@ export interface StadiumPen extends Position {
 }
 export const STADIUM_PENS:readonly Readonly<StadiumPen>[]=Object.freeze(DESIGNS.map((design,index)=>{
   const col=index%STADIUM_COLS,row=Math.floor(index/STADIUM_COLS);
-  const mobs='mobs' in design&&design.mobs?design.mobs:Object.freeze(Array.from({length:6},()=>design.type));
+  const mobs='mobs' in design&&design.mobs?design.mobs:Object.freeze(Array.from({length:STADIUM_PEN_SIZE},()=>design.type));
   return Object.freeze({
     id:design.id,name:design.name,subtitle:design.subtitle,type:design.type,tint:design.tint,
     x:STADIUM_COL_X[col],z:STADIUM_ROW_Z0-row*STADIUM_ROW_PITCH,
@@ -80,7 +85,9 @@ export const STADIUM_PENS:readonly Readonly<StadiumPen>[]=Object.freeze(DESIGNS.
   });
 }));
 const formation:readonly (readonly [number,number])[]=[[-3,-2.2],[0,-3.7],[3,-2.2],[-3,1.8],[0,3.5],[3,1.8]];
+const extraFormation:readonly (readonly [number,number])[]=[[-4.1,.2],[4.1,.2],[-2.2,-4],[2.2,-4]];
 export const STADIUM_SPAWNS:readonly Readonly<Position & {type:MobType;spotId:StadiumPenId}>[]=Object.freeze(STADIUM_PENS.flatMap(pen=>formation.map(([dx,dz],i)=>Object.freeze({type:pen.mobs[i],spotId:pen.id,x:pen.x+dx,z:pen.z+dz}))));
+export const STADIUM_EXTRA_SPAWNS:readonly Readonly<Position & {type:MobType;spotId:StadiumPenId}>[]=Object.freeze(STADIUM_PENS.flatMap(pen=>extraFormation.map(([dx,dz],i)=>Object.freeze({type:pen.mobs[STADIUM_PEN_HOME+i],spotId:pen.id,x:pen.x+dx,z:pen.z+dz}))));
 export interface Portal extends Position {readonly id:string;readonly minLevel?:number;readonly name:string;readonly range:number;readonly destination:Readonly<Position>;readonly destinationName:string}
 export const PORTALS:readonly Readonly<Portal>[]=Object.freeze([
   Object.freeze({id:'camp-stadium',name:'Стадиум',x:-4.6,z:2.9,range:1.8,destination:Object.freeze({x:160,z:14.8}),destinationName:'Стадиум'}),

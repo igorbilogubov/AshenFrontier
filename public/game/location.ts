@@ -10,7 +10,7 @@ import {canOccupy,turnTowards,gaitProfile} from './motion.js';
 import type {Position} from './motion.js';
 import {nearbyObstacles} from './terrain.js';
 import {AFK_SPAWNS,BEAR_AFK_SPAWNS,FOREST_LARGE_EXTRA_SPAWNS} from './afk.js';
-import {STADIUM_SPAWNS,stadiumSafe} from './stadium.js';
+import {STADIUM_SPAWNS,STADIUM_EXTRA_SPAWNS,stadiumSafe} from './stadium.js';
 import {WORLD_BOUNDS,ROAMING_SPAWNS,EXTRA_ROAMING_SPAWNS,boundsForPosition} from './world-layout.js';
 import type {AfkSpotId} from './afk.js';
 export {AFK_SPOTS,afkSpotAt,withinSpot} from './afk.js';
@@ -78,6 +78,7 @@ export const SPAWNS:readonly Readonly<Position & {type:MobType;spotId?:AfkSpotId
   ...SNOW_LARGE_EXTRA_SPAWNS,
   ...WASTELAND_LARGE_EXTRA_SPAWNS,
   ...LATE_LARGE_EXTRA_SPAWNS as readonly (Position & {type:MobType;spotId?:AfkSpotId})[],
+  ...STADIUM_EXTRA_SPAWNS,
 ]);
 export const safe=(p:Position)=>travelSafe(p)||lateSafe(p)||dungeonSafe(p)||campSafe(p)||stadiumSafe(p)||snowSafe(p)||wastelandSafe(p);
 

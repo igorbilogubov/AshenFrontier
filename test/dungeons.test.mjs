@@ -34,7 +34,7 @@ test('named elites and dungeon bosses use four times authored HP and damage; ord
  assert.equal(MOB_TYPES.bear.hp,145);
 });
 test('seven dungeons have an open route, legal homes, exits and distinct regional loot',()=>{
- assert.equal(DUNGEONS.length,7);assert.equal(DUNGEON_SPAWNS.length,91);assert.equal(SPAWNS.length,1017);
+ assert.equal(DUNGEONS.length,7);assert.equal(DUNGEON_SPAWNS.length,91);assert.equal(SPAWNS.length,1129);
  for(const d of DUNGEONS){assert(dungeonSafe(d.entry));assert.equal(locationAt(d.entry),d.id);assert.equal(fieldRegionAt(d.boss),d.region);assert(clearPath(d.entry,d.boss));for(const p of DUNGEON_SPAWNS.filter(s=>s.dungeonId===d.id)){assert(stand(p.x,p.z,mobConfig(p).radius));assert(!safe(p));}}
  for(const p of ALL_PORTALS){assert(stand(p.x,p.z),`${p.id} source blocked`);assert(stand(p.destination.x,p.destination.z),`${p.id} destination blocked`);}
  for(const p of DUNGEON_PASSAGES)assert(!sameLocation(p,p.destination));

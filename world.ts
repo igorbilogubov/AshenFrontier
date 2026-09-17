@@ -17,7 +17,7 @@ import {SKILLS,skillsForClass,legacySkillId} from './public/game/skills.js';
 import {LOOT_TTL_MS,MAX_GROUND_DROPS_PER_HERO,PICKUP_RANGE,AFK_PICKUP_RANGE,gearRarity,bossItemCount} from './public/game/loot-rules.js';
 import {portalById,ALL_PASSAGES} from './public/game/stadium.js';
 import {locationAt as pointLocation,fieldRegionAt} from './public/game/world-layout.js';
-import {SHOP,shopPrice,sellPrice} from './public/game/shop.js';
+import {SHOP,shopPrice,sellPrice,consumableSellPrice} from './public/game/shop.js';
 import {defaultAfkPreferences,parseAfkPreferences,afkCombatRadius,clampAfkPreferences,isAfkAttackSkill,isAfkBuffSkill} from './public/game/afk-preferences.js';
 import {PERSONAL_CHEST,CHEST_APPROACH,CHEST_DOOR_OUTSIDE,CHEST_DOOR_INSIDE,inChestRoom} from './public/game/personal-stash.js';
 import {consumable,CONSUMABLE_LIMIT,consumableDefinition,consumableKindQuantity,consumableQuantity,assignedConsumable,isQuickSlot,backpackUsage,validateConsumables,type ConsumableKind} from './public/game/consumables.js';
@@ -426,6 +426,21 @@ export class World{
     this.notice(p,kind==='bag'?`Рюкзак: ${p.bagCapacity} ячеек`:`Сундук: ${p.stashCapacity} ячеек`);
     return true;
   }
+  sellOwned(p:Hero,id:unknown){
+    if(!p.shopActive||!this.vendorAvailable(p)||typeof id!=='string')return false;
+    const item=backpackItems(p).find(owned=>owned.id===id);
+    if(item){
+      if(Object.values(p.equipment).includes(item.id))return false;
+      p.gold+=sellPrice(item);p.items=p.items.filter(owned=>owned.id!==item.id);return true;
+    }
+    const stack=p.consumableInventory.find(owned=>owned.id===id&&owned.quantity>0);
+    const definition=stack&&consumableDefinition(stack.definitionId);
+    if(!stack||!definition)return false;
+    p.gold+=consumableSellPrice(definition,stack.quantity);
+    p.consumableInventory=p.consumableInventory.filter(owned=>owned.id!==stack.id);
+    p.potions=consumableKindQuantity(p,'hp');p.manaPotions=consumableKindQuantity(p,'mana');
+    return true;
+  }
   interactionInput(p:Hero){
     const target=p.interactionTarget;if(!target)return {x:0,z:0,aim:null};
     const chestGoal=!inChestRoom(p)?distance(p,CHEST_DOOR_OUTSIDE)>.55?CHEST_DOOR_OUTSIDE:CHEST_DOOR_INSIDE:CHEST_APPROACH;
@@ -708,10 +723,10 @@ export class World{
       if(p.dead)return;
       if((msg.type==='sell'||msg.type==='claim')&&(!safe(p)||p.attack||p.combatUntil>this.t)){this.notice(p,'Это действие доступно у костра, вне боя');return;}
       if(msg.type==='claim'){while(p.pendingItems.length&&backpackUsage(p)<p.bagCapacity)p.items.push(p.pendingItems.shift()!);return;}
+      if(msg.type==='sell'){this.sellOwned(p,msg.id);return;}
       const item=backpackItems(p).find(i=>i.id===msg.id)??(msg.type==='unequip'?p.items.find(i=>i.id===msg.id&&p.equipment[i.slot]===i.id):undefined);if(!item)return;
       if(msg.type==='equip'&&canEquip(p,item)){p.equipment[item.slot]=item.id;if(item.definitionId&&item.slot==='weapon')p.weapon='sword';this.clampResources(p);}
       if(msg.type==='unequip'&&p.equipment[item.slot]===item.id){if(backpackUsage(p)>=p.bagCapacity){this.notice(p,'Рюкзак полон. Освободите ячейку, чтобы снять вещь.');return;}p.equipment[item.slot]=null;this.clampResources(p);}
-      if(msg.type==='sell'&&p.shopActive&&this.vendorAvailable(p)&&!Object.values(p.equipment).includes(item.id)){p.gold+=sellPrice(item);p.items=p.items.filter(i=>i.id!==item.id);}
 
     }
   }

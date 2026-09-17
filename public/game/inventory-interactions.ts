@@ -5,7 +5,7 @@ import {safe,distance} from './location.js';
 import {renderItemRolls} from './item-details.js';
 import {itemArtwork} from './item-icons.js';
 import {ITEM_STAT_LABELS,itemDisplayName,rollEquipment,rollUnit} from './equipment-items.js';
-import {SHOP,shopItems,sellPrice} from './shop.js';
+import {SHOP,shopItems,sellPrice,consumableSellPrice} from './shop.js';
 import {CONSUMABLE_CATALOG,CONSUMABLE_LIMIT,backpackUsage,consumableDefinition,consumableKindQuantity,consumableQuantity} from './consumables.js';
 import {PERSONAL_CHEST} from './personal-stash.js';
 import {consumableArtwork,consumableTier} from './consumable-ui.js';
@@ -54,8 +54,8 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
     supplies.append(group);
   }
   body.append(intro,supplies,wares);
-  const sellZone=node('div','vendor-sell-zone','Перетащите сюда вещь из рюкзака, чтобы продать');sellZone.setAttribute('aria-label','Продать предмет');body.append(sellZone);
-  const footer=node('div','panel-bottom vendor-bottom'),gold=node('span'),hint=node('small','','ПКМ по товару — купить · ПКМ в рюкзаке — продать');footer.append(gold,hint);
+  const sellZone=node('div','vendor-sell-zone','Перетащите сюда вещь или зелье из рюкзака, чтобы продать');sellZone.setAttribute('aria-label','Продать предмет');body.append(sellZone);
+  const footer=node('div','panel-bottom vendor-bottom'),gold=node('span'),hint=node('small','','ПКМ по товару — купить · ПКМ в рюкзаке по вещи или зелью — продать');footer.append(gold,hint);
   vendor.append(heading,tabs,body,footer);document.body.append(vendor);
   const stash=node('aside','rpg-panel stash-panel');stash.id='stash-panel';stash.hidden=true;stash.setAttribute('aria-label','Личный сундук');
   const stashHeading=node('div','panel-title'),stashTitles=node('div');stashTitles.append(node('p','eyebrow','ЛИЧНОЕ ХРАНИЛИЩЕ'),node('h2','','Сундук в доме'));
@@ -153,7 +153,8 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
     hoverSignature=key;
     const heading=node('div','tooltip-heading'),art=node('div','tooltip-art');art.innerHTML=consumableArtwork(definition);
     const text=node('div');text.append(node('p','eyebrow',definition.kind==='hp'?'ЗДОРОВЬЕ':'МАНА'),node('h3','',definition.name));heading.append(art,text);
-    tooltip.append(heading,node('p','tooltip-requirements',`Восстанавливает ${definition.restore} ${definition.kind==='hp'?'HP':'MP'} · в стопке ${stack.quantity} / ${definition.stackLimit}`),node('p','tooltip-footer','Перетащите бутылку на Q или W, чтобы назначить. Зелье останется в рюкзаке.'));tooltip.hidden=false;
+    const footer=opened?`Продажа: ${consumableSellPrice(definition,stack.quantity)} золота · ПКМ — продать всю стопку`:'Перетащите бутылку на Q или W, чтобы назначить. Зелье останется в рюкзаке.';
+    tooltip.append(heading,node('p','tooltip-requirements',`Восстанавливает ${definition.restore} ${definition.kind==='hp'?'HP':'MP'} · в стопке ${stack.quantity} / ${definition.stackLimit}`),node('p','tooltip-footer',footer));tooltip.hidden=false;
     const position=tooltipPosition(element.getBoundingClientRect(),tooltip.offsetWidth,tooltip.offsetHeight,innerWidth,innerHeight);tooltip.style.left=`${position.x}px`;tooltip.style.top=`${position.y}px`;
   }
   function itemAction(item:Item,mode:'equip'|'unequip'|'sell'){
@@ -166,6 +167,12 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
       if(mode==='unequip'&&backpackUsage(game.player)>=game.player.bagCapacity){toast('В рюкзаке нет свободной ячейки');return;}
     }
     send({type:mode,id:item.id});
+  }
+  function sellConsumable(stackId:string){
+    const stack=game.player.consumableInventory.find(value=>value.id===stackId),definition=stack&&consumableDefinition(stack.definitionId);
+    if(!stack||!definition)return;
+    if(!canTrade()){toast('Продавать зелья можно у торговца');return;}
+    send({type:'sell',id:stack.id});
   }
   function buy(definitionId:string){
     const listing=shopItems().find(value=>value.definitionId===definitionId);if(!listing)return;
@@ -204,7 +211,7 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
     container.addEventListener('contextmenu',event=>{
       event.preventDefault();const target=cell(event);if(!target)return;event.stopPropagation();
       if(target.dataset.definitionId){buy(target.dataset.definitionId);return;}
-      if(target.dataset.consumableDefinition)return;
+      if(target.dataset.consumableId){if(opened)sellConsumable(target.dataset.consumableId);return;}
       const item=itemFor(target);if(item&&stashOpened){transfer(item,game.player.stash.includes(item.id));return;}if(item)itemAction(item,opened?'sell':Object.values(game.player.equipment).includes(item.id)?'unequip':'equip');
     });
     container.addEventListener('dragstart',event=>event.preventDefault());
@@ -221,7 +228,10 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
     if(inBag&&payload.id&&Number.isInteger(bagSlot)&&(game.player.bag??[]).includes(payload.id)&&(game.player.bag??[])[bagSlot]!==payload.id){
       game.send({type:'bagMove',id:payload.id,slot:bagSlot});return;
     }
-    if(payload.consumableDefinition)return;
+    if(payload.consumableDefinition){
+      if(payload.id&&vendor.contains(target))sellConsumable(payload.id);
+      return;
+    }
     const item=game.player.items.find(value=>value.id===payload.id);if(!item)return;
     if(stashOpened&&stash.contains(target)){if(!game.player.stash.includes(item.id))transfer(item,false);return;}
     if(stashOpened&&inBag&&game.player.stash.includes(item.id)){transfer(item,true);return;}
@@ -277,7 +287,7 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
       const definitionCount=consumableQuantity(game.player,definition.id),kindCount=consumableKindQuantity(game.player,definition.kind),needsCell=!definitionCount&&backpackUsage(game.player)>=game.player.bagCapacity;
       button.disabled=!canTrade()||game.player.gold<definition.price*quantity||definitionCount+quantity>definition.stackLimit||kindCount+quantity>CONSUMABLE_LIMIT||needsCell;
     }
-    const hint=document.getElementById('inventory-hint')!;hint.textContent=stashOpened?'Сундук открыт · ПКМ или перетаскивание — переложить вещь':opened?'Магазин открыт · ПКМ по вещи — продать · перетащите зелье на Q/W':'Перетащите вещь в другую ячейку или слот · зелье — на Q/W';
+    const hint=document.getElementById('inventory-hint')!;hint.textContent=stashOpened?'Сундук открыт · ПКМ или перетаскивание — переложить вещь':opened?'Магазин открыт · ПКМ по вещи или зелью — продать · перетащите зелье на Q/W':'Перетащите вещь в другую ячейку или слот · зелье — на Q/W';
     if(hover&&!tooltip.hidden){if(hover.dataset.consumableDefinition){if(!game.player.consumableInventory.some(stack=>stack.id===hover!.dataset.consumableId))hideTooltip();else showConsumableTooltip(hover);}else if(!itemFor(hover))hideTooltip();else showTooltip(hover);}
   }
   function onEvent(event:WorldEvent){if(event.type==='shopOpen'&&event.npcId===SHOP.id)setOpen(true);if(event.type==='stashOpened'&&event.npcId===PERSONAL_CHEST.id)setStashOpen(true);if(event.type==='death'||event.type==='camp'){setOpen(false);setStashOpen(false,false);}}

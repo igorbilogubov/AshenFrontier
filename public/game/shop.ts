@@ -1,6 +1,6 @@
 import type {ClassId,EquipmentSlot,Item} from '../../shared/types.js';
 import {CLASS_ITEMS} from './equipment-items.js';
-import {CONSUMABLE_CATALOG} from './consumables.js';
+import {CONSUMABLE_CATALOG,type ConsumableDefinition} from './consumables.js';
 
 export const SHOP=Object.freeze({id:'camp-vendor',name:'Торговец',x:3.8,z:-.8,range:2.4});
 export interface ShopListing {definitionId:string;name:string;classId:ClassId;slot:EquipmentSlot;price:number}
@@ -18,4 +18,8 @@ export function sellPrice(item:Item){
   const base=Math.max(1,Math.min(1000,Math.round(power*3+5)));
   const purchase=shopPrice(item.definitionId);
   return purchase===undefined?base:Math.min(base,Math.max(1,Math.floor(purchase/2)));
+}
+export function consumableSellPrice(definition:Pick<ConsumableDefinition,'price'>,quantity:number){
+  const count=Number.isSafeInteger(quantity)?Math.max(0,quantity):0;
+  return Math.max(1,Math.floor(definition.price/2))*count;
 }

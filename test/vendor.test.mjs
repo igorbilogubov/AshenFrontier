@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {World,newHero,makeLoot,persistentHero,safeHero} from '../dist/world.js';
-import {SHOP,shopItems,shopPrice,sellPrice} from '../dist/public/game/shop.js';
+import {SHOP,shopItems,shopPrice,sellPrice,consumableSellPrice} from '../dist/public/game/shop.js';
+import {CONSUMABLE_CATALOG,backpackUsage} from '../dist/public/game/consumables.js';
 import {stand,safe,clearPath,distance} from '../dist/public/game/location.js';
 import {BAG_CAPACITY,backpackItems} from '../dist/public/rules.js';
 import {validateEquipment} from '../dist/public/game/equipment-items.js';
@@ -59,6 +60,26 @@ test('bound items in another hero or stash cannot be sold through a forged comma
   open(w,p);w.command(p,{type:'sell',id:other.equipment.weapon});assert.equal(p.gold,0);
   p.stash.push(loose.id);w.command(p,{type:'sell',id:loose.id});assert.equal(p.gold,0);assert(p.items.includes(loose));
   p.stash=[];w.command(p,{type:'sell',id:loose.id});assert.equal(p.gold,sellPrice(loose));
+});
+
+test('vendor buys a whole potion stack at half catalog price and frees the bag cell',()=>{
+  const {w,p}=fixture();
+  const stack=p.consumableInventory.find(owned=>owned.definitionId==='hp-basic');
+  stack.quantity=7;
+  const usage=backpackUsage(p),gold=p.gold;
+  w.command(p,{type:'sell',id:stack.id});assert.equal(p.gold,gold);assert.equal(stack.quantity,7);
+  open(w,p);
+  w.command(p,{type:'sell',id:stack.id});
+  assert.equal(p.gold,gold+consumableSellPrice(CONSUMABLE_CATALOG['hp-basic'],7));
+  assert.equal(p.potions,0);assert.equal(p.quickSlots.q,'hp-basic');
+  assert.equal(backpackUsage(p),usage-1);
+  assert(!p.consumableInventory.some(owned=>owned.id===stack.id));
+  w.command(p,{type:'sell',id:stack.id});assert.equal(p.gold,gold+21);
+  const mana=p.consumableInventory.find(owned=>owned.definitionId==='mana-basic');
+  mana.quantity=1;p.gold=0;
+  w.command(p,{type:'sell',id:mana.id});
+  assert.equal(p.gold,consumableSellPrice(CONSUMABLE_CATALOG['mana-basic'],1));
+  assert.equal(p.manaPotions,0);
 });
 
 test('full bag and canceled approach cannot spend gold; camp/death/disconnect clear shop session',()=>{

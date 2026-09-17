@@ -10,7 +10,7 @@ import {regionalDropPool,rollEquipment,validateEquipment,equipmentAppearance,ite
 import type {ClassId, EquipmentSlot, Item, Hero, PersistentHero, HeroAttack, Mob, Projectile, WorldEvent, EventPayloads, WorldSnapshot, SkillId, SkillCooldowns, GroundDrop, Point, ConsumableStack, QuickSlots, SkillBuild, SkillZone, StatSource} from './shared/types.js';
 import {isRecord, isClassId, isEquipmentSlot, isWeaponId} from './shared/types.js';
 import {randomUUID} from 'node:crypto';
-import {CLASSES,EQUIPMENT_SLOTS,MAX_BAG_CAPACITY,MAX_STASH_CAPACITY,BAG_SLOT_PRICE,STASH_SLOT_PRICE,backpackItems,classFor,canEquip,STAT_KEYS,CLASS_PROGRESSION,characterStats,normalizedAllocations,clampBagCapacity,clampStashCapacity} from './public/rules.js';
+import {CLASSES,EQUIPMENT_SLOTS,MAX_BAG_CAPACITY,MAX_STASH_CAPACITY,BAG_SLOT_PRICE,STASH_SLOT_PRICE,backpackItems,classFor,canEquip,STAT_KEYS,CLASS_PROGRESSION,characterStats,normalizedAllocations,clampBagCapacity,clampStashCapacity,normalizeBag} from './public/rules.js';
 import {BOUNDS,CAMP,SPAWNS,mobConfig,WEAPONS,AFK_SPOTS,afkSpotAt,withinSpot,safe as pointIsSafe,stand,clearPath,distance,translate,moveHero} from './public/game/location.js';
 import {angleDelta,turnTowards,inStrike} from './public/game/motion.js';
 import {SKILLS,skillsForClass,legacySkillId} from './public/game/skills.js';
@@ -122,7 +122,7 @@ export function safeHero(saved: unknown): Hero{
     skillBuild:parseSkillBuild(raw.skillBuild,classId,level)??defaultSkillBuild(classId,level),buildRevision:Math.floor(nonnegative(raw.buildRevision)),skillPresets:[0,1,2].map(index=>Array.isArray(raw.skillPresets)?parseSkillBuild(raw.skillPresets[index],classId,level):null) as Hero['skillPresets'],effects:[],
     schemaVersion:SAVE_VERSION,id:typeof raw.id==='string'?raw.id:randomUUID(),name:String(raw.name||'Странник').replace(/[\p{C}<>]/gu,'').slice(0,18),
     classId,level,xp:level>=MAX_LEVEL?0:nonnegative(raw.xp),gold:nonnegative(raw.gold??raw.coins),kills:Math.floor(nonnegative(raw.kills)),items,pendingItems,stash,equipment,consumableInventory,quickSlots,consumableOverflow,
-    bagCapacity,stashCapacity,
+    bagCapacity,stashCapacity,bag:normalizeBag({items,equipment,stash,consumableInventory,bagCapacity},raw.bag),
     allocatedStats:normalizedAllocations(migrateStats?null:raw.allocatedStats,level),statRevision:!migrateStats&&typeof raw.statRevision==='number'&&Number.isSafeInteger(raw.statRevision)&&raw.statRevision>=0?raw.statRevision:0,
     ...position,yaw,targetYaw:yaw,weapon:raw.weapon==='axe'?'axe':'sword',
     questKills:legacy?0:nonnegative(raw.questKills),boss:legacy?false:!!raw.boss,questClaimed:legacy?false:!!raw.questClaimed,
@@ -142,7 +142,8 @@ export function persistentHero(p: Hero): PersistentHero{
   // Compatibility counters are a projection, never an independent inventory.
   p.potions=consumableKindQuantity(p,'hp');p.manaPotions=consumableKindQuantity(p,'mana');
   p.consumableOverflow=Math.min(p.consumableOverflow,Math.max(0,backpackUsage(p)-p.bagCapacity));
-  const fields=['schemaVersion','id','name','classId','level','xp','gold','kills','items','pendingItems','stash','equipment','consumableInventory','quickSlots','consumableOverflow','bagCapacity','stashCapacity','allocatedStats','statRevision','x','z','yaw','weapon','hp','mana','potions','potionCooldown','manaPotions','manaPotionCooldown','specialCooldown','skillCooldowns','dead','combatUntil','attack','attackSerial','running','questKills','boss','questClaimed','afkPreferences','skillBuild','buildRevision','skillPresets'] as const;
+  p.bag=normalizeBag(p,p.bag);
+  const fields=['schemaVersion','id','name','classId','level','xp','gold','kills','items','pendingItems','stash','equipment','consumableInventory','quickSlots','consumableOverflow','bagCapacity','stashCapacity','bag','allocatedStats','statRevision','x','z','yaw','weapon','hp','mana','potions','potionCooldown','manaPotions','manaPotionCooldown','specialCooldown','skillCooldowns','dead','combatUntil','attack','attackSerial','running','questKills','boss','questClaimed','afkPreferences','skillBuild','buildRevision','skillPresets'] as const;
   return structuredClone(Object.fromEntries(fields.map(k=>[k,p[k]]))) as unknown as PersistentHero;
 }
 export class World{

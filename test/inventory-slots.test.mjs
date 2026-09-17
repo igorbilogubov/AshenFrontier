@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
-import {World,newHero,persistentHero,safeHero} from '../dist/world.js';
+import {World,newHero,persistentHero,safeHero,makeLoot} from '../dist/world.js';
 import {RARE_CLASS_ITEMS,rollEquipment} from '../dist/public/game/equipment-items.js';
 import {BAG_SLOT_PRICE,STASH_SLOT_PRICE,DEFAULT_BAG_CAPACITY,DEFAULT_STASH_CAPACITY,MAX_BAG_CAPACITY,MAX_STASH_CAPACITY,clampBagCapacity,clampStashCapacity} from '../dist/public/rules.js';
 import {CHEST_APPROACH} from '../dist/public/game/personal-stash.js';
@@ -17,6 +17,30 @@ test('new heroes start with 16 bag cells and 32 chest cells',()=>{
   const restored=safeHero(persistentHero(p));
   assert.equal(restored.bagCapacity,DEFAULT_BAG_CAPACITY);
   assert.equal(restored.stashCapacity,DEFAULT_STASH_CAPACITY);
+  assert.equal(restored.bag.length,DEFAULT_BAG_CAPACITY);
+  assert.equal(restored.bag.filter(Boolean).length,p.consumableInventory.length);
+});
+
+test('picked and unequipped items take the first empty bag cell and do not shift the rest',()=>{
+  const w=new World({random:()=>0}),p=newHero('Ячейки');w.add(p);
+  const before=[...p.bag];
+  assert.ok(before[0]&&before[1]);assert.equal(before[2],null);
+  const drop=makeLoot('warrior',1,0,'ring');
+  w.addGroundDrop(p.id,{id:'ring-drop',kind:'item',item:drop,x:p.x,z:p.z,expiresAt:w.t+1000});
+  w.command(p,{type:'pickup',id:'ring-drop'});
+  const afterPickup=w.snapshot(p.id).self.bag;
+  assert.equal(afterPickup[0],before[0]);assert.equal(afterPickup[1],before[1]);assert.equal(afterPickup[2],drop.id);
+  const armorId=p.equipment.armor;w.command(p,{type:'unequip',id:armorId});
+  const afterUnequip=w.snapshot(p.id).self.bag;
+  assert.equal(afterUnequip[0],before[0]);assert.equal(afterUnequip[1],before[1]);assert.equal(afterUnequip[2],drop.id);assert.equal(afterUnequip[3],armorId);
+  w.command(p,{type:'equip',id:drop.id});
+  const afterEquip=w.snapshot(p.id).self.bag;
+  assert.equal(afterEquip[0],before[0]);assert.equal(afterEquip[1],before[1]);assert.equal(afterEquip[2],null);assert.equal(afterEquip[3],armorId);
+  const extra=makeLoot('warrior',1,0,'amulet');
+  w.addGroundDrop(p.id,{id:'amulet-drop',kind:'item',item:extra,x:p.x,z:p.z,expiresAt:w.t+1000});
+  w.command(p,{type:'pickup',id:'amulet-drop'});
+  const reused=w.snapshot(p.id).self.bag;
+  assert.equal(reused[2],extra.id);assert.equal(reused[3],armorId);assert.equal(reused[0],before[0]);
 });
 
 test('legacy saves without capacities keep the starting bag and chest sizes',()=>{

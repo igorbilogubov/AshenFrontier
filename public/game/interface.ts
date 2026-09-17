@@ -3,7 +3,7 @@ import {SKILLS} from './skills.js';
 import {effectiveSkill} from './skill-builds.js';
 import {actionIcon} from './action-icons.js';
 import {bindInventoryInteractions,paintItemClass} from './inventory-interactions.js';
-import {CLASSES,EQUIPMENT_SLOTS,BAG_SLOT_PRICE,MAX_BAG_CAPACITY,backpackItems,itemBonus,STAT_KEYS,STAT_DEFINITIONS,CLASS_PROGRESSION,characterStats,itemClassName} from '../rules.js';
+import {CLASSES,EQUIPMENT_SLOTS,BAG_SLOT_PRICE,MAX_BAG_CAPACITY,itemBonus,STAT_KEYS,STAT_DEFINITIONS,CLASS_PROGRESSION,characterStats,itemClassName,bagOccupants} from '../rules.js';
 import {backpackUsage,consumableDefinition} from './consumables.js';
 import {consumableArtwork,consumableTier} from './consumable-ui.js';
 import {itemDisplayName} from './equipment-items.js';
@@ -172,7 +172,7 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
   function updateInventory(){
     if(panels.inventory.hidden)return;
     const p=game.player,c=CLASSES[p.classId];if(!c)return;
-    const editable=canEdit(),bag=backpackItems(p),stacks=p.consumableInventory||[],usage=backpackUsage(p),capacity=p.bagCapacity,key=JSON.stringify([p.items,p.pendingItems,p.equipment,p.stash,p.consumableInventory,p.weapon,p.classId,p.level,p.gold,p.bagCapacity,editable,canReset()]);if(key===inventoryKey)return;inventoryKey=key;
+    const editable=canEdit(),layout=p.bag??[],usage=backpackUsage(p),capacity=p.bagCapacity,key=JSON.stringify([p.items,p.pendingItems,p.equipment,p.stash,p.consumableInventory,p.bag,p.weapon,p.classId,p.level,p.gold,p.bagCapacity,editable,canReset()]);if(key===inventoryKey)return;inventoryKey=key;
     write($('hero-details'),`${c.name} · уровень ${p.level} · 6 слотов снаряжения`);write($('inventory-gold'),`${p.gold} золота`);write($('inventory-status'),editable?'Снаряжение можно менять и в бою':!game.connected?'Нет соединения':'Герой погиб');
     for(const [slot,nodes] of slotNodes){
       const item=p.items.find(value=>value.id===p.equipment[slot]);nodes.button.className=`equipment-slot${item?' rarity-'+(item.rarity||0):' empty'}`;
@@ -180,9 +180,10 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
       paintItemClass(nodes.button,item,p.classId);
     }
     write($('bag-count'),`${usage} / ${capacity}`);
-    ensureBagCells(Math.max(capacity,bag.length+stacks.length));
+    const overflowIds=bagOccupants(p).filter(id=>!layout.includes(id));
+    ensureBagCells(Math.max(capacity,layout.length+overflowIds.length));
     bagNodes.forEach((nodes,index)=>{
-      const item=bag[index],stack=index>=bag.length?stacks[index-bag.length]:undefined,definition=stack&&consumableDefinition(stack.definitionId);
+      const occupant=index<layout.length?layout[index]:overflowIds[index-layout.length],item=occupant?p.items.find(value=>value.id===occupant):undefined,stack=occupant&&!item?p.consumableInventory.find(value=>value.id===occupant):undefined,definition=stack&&consumableDefinition(stack.definitionId);
       nodes.button.dataset.itemId=item?.id||'';nodes.button.dataset.consumableId=stack?.id||'';nodes.button.dataset.consumableDefinition=stack?.definitionId||'';
       nodes.button.className=`bag-cell${item?' rarity-'+(item.rarity||0):stack?' consumable-cell':' empty'}`;
       nodes.button.setAttribute('aria-label',item?`${itemDisplayName(item.name)} · ${itemClassName(item.classId)}, ${itemBonus(item)}`:stack?`${definition?.name||'Зелье'}, ${stack.quantity} шт. Перетащите на Q или W`:`Пустая ячейка ${index+1}`);nodes.button.disabled=false;

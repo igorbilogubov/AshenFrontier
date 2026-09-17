@@ -1,7 +1,7 @@
 import {xpNeeded} from './game/progression-curve.js';
 import {activeSetBonuses} from './game/equipment-sets.js';
 import {itemDefinition,ITEM_STAT_LABELS,rollValue} from './game/equipment-items.js';
-import type {Attributes, ClassId, EquipmentSlot, Item, StatSource, CharacterStats} from '../shared/types.js';
+import type {Attributes, ClassId, EquipmentSlot, Item, StatSource, CharacterStats, ConsumableStack} from '../shared/types.js';
 // Shared item/class definitions. No renderer-specific units or sprites.
 export const EQUIPMENT_SLOTS: Record<EquipmentSlot, {name: string; stat: 'attack' | 'armor' | 'speed' | 'maxHp'; statName: string; symbol: string}>={
   weapon:{name:'Оружие',stat:'attack',statName:'урона',symbol:'⚔'},
@@ -38,6 +38,32 @@ export const backpackItems=(source:Pick<StatSource,'items'|'equipment'> & {stash
   const stashed=new Set(source.stash??[]);
   return (source.items??[]).filter(item=>source.equipment?.[item.slot]!==item.id&&!stashed.has(item.id));
 };
+type BagSource=Pick<StatSource,'items'|'equipment'> & {stash?:readonly string[];consumableInventory?:readonly ConsumableStack[];bagCapacity?:number;bag?:readonly (string|null)[]};
+export const bagOccupants=(source:BagSource)=>{
+  const ids=backpackItems(source).map(item=>item.id);
+  for(const stack of source.consumableInventory??[])if(stack.quantity>0)ids.push(stack.id);
+  return ids;
+};
+export const packedBag=(source:BagSource)=>{
+  const cap=clampBagCapacity(source.bagCapacity),bag: (string|null)[]=Array.from({length:cap},()=>null);
+  bagOccupants(source).forEach((id,index)=>{if(index<cap)bag[index]=id;});
+  return bag;
+};
+export function normalizeBag(source:BagSource,raw:unknown):(string|null)[]{
+  const cap=clampBagCapacity(source.bagCapacity),valid=new Set(bagOccupants(source)),bag:(string|null)[]=Array.from({length:cap},()=>null);
+  if(Array.isArray(raw)){
+    const seen=new Set<string>(),n=Math.min(raw.length,cap);
+    for(let i=0;i<n;i++){
+      const id=raw[i];
+      if(typeof id==='string'&&valid.has(id)&&!seen.has(id)){bag[i]=id;seen.add(id);}
+    }
+  }
+  for(const id of valid){
+    if(bag.includes(id))continue;
+    const hole=bag.indexOf(null);if(hole>=0)bag[hole]=id;
+  }
+  return bag;
+}
 const validClass=(id: unknown): ClassId=>id==='warrior'||id==='archer'||id==='mage'?id:'warrior';
 export const classFor=(id: unknown)=>CLASSES[validClass(id)];
 export const weaponClass=(item: Item | null | undefined)=>item?.classId||'warrior';

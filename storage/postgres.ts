@@ -4,7 +4,7 @@ import type {PoolClient} from 'pg';
 import type {EquipmentSlot,Item,PersistentHero,ConsumableStack} from '../shared/types.js';
 import {MAX_CHARACTERS,type Account,type CharacterSummary,type GoogleIdentity} from '../shared/accounts.js';
 import {migrate,DATABASE_SCHEMA_VERSION} from './schema.js';
-import {backpackItems,clampBagCapacity,clampStashCapacity} from '../public/rules.js';
+import {backpackItems,clampBagCapacity,clampStashCapacity,normalizeBag} from '../public/rules.js';
 import {CONSUMABLE_LIMIT,validateConsumables,backpackUsage,consumableKindQuantity} from '../public/game/consumables.js';
 import {defaultAfkPreferences,parseAfkPreferences} from '../public/game/afk-preferences.js';
 
@@ -115,13 +115,15 @@ async function writeInventory(client:PoolClient,hero:PersistentHero):Promise<{ga
     }
   }
   let bag=0;
+  const layout=normalizeBag(hero,hero.bag);
   const stashPositions=new Map(hero.stash.map((id,index)=>[id,index]));
   for(const item of hero.items){
     const equipped=hero.equipment?.[item.slot]===item.id;
     const stashPosition=stashPositions.get(item.id);
     const kind=equipped?'equipped':stashPosition===undefined?'bag':'stash';
+    const bagPosition=kind==='bag'?(layout.indexOf(item.id)>=0?layout.indexOf(item.id):bag++):null;
     await client.query(`INSERT INTO inventory_locations(item_id,hero_id,kind,position,equipped_slot)
-      VALUES ($1,$2,$3,$4,$5)`,[item.id,hero.id,kind,equipped?null:stashPosition??bag++,equipped?item.slot:null]);
+      VALUES ($1,$2,$3,$4,$5)`,[item.id,hero.id,kind,equipped?null:stashPosition??bagPosition,equipped?item.slot:null]);
   }
   for(let position=0;position<hero.pendingItems.length;position++){
     const item=hero.pendingItems[position];
@@ -137,10 +139,13 @@ async function writeConsumables(client:PoolClient,hero:PersistentHero):Promise<v
   const old=new Map(previous.rows.map(row=>[row.id,row.definition_id]));
   for(const stack of hero.consumableInventory)if(old.has(stack.id)&&old.get(stack.id)!==stack.definitionId)throw new StoreConflictError('Consumable stack definition changed');
   const ids=hero.consumableInventory.map(stack=>stack.id);
+  const layout=normalizeBag(hero,hero.bag),used=new Set<number>();
   await client.query('DELETE FROM consumable_stacks WHERE hero_id=$1 AND NOT(id=ANY($2::text[]))',[hero.id,ids]);
   await client.query('UPDATE consumable_stacks SET stack_index=stack_index+1000 WHERE hero_id=$1',[hero.id]);
-  for(let index=0;index<hero.consumableInventory.length;index++){
-    const stack=hero.consumableInventory[index];
+  for(const stack of hero.consumableInventory){
+    let index=layout.indexOf(stack.id);
+    if(index<0||used.has(index)){index=0;while(used.has(index))index++;}
+    used.add(index);
     if(old.has(stack.id))await client.query('UPDATE consumable_stacks SET quantity=$1,stack_index=$2 WHERE hero_id=$3 AND id=$4',[stack.quantity,index,hero.id,stack.id]);
     else await client.query('INSERT INTO consumable_stacks(id,hero_id,definition_id,quantity,stack_index) VALUES ($1,$2,$3,$4,$5)',[stack.id,hero.id,stack.definitionId,stack.quantity,index]);
   }
@@ -168,13 +173,22 @@ async function readHero(client:PoolClient,heroId:string,accountId:string):Promis
     if(raw.kind==='equipped')equipment[raw.equipped_slot as EquipmentSlot]=item.id;
     if(raw.kind==='stash')stashLocations.push({id:item.id,position:raw.position});
   }
-  const stackRows=await client.query<{id:string;definition_id:string;quantity:number}>('SELECT id,definition_id,quantity FROM consumable_stacks WHERE hero_id=$1 ORDER BY stack_index',[row.id]);
+  const stackRows=await client.query<{id:string;definition_id:string;quantity:number;stack_index:number}>('SELECT id,definition_id,quantity,stack_index FROM consumable_stacks WHERE hero_id=$1 ORDER BY stack_index',[row.id]);
   const consumableInventory:ConsumableStack[]=stackRows.rows.map(stack=>({id:stack.id,definitionId:stack.definition_id,quantity:stack.quantity}));
   const stash=stashLocations.sort((a,b)=>a.position-b.position).map(location=>location.id);
+  const bagCapacity=clampBagCapacity(row.bag_capacity);
+  const bagGuess:(string|null)[]=Array.from({length:bagCapacity},()=>null);
+  for(const raw of inventory.rows){
+    if(raw.kind==='bag'&&Number.isInteger(raw.position)&&raw.position>=0&&raw.position<bagCapacity)bagGuess[raw.position]=raw.id;
+  }
+  for(const stack of stackRows.rows){
+    if(Number.isInteger(stack.stack_index)&&stack.stack_index>=0&&stack.stack_index<bagCapacity&&bagGuess[stack.stack_index]===null)bagGuess[stack.stack_index]=stack.id;
+  }
   const hero:PersistentHero={
     skillBuild:parseSkillBuild(row.skill_build,row.class_id,row.level)??defaultSkillBuild(row.class_id,row.level),buildRevision:numeric(row.build_revision),skillPresets:[0,1,2].map(index=>parseSkillBuild(row.skill_presets?.[index],row.class_id,row.level)) as PersistentHero['skillPresets'],
     schemaVersion:row.schema_version,id:row.id,name:row.name,classId:row.class_id,level:row.level,
-    xp:numeric(row.xp),gold:numeric(row.gold),kills:row.kills,items,pendingItems,stash,equipment,consumableInventory,quickSlots:{q:row.quick_slot_q,w:row.quick_slot_w},consumableOverflow:row.consumable_overflow,bagCapacity:clampBagCapacity(row.bag_capacity),stashCapacity:clampStashCapacity(row.stash_capacity),
+    xp:numeric(row.xp),gold:numeric(row.gold),kills:row.kills,items,pendingItems,stash,equipment,consumableInventory,quickSlots:{q:row.quick_slot_q,w:row.quick_slot_w},consumableOverflow:row.consumable_overflow,bagCapacity,stashCapacity:clampStashCapacity(row.stash_capacity),
+    bag:normalizeBag({items,equipment,stash,consumableInventory,bagCapacity},bagGuess),
     allocatedStats:{strength:row.strength,dexterity:row.dexterity,vitality:row.vitality,energy:row.energy},statRevision:row.stat_revision,
     x:row.x,z:row.z,yaw:row.yaw,weapon:row.weapon,hp:row.hp,mana:row.mana,potions:consumableKindQuantity({consumableInventory},'hp'),
     potionCooldown:row.potion_cooldown,manaPotions:consumableKindQuantity({consumableInventory},'mana'),manaPotionCooldown:row.mana_potion_cooldown,specialCooldown:row.special_cooldown,skillCooldowns:row.skill_cooldowns,

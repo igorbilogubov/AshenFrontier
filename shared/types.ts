@@ -37,7 +37,7 @@ export interface PersistentHero extends Point {
   items: Item[]; pendingItems: Item[]; stash: string[]; equipment: Equipment; allocatedStats: Attributes; statRevision: number;
   skillBuild:SkillBuild;buildRevision:number;skillPresets:[SkillBuild|null,SkillBuild|null,SkillBuild|null];
   consumableInventory:ConsumableStack[];quickSlots:QuickSlots;consumableOverflow:number;
-  bagCapacity: number; stashCapacity: number;
+  bagCapacity: number; stashCapacity: number; bag: (string|null)[];
   yaw: number; weapon: WeaponId; hp: number; mana: number; potions: number; potionCooldown: number; manaPotions:number; manaPotionCooldown:number;
   specialCooldown: number; skillCooldowns?: SkillCooldowns; dead: number; combatUntil: number; attack: HeroAttack | null; attackSerial: number;
   running: boolean; questKills: number; boss: boolean; questClaimed: boolean; afkPreferences:AfkPreferences;

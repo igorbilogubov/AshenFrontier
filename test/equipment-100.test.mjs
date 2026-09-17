@@ -22,7 +22,7 @@ test('seven regional tiers preserve every class, slot and rarity, with immutable
 test('boss loot is one mutually exclusive roll, elites never yield yellow or set items',()=>{
  const counts={none:0,0:0,1:0,2:0,3:0,4:0};
  for(let i=0;i<10000;i++){const rng=()=>(i+.5)/10000;counts[gearRarity('scarab','named',rng,true)??'none']++;
-  assert.ok([null,0,1,2].includes(gearRarity('wolf','named',rng)));assert.ok([null,0,1].includes(gearRarity('wolf',undefined,rng)));
+  assert.ok([null,0,1,2].includes(gearRarity('wolf','named',rng)));assert.ok([null,0,1,2].includes(gearRarity('wolf',undefined,rng)));
  }
  assert.deepEqual(counts,{none:0,0:0,1:5000,2:3000,3:1500,4:500});
 });

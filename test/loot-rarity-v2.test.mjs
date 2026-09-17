@@ -2,26 +2,30 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {EQUIPMENT_ITEMS,RARE_CLASS_ITEMS,COMMON_CLASS_ITEMS,regionalEquipment,rollEquipment,validateEquipment} from '../dist/public/game/equipment-items.js';
 import {GEAR_REGIONS} from '../dist/public/game/regional-equipment.js';
-import {bossItemCount,gearRarity,GEAR_CHANCE,WHITE_GEAR_CHANCE,GREEN_GEAR_CHANCE,ELITE_GEAR_CHANCE,BOSS_GEAR_CHANCE} from '../dist/public/game/loot-rules.js';
+import {bossItemCount,gearRarity,GEAR_CHANCE,WHITE_GEAR_CHANCE,GREEN_GEAR_CHANCE,BLUE_GEAR_CHANCE,ELITE_GEAR_CHANCE,BOSS_GEAR_CHANCE} from '../dist/public/game/loot-rules.js';
 import {possibleLoot} from '../dist/public/game/possible-loot.js';
 import {newHero,persistentHero,safeHero} from '../dist/world.js';
 
 const classes=['warrior','archer','mage'];
 const optionCount=rarity=>rarity===0?1:rarity===1?2:rarity===2?3:4;
 
-test('ordinary drops prefer white over green and never exceed green',()=>{
-  assert.equal(WHITE_GEAR_CHANCE.wolf,.03);assert.equal(GREEN_GEAR_CHANCE.wolf,.01);
+test('ordinary drops prefer white over green and can rarely roll blue',()=>{
+  assert.equal(WHITE_GEAR_CHANCE.wolf,.03);assert.equal(GREEN_GEAR_CHANCE.wolf,.01);assert.equal(BLUE_GEAR_CHANCE.wolf,.001);
   assert.ok(WHITE_GEAR_CHANCE.wolf>GREEN_GEAR_CHANCE.wolf);
   assert.ok(WHITE_GEAR_CHANCE.alpha>GREEN_GEAR_CHANCE.alpha);
-  assert.equal(GEAR_CHANCE.wolf,.04);assert.equal(GEAR_CHANCE.alpha,.10);
+  assert.equal(GEAR_CHANCE.wolf,.041);assert.equal(GEAR_CHANCE.alpha,.102);
   assert.equal(gearRarity('wolf',undefined,()=>.029999),0);
   assert.equal(gearRarity('wolf',undefined,()=>.03),1);
   assert.equal(gearRarity('wolf',undefined,()=>.039999),1);
-  assert.equal(gearRarity('wolf',undefined,()=>.04),null);
+  assert.equal(gearRarity('wolf',undefined,()=>.04),2);
+  assert.equal(gearRarity('wolf',undefined,()=>.040999),2);
+  assert.equal(gearRarity('wolf',undefined,()=>.041),null);
   assert.equal(gearRarity('alpha',undefined,()=>.059999),0);
   assert.equal(gearRarity('alpha',undefined,()=>.06),1);
   assert.equal(gearRarity('alpha',undefined,()=>.099999),1);
-  assert.equal(gearRarity('alpha',undefined,()=>.10),null);
+  assert.equal(gearRarity('alpha',undefined,()=>.10),2);
+  assert.equal(gearRarity('alpha',undefined,()=>.101999),2);
+  assert.equal(gearRarity('alpha',undefined,()=>.102),null);
 });
 
 test('elites can drop white, green or blue and never yellow or set',()=>{
@@ -92,13 +96,15 @@ test('boss kill table always yields gold plus 1-3 non-white items',()=>{
 
 test('target hints expose actual pools, white-first ordinary chances and guaranteed boss gold',()=>{
   const ordinary=possibleLoot('wolf'),alpha=possibleLoot('alpha'),elite=possibleLoot('wolf','named'),boss=possibleLoot('iron-warden',undefined,'citadel-dungeon');
-  assert.equal(ordinary.itemChance,.04);
-  assert.deepEqual([...new Set(ordinary.categories.filter(category=>category.rarity!== 'gold').map(category=>category.rarity))],[0,1]);
+  assert.equal(ordinary.itemChance,.041);
+  assert.deepEqual([...new Set(ordinary.categories.filter(category=>category.rarity!== 'gold').map(category=>category.rarity))],[0,1,2]);
   assert.equal(ordinary.categories.find(category=>category.rarity===0)?.chance,.03);
   assert.equal(ordinary.categories.find(category=>category.rarity===1)?.chance,.01);
-  assert.equal(alpha.itemChance,.10);
+  assert.equal(ordinary.categories.find(category=>category.rarity===2)?.chance,.001);
+  assert.equal(alpha.itemChance,.102);
   assert.equal(alpha.categories.find(category=>category.rarity===0)?.chance,.06);
   assert.equal(alpha.categories.find(category=>category.rarity===1)?.chance,.04);
+  assert.equal(alpha.categories.find(category=>category.rarity===2)?.chance,.002);
   assert.equal(elite.itemChance,ELITE_GEAR_CHANCE);
   assert.deepEqual([...new Set(elite.categories.filter(category=>category.rarity!=='gold').map(category=>category.rarity))],[0,1,2]);
   assert.equal(boss.itemChance,BOSS_GEAR_CHANCE);

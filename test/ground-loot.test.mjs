@@ -31,8 +31,8 @@ test('each eligible contributor sees only personal ground gold; XP and quest cre
   assert.deepEqual(safeHero(persistentHero(p)).items,p.items);
 });
 
-test('no guaranteed first-kill gear; ordinary total chance is 4% and drops one rolled item at most',()=>{
-  assert.equal(GEAR_CHANCE.wolf,.04);assert.equal(GEAR_CHANCE.boar,.04);assert.equal(GEAR_CHANCE.alpha,.10);
+test('no guaranteed first-kill gear; ordinary total chance is 4.1% and drops one rolled item at most',()=>{
+  assert.equal(GEAR_CHANCE.wolf,.041);assert.equal(GEAR_CHANCE.boar,.041);assert.equal(GEAR_CHANCE.alpha,.102);
   const none=fixture(()=>.5);kill(none.w,none.p,none.m);
   assert.equal(none.w.snapshot(none.p.id).groundLoot.filter(d=>d.kind==='item').length,0);
   const all=fixture(()=>0);kill(all.w,all.p,all.m);

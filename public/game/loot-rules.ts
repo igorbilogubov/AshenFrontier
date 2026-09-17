@@ -9,8 +9,10 @@ export const AFK_PICKUP_RANGE=4;
 
 const ordinaryWhite=.03;
 const ordinaryGreen=.01;
+const ordinaryBlue=.001;
 const alphaWhite=.06;
 const alphaGreen=.04;
+const alphaBlue=.002;
 const ordinaryTypes=['wolf','boar','bear','lynx','yak','frost-spider','ice-golem','ash-jackal','scorpion','monitor-lizard','scarab'] as const;
 
 const chanceMap=(ordinary:number,alpha:number)=>Object.freeze(
@@ -19,9 +21,11 @@ const chanceMap=(ordinary:number,alpha:number)=>Object.freeze(
 
 export const WHITE_GEAR_CHANCE=chanceMap(ordinaryWhite,alphaWhite);
 export const GREEN_GEAR_CHANCE=chanceMap(ordinaryGreen,alphaGreen);
-/** Total ordinary-equipment chance; individual white/green chances stay explicit above. */
-export const GEAR_CHANCE=chanceMap(ordinaryWhite+ordinaryGreen,alphaWhite+alphaGreen);
-export const gearDrops=(type:MobType,random:()=>number)=>random()<(GEAR_CHANCE[type]??ordinaryWhite+ordinaryGreen);
+export const BLUE_GEAR_CHANCE=chanceMap(ordinaryBlue,alphaBlue);
+const chanceTotal=(white:number,green:number,blue:number)=>+(white+green+blue).toFixed(4);
+/** Total ordinary-equipment chance; individual white/green/blue chances stay explicit above. */
+export const GEAR_CHANCE=chanceMap(chanceTotal(ordinaryWhite,ordinaryGreen,ordinaryBlue),chanceTotal(alphaWhite,alphaGreen,alphaBlue));
+export const gearDrops=(type:MobType,random:()=>number)=>random()<(GEAR_CHANCE[type]??chanceTotal(ordinaryWhite,ordinaryGreen,ordinaryBlue));
 
 export const ELITE_WHITE_CHANCE=.20;
 export const ELITE_GREEN_CHANCE=.12;
@@ -41,7 +45,7 @@ export function bossItemCount(random:()=>number):number{
   return BOSS_ITEM_MIN+Math.floor(roll*(BOSS_ITEM_MAX-BOSS_ITEM_MIN+1));
 }
 
-/** One mutually exclusive roll. Ordinary: white then green. Elite: white then green then blue. Boss: green then blue then yellow then set. */
+/** One mutually exclusive roll. Ordinary: white then green then a rare blue. Elite: white then green then blue. Boss: green then blue then yellow then set. */
 export function gearRarity(type:MobType,eliteId:string|undefined,random:()=>number,boss=false):0|1|2|3|4|null{
   const roll=random();if(!Number.isFinite(roll)||roll<0||roll>=1)throw new Error('Random source must return [0, 1)');
   if(boss){
@@ -56,8 +60,9 @@ export function gearRarity(type:MobType,eliteId:string|undefined,random:()=>numb
     if(roll<ELITE_GEAR_CHANCE)return 2;
     return null;
   }
-  const white=WHITE_GEAR_CHANCE[type]??ordinaryWhite,green=GREEN_GEAR_CHANCE[type]??ordinaryGreen;
+  const white=WHITE_GEAR_CHANCE[type]??ordinaryWhite,green=GREEN_GEAR_CHANCE[type]??ordinaryGreen,blue=BLUE_GEAR_CHANCE[type]??ordinaryBlue;
   if(roll<white)return 0;
   if(roll<white+green)return 1;
+  if(roll<chanceTotal(white,green,blue))return 2;
   return null;
 }

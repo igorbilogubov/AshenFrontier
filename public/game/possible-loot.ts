@@ -3,7 +3,7 @@ import {mobConfig} from './location.js';
 import {
   BOSS_GEAR_CHANCE,BOSS_ITEM_MAX,BOSS_ITEM_MIN,BOSS_RARITY_CHANCES,
   GEAR_CHANCE,ELITE_BLUE_CHANCE,ELITE_GEAR_CHANCE,ELITE_GREEN_CHANCE,ELITE_WHITE_CHANCE,
-  GREEN_GEAR_CHANCE,WHITE_GEAR_CHANCE
+  BLUE_GEAR_CHANCE,GREEN_GEAR_CHANCE,WHITE_GEAR_CHANCE
 } from './loot-rules.js';
 import type {DungeonId,EquipmentSlot,MobType} from '../../shared/types.js';
 import type {GearRegion} from './regional-equipment.js';
@@ -43,12 +43,13 @@ const LABELS:Readonly<Record<LootCategoryId,string>>=Object.freeze({
 const BOSS_RARITIES=[1,2,3,4] as const;
 const ordinaryWhite=(type:MobType)=>WHITE_GEAR_CHANCE[type]??.03;
 const ordinaryGreen=(type:MobType)=>GREEN_GEAR_CHANCE[type]??.01;
+const ordinaryBlue=(type:MobType)=>BLUE_GEAR_CHANCE[type]??.001;
 
 /** Display only categories that the current server item catalog can actually roll. */
 export function possibleLoot(type:MobType,eliteId?:string,bossId?:DungeonId,dungeonId?:DungeonId):PossibleLoot{
   const categories:PossibleLootCategory[]=[{id:'gold',name:LABELS.gold,rarity:'gold',slots:[]}];
   const region=(bossId??dungeonId)?(bossId??dungeonId)!.replace(/-dungeon$/,'') as GearRegion:lootRegionForType(type);
-  const rarities:readonly (0|1|2|3|4)[]=bossId?BOSS_RARITIES:eliteId?[0,1,2]:[0,1];
+  const rarities:readonly (0|1|2|3|4)[]=bossId?BOSS_RARITIES:[0,1,2];
   for(const id of ['weapon','armor','accessory'] as const){
     const slots=GROUPS[id];
     for(const rarity of rarities){
@@ -56,14 +57,14 @@ export function possibleLoot(type:MobType,eliteId?:string,bossId?:DungeonId,dung
       if(!definitions.length)continue;
       const chance=bossId?BOSS_RARITY_CHANCES[rarity as keyof typeof BOSS_RARITY_CHANCES]:eliteId?(
         rarity===0?ELITE_WHITE_CHANCE:rarity===1?ELITE_GREEN_CHANCE:ELITE_BLUE_CHANCE
-      ):rarity===0?ordinaryWhite(type):ordinaryGreen(type);
+      ):rarity===0?ordinaryWhite(type):rarity===1?ordinaryGreen(type):ordinaryBlue(type);
       categories.push({id,name:LABELS[id],rarity,slots,...(chance===undefined?{}:{chance})});
     }
   }
   const config=mobConfig({type,eliteId,bossId,dungeonId:dungeonId??bossId});
   return {
     gold:config.coins,
-    itemChance:bossId?BOSS_GEAR_CHANCE:eliteId?ELITE_GEAR_CHANCE:(GEAR_CHANCE[type]??ordinaryWhite(type)+ordinaryGreen(type)),
+    itemChance:bossId?BOSS_GEAR_CHANCE:eliteId?ELITE_GEAR_CHANCE:(GEAR_CHANCE[type]??GEAR_CHANCE.wolf!),
     ...(bossId?{itemCount:{min:BOSS_ITEM_MIN,max:BOSS_ITEM_MAX}}:{}),
     categories
   };

@@ -20,8 +20,8 @@ test('snow environment keeps the gameplay ground level and disables its effects 
  scene.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material){for(const material of Array.isArray(o.material)?o.material:[o.material])material.dispose();}});
 });
 
-test('snow elite loot advertises white, green and blue categories without promising them on ordinary monsters',()=>{
- assert.equal(possibleLoot('yak').categories.some(category=>category.rarity===2),false);
+test('snow elite loot advertises white, green and blue; ordinary monsters can show a rare blue',()=>{
+ assert.ok(possibleLoot('yak').categories.some(category=>category.rarity===2&&category.chance===.001));
  const elite=possibleLoot('yak','frost-matriarch');
  assert.ok(elite.categories.some(category=>category.rarity===0&&category.chance===.20));
  assert.ok(elite.categories.some(category=>category.rarity===2&&category.chance===.04));

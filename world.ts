@@ -18,7 +18,7 @@ import {LOOT_TTL_MS,MAX_GROUND_DROPS_PER_HERO,PICKUP_RANGE,AFK_PICKUP_RANGE,gear
 import {portalById,ALL_PASSAGES} from './public/game/stadium.js';
 import {locationAt as pointLocation,fieldRegionAt} from './public/game/world-layout.js';
 import {SHOP,shopPrice,sellPrice} from './public/game/shop.js';
-import {defaultAfkPreferences,parseAfkPreferences,afkCombatRadius} from './public/game/afk-preferences.js';
+import {defaultAfkPreferences,parseAfkPreferences,afkCombatRadius,clampAfkPreferences,isAfkAttackSkill,isAfkBuffSkill} from './public/game/afk-preferences.js';
 import {PERSONAL_CHEST,CHEST_APPROACH,CHEST_DOOR_OUTSIDE,CHEST_DOOR_INSIDE,inChestRoom} from './public/game/personal-stash.js';
 import {consumable,CONSUMABLE_LIMIT,consumableDefinition,consumableKindQuantity,consumableQuantity,assignedConsumable,isQuickSlot,backpackUsage,validateConsumables,type ConsumableKind} from './public/game/consumables.js';
 import {defaultSkillBuild,parseSkillBuild,equippedSkills,effectiveSkill,talentBonuses} from './public/game/skill-builds.js';
@@ -132,7 +132,7 @@ export function safeHero(saved: unknown): Hero{
     vx:0,vz:0,hurt:0,gait:0,moveBlend:0,runBlend:0,running:!!raw.running,input:{x:0,z:0,aim:null,seq:0},inputAt:0,ack:0,connected:true,disconnectAt:0,afk:null,interactionTarget:null,shopActive:false,stashActive:false,
     afkPreferences:parseAfkPreferences(raw.afkPreferences,classId)??defaultAfkPreferences(classId)
   };
-  p.afkPreferences.skillOrder=p.afkPreferences.skillOrder.filter(id=>p.skillBuild.slots.includes(id)&&SKILLS[id].kind!=='mobility');
+  p.afkPreferences=clampAfkPreferences(p.afkPreferences,p.skillBuild.slots);
   if(p.attack?.skillId&&!p.skillBuild.slots.includes(p.attack.skillId))p.attack=null;
   p.hp=Math.min(stats(p).maxHp,nonnegative(raw.hp,stats(p).maxHp));if(!p.hp&&!p.dead)p.dead=2.5;
   // V2 had no mana. Grant its initial pool once; reconnecting V3 never refills it.
@@ -494,7 +494,7 @@ export class World{
     this.stopAfk(p);this.stopInteraction(p);this.clearSkillRuntime(p);p.attack=null;p.input={...p.input,x:0,z:0,aim:null};p.vx=p.vz=0;
     this.projectiles=this.projectiles.filter(b=>b.owner!==p.id);this.pendingAreas=this.pendingAreas.filter(a=>a.caster!==p.id);
     p.skillBuild=build;p.buildRevision++;
-    p.afkPreferences.skillOrder=p.afkPreferences.skillOrder.filter(id=>build.slots.includes(id)&&SKILLS[id].kind!=='mobility');
+    p.afkPreferences=clampAfkPreferences(p.afkPreferences,build.slots);
     this.clampResources(p);reply(true);
   }
   hasEffect(p:Hero,id:SkillId){return p.effects.some(e=>e.skillId===id&&e.remaining>0);}
@@ -507,12 +507,7 @@ export class World{
   }
   inSkillZone(point:Point,id:SkillId,ownerId?:string){return this.skillZones.some(z=>z.skillId===id&&z.remaining>0&&(!ownerId||z.owner===ownerId)&&sameLocation(point,z)&&distance(point,z)<=z.radius&&clearPath(z,point));}
   utilityNeeded(p:Hero,id:SkillId){
-    if(this.hasEffect(p,id)||this.skillZones.some(z=>z.owner===p.id&&z.skillId===id))return false;
-    if(['warrior-guard','mage-mana-shield','mage-ward','archer-smoke','warrior-banner'].includes(id))return p.hp<stats(p).maxHp*.7;
-    if(id==='mage-mana-source')return p.mana<stats(p).maxMana*.65;
-    if(id==='warrior-berserk')return p.hp>stats(p).maxHp*.7;
-    if(id==='archer-wind')return false; // Stationary auto-hunt never spends mana on travel.
-    return true;
+    return !this.hasEffect(p,id)&&!this.skillZones.some(z=>z.owner===p.id&&z.skillId===id);
   }
   mobilityDestination(p:Hero,id:SkillId,yaw:number,point?:Point):Point{
     const s=effectiveSkill(p,id),angle=id==='archer-retreat'?yaw+Math.PI:yaw,d=point&&id!=='archer-retreat'?Math.min(s.range,distance(p,point)):s.range;
@@ -666,9 +661,9 @@ export class World{
     if(msg.type==='afkPreferences'){
       const preferences=parseAfkPreferences(msg.preferences,p.classId);
       if(!preferences){this.emit('preferencesSaved',{ok:false,message:'Некорректные настройки автоохоты'},p.id);return;}
-      if(preferences.skillOrder.some(id=>!equippedSkills(p).some(s=>s.id===id)||SKILLS[id].kind==='mobility')){this.emit('preferencesSaved',{ok:false,message:'Для автоохоты выбираются только установленные неподвижные навыки'},p.id);return;}
+      if((preferences.attackSkill&&(!equippedSkills(p).some(s=>s.id===preferences.attackSkill)||!isAfkAttackSkill(SKILLS[preferences.attackSkill])))||
+        preferences.buffSkills.some(id=>!equippedSkills(p).some(s=>s.id===id)||!isAfkBuffSkill(SKILLS[id]))){this.emit('preferencesSaved',{ok:false,message:'Для автоохоты выбираются только установленные неподвижные навыки'},p.id);return;}
       p.afkPreferences=preferences;
-      if(p.afk&&p.afk.skillCursor>=preferences.skillOrder.length)p.afk.skillCursor=0;
       this.emit('preferencesSaved',{ok:true},p.id);return;
     }
     if(msg.type==='input'){
@@ -948,7 +943,10 @@ export class World{
       });
     }
   }
-  afkRadius(p:Hero){return afkCombatRadius({...p.afkPreferences,skillOrder:p.afkPreferences.skillOrder.filter(id=>equippedSkills(p).some(s=>s.id===id)&&['attack','channel','control'].includes(SKILLS[id].kind))},p.classId==='warrior'?WEAPONS[p.weapon].range:stats(p).range);}
+  afkRadius(p:Hero){
+    const id=p.afkPreferences.attackSkill,attack=id&&equippedSkills(p).some(s=>s.id===id)&&isAfkAttackSkill(SKILLS[id])?id:null;
+    return afkCombatRadius({...p.afkPreferences,attackSkill:attack},p.classId==='warrior'?WEAPONS[p.weapon].range:stats(p).range);
+  }
   afkTargets(p: Hero){
     if(!p.afk||!p.connected||p.dead||safe(p))return [];
     const reach=this.afkRadius(p);
@@ -983,20 +981,18 @@ export class World{
     const targets=this.afkTargets(p),target=targets.find(m=>m.id===p.afk?.targetId)??targets[0];
     p.afk.targetId=target?.id??null;
     if(!target)return false;
-    const yaw=Math.atan2(target.x-p.x,target.z-p.z),d=distance(p,target),body=mobConfig(target).radius,order=p.afkPreferences.skillOrder;
-    for(let offset=0;offset<order.length;offset++){
-      const index=(p.afk.skillCursor+offset)%order.length,skill=effectiveSkill(p,order[index]);
-      const utility=['support','defense'].includes(skill.kind);
-      if(!equippedSkills(p).some(s=>s.id===skill.id)||skill.kind==='mobility'||(utility&&!this.utilityNeeded(p,skill.id)))continue;
-      if(!skill||skill.classId!==p.classId||(!utility&&d>skill.range+body)||p.mana<skill.manaCost||
-        Math.max(p.skillCooldowns?.[skill.id]??0,skill.id===legacySkillId(p.classId)?p.specialCooldown:0)>0)continue;
-      const area=skill.id==='archer-rain'||skill.id==='archer-arrow-storm'||skill.id==='mage-meteor';
-      if(this.castSkill(p,skill.id,yaw,utility?undefined:target.id,area?{x:target.x,z:target.z}:undefined)){
-        p.afk.skillCursor=(index+1)%order.length;return true;
-      }
-    }
+    const yaw=Math.atan2(target.x-p.x,target.z-p.z),d=distance(p,target),body=mobConfig(target).radius,prefs=p.afkPreferences;
+    const ready=(id:SkillId,utility:boolean)=>{
+      const skill=effectiveSkill(p,id);
+      if(!equippedSkills(p).some(s=>s.id===id)||(utility?!this.utilityNeeded(p,id):d>skill.range+body)||p.mana<skill.manaCost||
+        Math.max(p.skillCooldowns?.[id]??0,id===legacySkillId(p.classId)?p.specialCooldown:0)>0)return false;
+      const area=id==='archer-rain'||id==='archer-arrow-storm'||id==='mage-meteor';
+      return this.castSkill(p,id,yaw,utility?undefined:target.id,area?{x:target.x,z:target.z}:undefined);
+    };
+    for(const id of prefs.buffSkills)if(ready(id,true))return true;
+    if(prefs.attackSkill&&ready(prefs.attackSkill,false))return true;
     const basicRange=p.classId==='warrior'?WEAPONS[p.weapon].range:stats(p).range;
-    if(p.afkPreferences.basicAttackFallback&&d<=basicRange+body&&this.attack(p,yaw,false,target.id))return true;
+    if(prefs.basicAttackFallback&&d<=basicRange+body&&this.attack(p,yaw,false,target.id))return true;
     return false;
   }
   refreshDungeon(id:string){

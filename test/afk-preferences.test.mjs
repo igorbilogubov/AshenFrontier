@@ -37,8 +37,10 @@ test('AFK pickup preferences expose every supported rarity',()=>{
 test('settings reject malformed or foreign class skills while a valid update keeps AFK running',()=>{
   const {w,p}=fixture(),before=structuredClone(p.afkPreferences);
   for(const bad of [
-    {...before,skillOrder:['mage-fireball']},
-    {...before,skillOrder:['warrior-cleave','warrior-cleave']},
+    {...before,attackSkill:'mage-fireball'},
+    {...before,attackSkill:'warrior-guard'},
+    {...before,buffSkills:['warrior-cleave']},
+    {...before,buffSkills:['warrior-berserk','warrior-berserk']},
     {...before,pickupRarities:[0,0]},
     {...before,radiusPercent:24},
     {...before,hpPotion:{enabled:true,belowPercent:100}},
@@ -47,10 +49,13 @@ test('settings reject malformed or foreign class skills while a valid update kee
     assert.equal(parseAfkPreferences(bad,p.classId),null);
     w.command(p,{type:'afkPreferences',preferences:bad});assert.deepEqual(p.afkPreferences,before);assert(p.afk);
   }
-  const updated={...before,pickupGold:false,skillOrder:[],radiusPercent:25};
+  const updated={...before,pickupGold:false,attackSkill:null,buffSkills:[],radiusPercent:25};
   w.command(p,{type:'afkPreferences',preferences:updated});
   assert.deepEqual(p.afkPreferences,updated);assert(p.afk);
   assert(w.events.some(e=>e.type==='preferencesSaved'&&e.ok&&e.owner===p.id));
+  const unequipped={...before,attackSkill:'warrior-earthquake',buffSkills:['warrior-berserk']};
+  assert(parseAfkPreferences(unequipped,p.classId));
+  w.command(p,{type:'afkPreferences',preferences:unequipped});assert.deepEqual(p.afkPreferences,updated);
 });
 
 test('AFK respects gold and rarity filters without destroying ignored personal drops',()=>{
@@ -75,14 +80,24 @@ test('HP and mana thresholds use separate paid bottles and disabled settings nev
   step(w);assert.equal(p.potions,2);assert.equal(p.manaPotions,2);
 });
 
-test('selected skills rotate after success; missing mana and disabled fallback yield no attack',()=>{
+test('legacy skillOrder migrates to one attack and enabled buffs',()=>{
+  const base=defaultAfkPreferences('warrior');
+  const legacy={pickupGold:base.pickupGold,pickupRarities:base.pickupRarities,hpPotion:base.hpPotion,manaPotion:base.manaPotion,
+    skillOrder:['warrior-berserk','warrior-guard','warrior-whirlwind','warrior-earthquake'],basicAttackFallback:true,radiusPercent:100};
+  assert.deepEqual(parseAfkPreferences(legacy,'warrior'),{...base,attackSkill:'warrior-whirlwind',buffSkills:['warrior-berserk','warrior-guard']});
+  assert.equal(parseAfkPreferences({...legacy,skillOrder:['mage-fireball']},'warrior'),null);
+  assert.equal(defaultAfkPreferences('warrior').attackSkill,'warrior-cleave');
+  assert.deepEqual(defaultAfkPreferences('warrior').buffSkills,[]);
+});
+
+test('selected attack repeats; missing mana and disabled fallback yield no attack',()=>{
   const {w,p,spot}=fixture('mage'),target=w.mobs.find(m=>m.id===spot.spawnIds[0]);
   w.mobs=[target];Object.assign(target,{hp:10000,state:'recover',timer:100,target:p.id});
-  p.afkPreferences={...p.afkPreferences,skillOrder:['mage-lightning','mage-fireball'],basicAttackFallback:false};
-  assert(w.autoAttack(p));assert.equal(p.attack.skillId,'mage-lightning');assert.equal(p.afk.skillCursor,1);
-  p.attack=null;assert(w.autoAttack(p));assert.equal(p.attack.skillId,'mage-fireball');assert.equal(p.afk.skillCursor,0);
-  p.attack=null;p.mana=0;const cursor=p.afk.skillCursor;
-  assert.equal(w.autoAttack(p),false);assert.equal(p.attack,null);assert.equal(p.afk.skillCursor,cursor);
+  p.afkPreferences={...p.afkPreferences,attackSkill:'mage-lightning',buffSkills:[],basicAttackFallback:false};
+  assert(w.autoAttack(p));assert.equal(p.attack.skillId,'mage-lightning');
+  p.attack=null;assert(w.autoAttack(p));assert.equal(p.attack.skillId,'mage-lightning');
+  p.attack=null;p.mana=0;
+  assert.equal(w.autoAttack(p),false);assert.equal(p.attack,null);
   p.afkPreferences.basicAttackFallback=true;
   assert(w.autoAttack(p));assert.equal(p.attack.skillId,undefined);
 });
@@ -90,7 +105,7 @@ test('selected skills rotate after success; missing mana and disabled fallback y
 test('configured radius changes engagement reach immediately while the activation anchor stays fixed',()=>{
   const {w,p,spot}=fixture(),target=w.mobs.find(m=>m.id===spot.spawnIds[0]),anchor={x:p.x,z:p.z};
   w.mobs=[target];Object.assign(target,{x:p.x+1.8,z:p.z,hp:10000,state:'recover',timer:100,target:p.id});
-  w.command(p,{type:'afkPreferences',preferences:{...p.afkPreferences,radiusPercent:25}});
+  w.command(p,{type:'afkPreferences',preferences:{...p.afkPreferences,attackSkill:'warrior-whirlwind',radiusPercent:25}});
   assert.equal(afkCombatRadius(p.afkPreferences,stats(p).range),2.5*.25);
   assert.equal(w.snapshot(p.id).self.afkRadius,2.5*.25);
   step(w,40);assert.equal(p.attack,null);assert.equal(target.hp,10000);assert.equal(p.afk.targetId,null);
@@ -98,19 +113,36 @@ test('configured radius changes engagement reach immediately while the activatio
   w.command(p,{type:'afkPreferences',preferences:{...p.afkPreferences,radiusPercent:100}});
   step(w,40);assert(target.hp<10000);assert.deepEqual({x:p.x,z:p.z},anchor);
   p.attack=null;p.mana=0;assert.equal(w.snapshot(p.id).self.afkRadius,2.5);
-  w.command(p,{type:'afkPreferences',preferences:{...p.afkPreferences,skillOrder:[],basicAttackFallback:false}});
+  w.command(p,{type:'afkPreferences',preferences:{...p.afkPreferences,attackSkill:null,buffSkills:[],basicAttackFallback:false}});
   assert.equal(w.snapshot(p.id).self.afkRadius,0);step(w,20);assert(p.afk);assert.equal(p.attack,null);
 });
 
 test('AFK uses each action range and target body allowance without casting an unavailable skill',()=>{
   const {w,p,spot}=fixture('mage'),target=w.mobs.find(m=>m.id===spot.spawnIds[0]);w.mobs=[target];
-  p.afkPreferences={...p.afkPreferences,skillOrder:['mage-frost','mage-fireball'],basicAttackFallback:false};
+  p.afkPreferences={...p.afkPreferences,attackSkill:'mage-fireball',buffSkills:[],basicAttackFallback:false};
   Object.assign(target,{x:p.x+5.95,z:p.z,hp:10000,state:'recover',timer:100,target:p.id});
   assert(w.autoAttack(p));assert.equal(p.attack.skillId,'mage-fireball');
   p.attack=null;p.mana=0;assert.equal(w.autoAttack(p),false);
   p.mana=100;Object.assign(target,{x:p.x+6.3});assert.equal(w.autoAttack(p),false);
-  Object.assign(target,{x:p.x+1.8});p.afkPreferences.skillOrder=['mage-meteor','mage-fireball'];p.skillCooldowns['mage-meteor']=8;
+  Object.assign(target,{x:p.x+1.8});p.afkPreferences.attackSkill='mage-meteor';p.skillCooldowns['mage-meteor']=8;
+  assert.equal(w.autoAttack(p),false);
+  p.afkPreferences.attackSkill='mage-fireball';
   assert(w.autoAttack(p));assert.equal(p.attack.skillId,'mage-fireball');
+});
+
+test('enabled buffs fire immediately on cooldown, even at full health, and skip while already active',()=>{
+  const {w,p,spot}=fixture(),target=w.mobs.find(m=>m.id===spot.spawnIds[0]);
+  w.mobs=[target];Object.assign(target,{hp:10000,state:'recover',timer:100,target:p.id});
+  p.level=32;p.skillBuild={slots:['warrior-heavy','warrior-guard','warrior-berserk',null,null],talents:{}};
+  p.hp=stats(p).maxHp;p.mana=stats(p).maxMana;
+  p.afkPreferences={...p.afkPreferences,attackSkill:'warrior-heavy',buffSkills:['warrior-guard','warrior-berserk'],basicAttackFallback:false};
+  assert(w.autoAttack(p));assert.equal(p.attack.skillId,'warrior-guard');
+  p.attack=null;assert(w.autoAttack(p));assert.equal(p.attack.skillId,'warrior-berserk');
+  p.attack=null;assert(w.autoAttack(p));assert.equal(p.attack.skillId,'warrior-heavy');
+  p.attack=null;
+  p.effects=[{skillId:'warrior-guard',remaining:8},{skillId:'warrior-berserk',remaining:8}];
+  p.skillCooldowns['warrior-guard']=0;p.skillCooldowns['warrior-berserk']=0;
+  assert(w.autoAttack(p));assert.equal(p.attack.skillId,'warrior-heavy');
 });
 
 test('schema 3 migration keeps a schema 2 hero, stash, potions and class-specific default preferences',
@@ -152,7 +184,7 @@ test('WebSocket settings save reaches PostgreSQL and survives reconnect without 
     let state;ws.on('message',data=>{const message=JSON.parse(data);if(message.type==='state')state=message;});
     await once(ws,'open');ws.send(JSON.stringify({type:'join',protocol:3,heroId:login.heroId}));await until(()=>state?.self);
     ws.send(JSON.stringify({type:'afk',enabled:true}));await until(()=>state.self.afk);
-    const preferences={...defaultAfkPreferences('warrior'),pickupGold:false,skillOrder:['warrior-thrust'],radiusPercent:50};
+    const preferences={...defaultAfkPreferences('warrior'),pickupGold:false,attackSkill:'warrior-thrust',buffSkills:[],radiusPercent:50};
     ws.send(JSON.stringify({type:'afkPreferences',preferences}));
     await until(()=>state?.self.afkPreferences.pickupGold===false);
     assert(state.self.afk);

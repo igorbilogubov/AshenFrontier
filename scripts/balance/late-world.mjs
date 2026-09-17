@@ -34,7 +34,7 @@ function heroFor(classId,level,region){
   const hero=newHero(`late-balance-${classId}`,classId);hero.level=level;hero.allocatedStats=allocations(classId,level);hero.skillBuild=build(classId,level);
   const choices=regionalEquipment(classId,region,1),definitions=SLOTS.map(slot=>choices.filter(item=>item.slot===slot).sort((a,b)=>midpoint(b)-midpoint(a))[0]);
   hero.items=definitions.map((definition,index)=>rollEquipment(definition.id,`late-${classId}-${level}-${index}`,()=>.5));hero.equipment=Object.fromEntries(hero.items.map(item=>[item.slot,item.id]));
-  hero.afkPreferences={...hero.afkPreferences,skillOrder:hero.skillBuild.slots.filter(Boolean),basicAttackFallback:true};hero.hp=stats(hero).maxHp;hero.mana=stats(hero).maxMana;return hero;
+  hero.afkPreferences={...hero.afkPreferences,attackSkill:hero.skillBuild.slots.find(id=>id&&['attack','channel','control'].includes(SKILLS[id].kind))??null,buffSkills:hero.skillBuild.slots.filter(id=>id&&['support','defense'].includes(SKILLS[id].kind)),basicAttackFallback:true};hero.hp=stats(hero).maxHp;hero.mana=stats(hero).maxMana;return hero;
 }
 function spotFor(world,caseInfo){
   const region=LATE_REGIONS.find(value=>value.id===caseInfo.region),spot=region.spots.find(value=>world.mobs.filter(mob=>mob.spotId===value.id&&mob.type===caseInfo.type).length===6);

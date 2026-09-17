@@ -213,7 +213,7 @@ test('every class and enabled skill rotates and deals real damage without leavin
     const {w,p}=fixture(classId);Object.assign(p,{x:7.6,z:1.8,yaw:0,targetYaw:0,vx:3,vz:2,moveBlend:1,runBlend:1});
     assert.equal(afkSpotAt(p),null);const target=w.mobs[0];w.mobs=[target];
     Object.assign(target,{x:p.x+1.3,z:p.z,homeX:p.x+1.3,homeZ:p.z,hp:10000,state:'recover',timer:100,target:p.id});
-    p.afkPreferences={...p.afkPreferences,skillOrder:[skill.id],basicAttackFallback:false};
+    p.afkPreferences={...p.afkPreferences,attackSkill:skill.id,buffSkills:[],basicAttackFallback:false};
     toggle(w,p,true);const anchor={x:p.x,z:p.z};
     for(let tick=0;tick<75;tick++){
       step(w);assert(p.afk,skill.id);assert.deepEqual({x:p.x,z:p.z},anchor,skill.id);
@@ -236,8 +236,8 @@ test('AFK activation cancels an approach and repeated enable does not reset its 
 test('stopping AFK removes its delayed areas before a new activation can revive old damage',()=>{
   const {w,p}=fixture('mage'),target=w.mobs[0];w.mobs=[target];
   Object.assign(target,{x:p.x+1,z:p.z,hp:10000,state:'recover',timer:100,target:p.id});
-  p.afkPreferences={...p.afkPreferences,skillOrder:['mage-meteor'],basicAttackFallback:false};toggle(w,p,true);
+  p.afkPreferences={...p.afkPreferences,attackSkill:'mage-meteor',buffSkills:[],basicAttackFallback:false};toggle(w,p,true);
   for(let tick=0;tick<40&&!w.pendingAreas.length;tick++)step(w);
   assert.equal(w.pendingAreas.length,1);toggle(w,p,false);assert.equal(w.pendingAreas.length,0);
-  p.afkPreferences.skillOrder=[];toggle(w,p,true);step(w,30);assert.equal(target.hp,10000);
+  p.afkPreferences.attackSkill=null;toggle(w,p,true);step(w,30);assert.equal(target.hp,10000);
 });

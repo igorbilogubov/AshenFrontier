@@ -9,7 +9,7 @@ export type SkillCooldowns = Partial<Record<SkillId, number>>;
 export interface AfkPreferences {
   pickupGold:boolean;pickupRarities:number[];
   hpPotion:{enabled:boolean;belowPercent:number};manaPotion:{enabled:boolean;belowPercent:number};
-  skillOrder:SkillId[];basicAttackFallback:boolean;radiusPercent:number;
+  attackSkill:SkillId|null;buffSkills:SkillId[];basicAttackFallback:boolean;radiusPercent:number;
 }
 export type WeaponId = 'sword' | 'axe';
 export type EquipmentSlot = 'weapon' | 'armor' | 'helmet' | 'boots' | 'ring' | 'amulet';

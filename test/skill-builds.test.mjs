@@ -153,7 +153,7 @@ test('trap and seals interrupt mobs; elites get shorter control and root immunit
  const f=fixture('mage',['mage-seals']);f.m.eliteId='grey-alpha';assert(cast(f,'mage-seals'));advance(f.w,.65);assert(f.m.rootUntil>f.w.t);const until=f.m.rootUntil;f.w.rootMob(f.p,f.m,100);assert.equal(f.m.rootUntil,until);
 });
 test('AFK uses equipped stationary skills, keeps buffs and does not repeatedly spend on active aura',()=>{
- const f=fixture('warrior',['warrior-shout','warrior-heavy','warrior-charge']);f.p.afkPreferences.skillOrder=['warrior-shout','warrior-heavy','warrior-charge'];f.w.startAfk(f.p);const point={x:f.p.x,z:f.p.z};advance(f.w,7);
+ const f=fixture('warrior',['warrior-shout','warrior-heavy','warrior-charge']);f.p.afkPreferences={...f.p.afkPreferences,attackSkill:'warrior-heavy',buffSkills:['warrior-shout']};f.w.startAfk(f.p);const point={x:f.p.x,z:f.p.z};advance(f.w,7);
  assert(f.w.hasEffect(f.p,'warrior-shout'));assert(f.m.hp<10000);assert.equal(f.p.x,point.x);assert.equal(f.p.z,point.z);assert.equal(f.p.skillCooldowns['warrior-charge']??0,0);
  assert.equal(f.w.events.filter(e=>e.type==='skillImpact'&&e.skillId==='warrior-shout'&&e.phase==='start').length,1);
 });

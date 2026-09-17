@@ -44,7 +44,7 @@ function combatBuild(classId,level){
 function heroFor(classId,level){
   const hero=newHero(`balance-${classId}`,classId);hero.level=level;hero.allocatedStats=allocations(classId,level);hero.skillBuild=combatBuild(classId,level);
   const definitions=gearDefinitions(classId,level);hero.items=definitions.map((definition,index)=>rollEquipment(definition.id,`balance-${classId}-${level}-${index}`,()=>.5));
-  hero.equipment=Object.fromEntries(hero.items.map(item=>[item.slot,item.id]));hero.afkPreferences={...hero.afkPreferences,skillOrder:hero.skillBuild.slots.filter(Boolean),basicAttackFallback:true};
+  hero.equipment=Object.fromEntries(hero.items.map(item=>[item.slot,item.id]));hero.afkPreferences={...hero.afkPreferences,attackSkill:hero.skillBuild.slots.find(Boolean)??null,buffSkills:[],basicAttackFallback:true};
   hero.hp=stats(hero).maxHp;hero.mana=stats(hero).maxMana;return hero;
 }
 function prepare(caseInfo,classId,count,seed){

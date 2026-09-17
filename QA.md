@@ -1,5 +1,9 @@
 # Проверка общей 3D-опушки
 
+## 17 сентября 2026: AFK — один атакующий навык и бафы по откату
+
+Локально, без push. `npx tsc --noEmit` и `node scripts/check.mjs` (93 модуля) прошли. `test/afk-preferences.test.mjs`, `test/afk.test.mjs`, `test/skill-builds.test.mjs`, `test/client-imports.test.mjs`: 52 пройдено, 2 PG-сценария пропущены без локального PostgreSQL. Старый `skillOrder` принимается только как миграция сохранения.
+
 ## 17 сентября 2026: покупка ячеек рюкзака и сундука
 
 Ветка `codex/boss-loot-tables` поверх лута босса. Ячейки уменьшены, сетка 6 колонок, плюс докупает слоты.

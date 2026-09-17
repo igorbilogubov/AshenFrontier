@@ -53,7 +53,8 @@
 
 /* scene.css gives every input width:100% and form-field padding. AFK checkboxes
    are compact controls and must opt out so their text remains on the same row. */
-.afk-settings-panel input[type='checkbox'] {
+.afk-settings-panel input[type='checkbox'],
+.afk-settings-panel input[type='radio'] {
   box-sizing: border-box;
   flex: 0 0 14px;
   width: 14px;

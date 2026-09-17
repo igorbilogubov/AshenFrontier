@@ -96,7 +96,7 @@ export type ClientCommand =
   | {type:'buildApply';revision:number;build:SkillBuild} | {type:'buildSavePreset';index:0|1|2} | {type:'buildLoadPreset';revision:number;index:0|1|2} | {type:'skillStop'}
   | ({ type: 'input' } & HeroInput) | { type: 'attack'; yaw: number; special?: boolean; targetId?:number;approach?:boolean } | { type: 'skill'; skillId: SkillId; yaw: number; targetId?:number; target?:Point } | { type: 'afk'; enabled: boolean } | {type:'afkPreferences';preferences:AfkPreferences}
   | { type: 'potion'; kind?:'hp'|'mana' } | {type:'camp'|'claim'|'stashOpen'|'stashClose'} | {type:'stashDeposit'|'stashWithdraw';id:string} | { type: 'run'; running: boolean } | { type: 'weapon'; weapon: WeaponId }
-  | { type: 'equip' | 'unequip' | 'sell'; id: string } | { type: 'allocateStats'; revision: number; points: Partial<Attributes> }
+  | { type: 'equip' | 'unequip' | 'sell'; id: string } | { type: 'bagMove'; id: string; slot: number } | { type: 'allocateStats'; revision: number; points: Partial<Attributes> }
   | {type:'pickup';id:string} | {type:'interact';npcId:string} | {type:'cancelInteraction'}
   | {type:'buy';definitionId:string;requestId?:string}
   | {type:'buyBagSlot'} | {type:'buyStashSlot'}

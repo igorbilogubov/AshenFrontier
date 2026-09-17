@@ -212,9 +212,15 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
   function dropItem(payload:Transfer,target:Element|null){
     if(!target)return;
     const quick=target.closest<HTMLElement>('[data-quick-slot]');
-    if(payload.consumableDefinition){if(quick){const slot=quick.dataset.quickSlot;if(slot==='q'||slot==='w')game.send({type:'assignConsumable',slot,definitionId:payload.consumableDefinition});}return;}
+    if(payload.consumableDefinition&&quick){const slot=quick.dataset.quickSlot;if(slot==='q'||slot==='w')game.send({type:'assignConsumable',slot,definitionId:payload.consumableDefinition});return;}
     const inBag=bag.contains(target),slot=target.closest<HTMLElement>('.equipment-slot');
     if(payload.definitionId){if(inBag)buy(payload.definitionId);return;}
+    const cell=target.closest<HTMLElement>('.bag-cell:not(.bag-expand)');
+    const bagSlot=Number(cell?.dataset.bagIndex);
+    if(inBag&&payload.id&&Number.isInteger(bagSlot)&&(game.player.bag??[]).includes(payload.id)&&(game.player.bag??[])[bagSlot]!==payload.id){
+      game.send({type:'bagMove',id:payload.id,slot:bagSlot});return;
+    }
+    if(payload.consumableDefinition)return;
     const item=game.player.items.find(value=>value.id===payload.id);if(!item)return;
     if(stashOpened&&stash.contains(target)){if(!game.player.stash.includes(item.id))transfer(item,false);return;}
     if(stashOpened&&inBag&&game.player.stash.includes(item.id)){transfer(item,true);return;}
@@ -235,7 +241,7 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
     if(event.button!==0||event.isPrimary===false)return;
     const source=cell(event),item=source&&itemFor(source),consumable=source?.dataset.consumableDefinition;if(!source||(!item&&!consumable))return;
     endDrag();suppressClickUntil=0;
-    drag={pointerId:event.pointerId,source,payload:consumable?{consumableDefinition:consumable}:source.dataset.definitionId?{definitionId:source.dataset.definitionId}:{id:item!.id},x:event.clientX,y:event.clientY,ghost:null};
+    drag={pointerId:event.pointerId,source,payload:consumable?{consumableDefinition:consumable,id:source.dataset.consumableId}:source.dataset.definitionId?{definitionId:source.dataset.definitionId}:{id:item!.id},x:event.clientX,y:event.clientY,ghost:null};
   });
   addEventListener('pointermove',event=>{
     if(!drag||event.pointerId!==drag.pointerId)return;
@@ -270,7 +276,7 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
       const definitionCount=consumableQuantity(game.player,definition.id),kindCount=consumableKindQuantity(game.player,definition.kind),needsCell=!definitionCount&&backpackUsage(game.player)>=game.player.bagCapacity;
       button.disabled=!canTrade()||game.player.gold<definition.price*quantity||definitionCount+quantity>definition.stackLimit||kindCount+quantity>CONSUMABLE_LIMIT||needsCell;
     }
-    const hint=document.getElementById('inventory-hint')!;hint.textContent=stashOpened?'Сундук открыт · ПКМ или перетаскивание — переложить вещь':opened?'Магазин открыт · ПКМ по вещи — продать · перетащите зелье на Q/W':'Зелье — перетащите на Q/W · вещь — ПКМ или перетащите в слот';
+    const hint=document.getElementById('inventory-hint')!;hint.textContent=stashOpened?'Сундук открыт · ПКМ или перетаскивание — переложить вещь':opened?'Магазин открыт · ПКМ по вещи — продать · перетащите зелье на Q/W':'Перетащите вещь в другую ячейку или слот · зелье — на Q/W';
     if(hover&&!tooltip.hidden){if(hover.dataset.consumableDefinition){if(!game.player.consumableInventory.some(stack=>stack.id===hover!.dataset.consumableId))hideTooltip();else showConsumableTooltip(hover);}else if(!itemFor(hover))hideTooltip();else showTooltip(hover);}
   }
   function onEvent(event:WorldEvent){if(event.type==='shopOpen'&&event.npcId===SHOP.id)setOpen(true);if(event.type==='stashOpened'&&event.npcId===PERSONAL_CHEST.id)setStashOpen(true);if(event.type==='death'||event.type==='camp'){setOpen(false);setStashOpen(false,false);}}

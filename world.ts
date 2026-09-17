@@ -10,7 +10,7 @@ import {regionalDropPool,rollEquipment,validateEquipment,equipmentAppearance,ite
 import type {ClassId, EquipmentSlot, Item, Hero, PersistentHero, HeroAttack, Mob, Projectile, WorldEvent, EventPayloads, WorldSnapshot, SkillId, SkillCooldowns, GroundDrop, Point, ConsumableStack, QuickSlots, SkillBuild, SkillZone, StatSource} from './shared/types.js';
 import {isRecord, isClassId, isEquipmentSlot, isWeaponId} from './shared/types.js';
 import {randomUUID} from 'node:crypto';
-import {CLASSES,EQUIPMENT_SLOTS,MAX_BAG_CAPACITY,MAX_STASH_CAPACITY,BAG_SLOT_PRICE,STASH_SLOT_PRICE,backpackItems,classFor,canEquip,STAT_KEYS,CLASS_PROGRESSION,characterStats,normalizedAllocations,clampBagCapacity,clampStashCapacity,normalizeBag} from './public/rules.js';
+import {CLASSES,EQUIPMENT_SLOTS,MAX_BAG_CAPACITY,MAX_STASH_CAPACITY,BAG_SLOT_PRICE,STASH_SLOT_PRICE,backpackItems,classFor,canEquip,STAT_KEYS,CLASS_PROGRESSION,characterStats,normalizedAllocations,clampBagCapacity,clampStashCapacity,normalizeBag,swapBag} from './public/rules.js';
 import {BOUNDS,CAMP,SPAWNS,mobConfig,WEAPONS,AFK_SPOTS,afkSpotAt,withinSpot,safe as pointIsSafe,stand,clearPath,distance,translate,moveHero} from './public/game/location.js';
 import {angleDelta,turnTowards,inStrike} from './public/game/motion.js';
 import {SKILLS,skillsForClass,legacySkillId} from './public/game/skills.js';
@@ -690,6 +690,7 @@ export class World{
     if(msg.type==='portal'){this.startPortal(p,msg.portalId);return;}
     if(msg.type==='buy'){this.buy(p,msg.definitionId,msg.requestId);return;}
     if(msg.type==='buyBagSlot'){this.buyStorageSlot(p,'bag');return;}
+    if(msg.type==='bagMove'){if(!p.dead)p.bag=swapBag(p,msg.id,msg.slot);return;}
     if(msg.type==='buyStashSlot'){this.buyStorageSlot(p,'stash');return;}
     if(msg.type==='buyConsumable'){
       if('definitionId' in msg){

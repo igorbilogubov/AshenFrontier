@@ -43,6 +43,24 @@ test('picked and unequipped items take the first empty bag cell and do not shift
   assert.equal(reused[2],extra.id);assert.equal(reused[3],armorId);assert.equal(reused[0],before[0]);
 });
 
+test('bagMove places an item into an empty cell or swaps two occupied cells',()=>{
+  const w=new World({random:()=>0}),p=newHero('Перестановка');w.add(p);
+  const first=p.bag[0],second=p.bag[1];
+  assert.ok(first&&second);
+  w.command(p,{type:'bagMove',id:first,slot:5});
+  assert.equal(p.bag[5],first);assert.equal(p.bag[0],null);assert.equal(p.bag[1],second);
+  w.command(p,{type:'bagMove',id:second,slot:5});
+  assert.equal(p.bag[5],second);assert.equal(p.bag[1],first);assert.equal(p.bag[0],null);
+  w.command(p,{type:'bagMove',id:second,slot:5});
+  assert.equal(p.bag[5],second);
+  w.command(p,{type:'bagMove',id:p.equipment.weapon,slot:4});
+  assert.equal(p.bag[4],null);assert.equal(p.bag[5],second);
+  w.command(p,{type:'bagMove',id:second,slot:-1});
+  w.command(p,{type:'bagMove',id:second,slot:99});
+  assert.equal(p.bag[5],second);
+  p.dead=2.5;w.command(p,{type:'bagMove',id:second,slot:0});assert.equal(p.bag[5],second);assert.equal(p.bag[0],null);
+});
+
 test('legacy saves without capacities keep the starting bag and chest sizes',()=>{
   const p=newHero('Старый');
   const saved=persistentHero(p);

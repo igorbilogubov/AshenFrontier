@@ -64,6 +64,13 @@ export function normalizeBag(source:BagSource,raw:unknown):(string|null)[]{
   }
   return bag;
 }
+export function swapBag(source:BagSource,id:unknown,slot:unknown):(string|null)[]{
+  const bag=normalizeBag(source,source.bag);
+  if(typeof id!=='string'||!Number.isInteger(slot)||Number(slot)<0||Number(slot)>=bag.length)return bag;
+  const from=bag.indexOf(id),to=Number(slot);
+  if(from<0||from===to)return bag;
+  const other=bag[to];bag[to]=id;bag[from]=other;return bag;
+}
 const validClass=(id: unknown): ClassId=>id==='warrior'||id==='archer'||id==='mage'?id:'warrior';
 export const classFor=(id: unknown)=>CLASSES[validClass(id)];
 export const weaponClass=(item: Item | null | undefined)=>item?.classId||'warrior';

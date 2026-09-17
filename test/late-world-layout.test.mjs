@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {LATE_REGIONS,LATE_MOB_TYPES,LATE_SPAWNS,LATE_PASSAGES,lateRoadDistance,lateSafe,lateRegionAt} from '../dist/public/game/late-world.js';
+import {SPAWNS} from '../dist/public/game/location.js';
 import {canOccupy} from '../dist/public/game/motion.js';
 test('late ordinary damage continues the wasteland curve without an entry spike',()=>{
  assert.deepEqual(Object.values(LATE_MOB_TYPES).map(m=>m.damage),[34,38,42,46,46,50,55,60,60,66,72,78,78,86,94,102]);
@@ -9,10 +10,10 @@ test('late ordinary damage continues the wasteland curve without an entry spike'
 test('four large regions keep 328 independent spawn identities and reachable safe arrivals',()=>{
  assert.deepEqual(LATE_REGIONS.map(r=>r.minLevel),[40,55,70,85]);assert.equal(LATE_SPAWNS.length,328);const ids=[];
  for(const r of LATE_REGIONS){assert.equal((r.bounds.maxX-r.bounds.minX)*(r.bounds.maxZ-r.bounds.minZ),32400);assert.equal(r.spawns.length,82);assert.equal(r.spots.length,8);assert.equal(r.spawns.filter(s=>s.eliteId).length,2);assert.equal(r.spawns.filter(s=>!s.spotId&&!s.eliteId).length,32);assert.equal(new Set(r.spawns.map(s=>s.type)).size,4);assert(lateSafe(r.entry));assert.equal(lateRegionAt(r.entry).id,r.id);assert(canOccupy(r.entry.x,r.entry.z,r.obstacles,.3,r.bounds));
-  for(const spot of r.spots){assert.equal(spot.spawnIds.length,6);ids.push(...spot.spawnIds);for(const id of spot.spawnIds)assert.equal(LATE_SPAWNS[id-292].spotId,spot.id);}
+  for(const spot of r.spots){assert.equal(spot.spawnIds.length,spot.radius>6?12:6);ids.push(...spot.spawnIds);for(const id of spot.spawnIds)assert.equal(SPAWNS[id].spotId,spot.id);}
   for(const s of r.spawns){assert(canOccupy(s.x,s.z,r.obstacles,LATE_MOB_TYPES[s.type].radius,r.bounds),`${r.id} ${s.type} blocked spawn`);assert(!lateSafe(s));}
  }
- assert.equal(new Set(ids).size,192);
+ assert.equal(new Set(ids).size,288);
 });
 test('map routes and dungeon entrances have no invisible obstructions',()=>{
  for(const r of LATE_REGIONS){assert(lateRoadDistance(r,r.dungeonEntrance.x,r.dungeonEntrance.z)<0);assert(canOccupy(r.dungeonEntrance.x,r.dungeonEntrance.z,r.obstacles,.5,r.bounds));

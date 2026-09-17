@@ -8,19 +8,20 @@ import {MOB_TYPES,stand,safe} from '../dist/public/game/location.js';
 test('undisturbed animals walk in sustained bouts and rest, without tick-by-tick Walk/Idle flicker',()=>{
   const world=new World();world.mobs=world.mobs.filter(m=>!m.dungeonId);
   for(const point of [{x:.5,z:4},{x:160,z:15},{x:266,z:8},{x:526,z:0},...LATE_REGIONS.map(r=>r.entry)]){const observer=newHero(`Observer ${locationAt(point)}`);Object.assign(observer,point,{level:100});world.add(observer);}
-  const samples=world.mobs.map(()=>({moving:false,ticks:0,walks:[],rests:[],changes:0}));
+  const samples=new Map(world.mobs.map(m=>[m.id,{moving:false,ticks:0,walks:[],rests:[],changes:0}]));
   for(let tick=0;tick<2400;tick++){
     world.tick(.05);
     for(const mob of world.mobs){
-      const s=samples[mob.id],moving=mob.speed>.03;
+      const s=samples.get(mob.id),moving=mob.speed>.03;
       if(s.moving!==moving){(s.moving?s.walks:s.rests).push(s.ticks*.05);s.ticks=0;s.changes++;}
       s.ticks++;s.moving=moving;
       assert.equal(mob.state,'idle');assert(stand(mob.x,mob.z,MOB_TYPES[mob.type].radius));assert(!safe(mob));
       assert(Math.hypot(mob.x-mob.homeX,mob.z-mob.homeZ)<2.2,'patrol left its home area');
     }
   }
-  for(const [i,s] of samples.entries()){
-    assert(s.walks.length>=5,`animal ${world.mobs[i].type}#${i} in ${locationAt(world.mobs[i])} did not patrol: ${s.walks.length}`);
+  for(const mob of world.mobs){
+    const s=samples.get(mob.id);
+    assert(s.walks.length>=5,`animal ${mob.type}#${mob.id} in ${locationAt(mob)} did not patrol: ${s.walks.length}`);
     assert(s.walks.every(seconds=>seconds>=1),'short movement bursts make the walk clip flicker');
     assert(s.rests.every(seconds=>seconds>=.5),'pauses must be visible, not single-tick stops');
     assert(s.changes/2<30,'too many Walk/Idle transitions per minute');

@@ -1,5 +1,6 @@
 import type {Position,Obstacle} from './motion.js';
 import type {MobType} from '../../shared/types.js';
+import {LARGE_SPOT_RADIUS,WASTELAND_PACK_BASE,extraIds,packRing} from './pack-size.js';
 /** Third open region. Disjoint coordinates prevent movement between map gaps. */
 export const WASTELAND_BOUNDS=Object.freeze({minX:520,maxX:680,minZ:-80,maxZ:80});
 export const WASTELAND_ENTRY=Object.freeze({x:528,z:0});
@@ -13,10 +14,22 @@ const centers:readonly (readonly [WastelandSpotId,string,number,number,MobType])
  ['ash-scorpion-fissure','Пепельный разлом',618,-28,'scorpion'],['ash-scarab-tombs','Погребённые гробницы',625,53,'scarab'],
  ['ash-monitor-bones','Кладбище костей',652,-56,'monitor-lizard'],['ash-scarab-crater','Кратер скарабеев',655,8,'scarab'],
 ];
-export const WASTELAND_SPOTS=Object.freeze(centers.map(([id,name,x,z],i)=>Object.freeze({id,name,x,z,radius:5.2,spawnIds:Object.freeze(Array.from({length:6},(_,j)=>194+i*6+j))})));
+const WASTELAND_LARGE_INDICES=[2,4,6,7] as const;
+export const WASTELAND_SPOTS=Object.freeze(centers.map(([id,name,x,z],i)=>{
+  const large=WASTELAND_LARGE_INDICES.includes(i as typeof WASTELAND_LARGE_INDICES[number]);
+  const rank=WASTELAND_LARGE_INDICES.indexOf(i as typeof WASTELAND_LARGE_INDICES[number]);
+  const ids=[...Array.from({length:6},(_,j)=>194+i*6+j),...large?extraIds(WASTELAND_PACK_BASE,rank):[]];
+  return Object.freeze({id,name,x,z,radius:large?LARGE_SPOT_RADIUS:5.2,spawnIds:Object.freeze(ids)});
+}));
+export const WASTELAND_LARGE_EXTRA_SPAWNS:readonly Readonly<Position & {type:MobType;spotId:WastelandSpotId}>[]=Object.freeze(
+  WASTELAND_LARGE_INDICES.flatMap(i=>{
+    const [spotId,,x,z,type]=centers[i];
+    return packRing(x,z).map(([px,pz])=>Object.freeze({type,spotId,x:px,z:pz}));
+  })
+);
 export const WASTELAND_SPAWNS:readonly Readonly<Position & {type:MobType;spotId?:WastelandSpotId;eliteId?:string}>[]=Object.freeze([
  ...centers.flatMap(([spotId,,x,z,type])=>Array.from({length:6},(_,i)=>({type,spotId,x:x+Math.cos(i*Math.PI/3)*3.5,z:z+Math.sin(i*Math.PI/3)*3.5}))),
- ...Array.from({length:48},(_,i)=>{const col=i%8,row=Math.floor(i/8),x=538+col*18;let z=-69+row*27;for(let attempt=0;attempt<12&&centers.some(([, ,sx,sz])=>Math.hypot(x-sx,z-sz)<9);attempt++)z+=1.3;return {type:(['ash-jackal','scorpion','monitor-lizard','scarab'] as const)[Math.min(3,Math.floor(col/2))],x,z};}),
+ ...Array.from({length:48},(_,i)=>{const col=i%8,row=Math.floor(i/8),x=538+col*18;let z=-69+row*27;for(let attempt=0;attempt<12&&centers.some(([, ,sx,sz],si)=>Math.hypot(x-sx,z-sz)<(WASTELAND_LARGE_INDICES.includes(si as typeof WASTELAND_LARGE_INDICES[number])?LARGE_SPOT_RADIUS+4:9));attempt++)z+=1.3;return {type:(['ash-jackal','scorpion','monitor-lizard','scarab'] as const)[Math.min(3,Math.floor(col/2))],x,z};}),
  {type:'scorpion',eliteId:'obsidian-stinger',x:614,z:-63},
  {type:'scarab',eliteId:'sun-devourer',x:666,z:47},
 ]);

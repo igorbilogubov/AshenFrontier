@@ -38,7 +38,7 @@ test('account-cookie snow passage rejects level nine and forged level through re
     await until(()=>notices(client).length>priorNotices&&client.state.self.ack>=1);
     send(client,{type:'input',x:0,z:0,aim:null,seq:2});await until(()=>client.state.self.ack>=2);
     assert(client.states.every(state=>locationAt(state.self)==='forest'));
-    assert.equal(client.state.self.level,9);assert.equal(client.state.self.gold,71);assert.equal(client.state.mobs.length,72);
+    assert.equal(client.state.self.level,9);assert.equal(client.state.self.gold,71);assert.equal(client.state.mobs.length,90);
   }finally{await close(client);await stopTestServer(server);await database.close();}
 });
 
@@ -57,8 +57,8 @@ test('account-cookie level ten enters snow, isolates regions and restores blue e
     send(owner,{type:'input',x:1,z:0,aim:null,seq:1});
     await until(()=>locationAt(owner.state.self)==='snow');
     await until(()=>!watcher.state.players.some(player=>player.id===hero.id));
-    assert.equal(owner.state.mobs.length,98);assert(owner.state.mobs.every(mob=>locationAt(mob)==='snow'));
-    assert.equal(watcher.state.mobs.length,72);assert(watcher.state.mobs.every(mob=>locationAt(mob)==='forest'));
+    assert.equal(owner.state.mobs.length,122);assert(owner.state.mobs.every(mob=>locationAt(mob)==='snow'));
+    assert.equal(watcher.state.mobs.length,90);assert(watcher.state.mobs.every(mob=>locationAt(mob)==='forest'));
     assert.deepEqual(owner.state.players.map(player=>player.id),[hero.id]);
     assert(owner.states.some(state=>state.events.some(event=>event.type==='portal'&&event.portalId==='forest-snow'&&event.location==='snow')));
     assert.deepEqual({x:owner.state.self.x,z:owner.state.self.z},SNOW_ENTRY);
@@ -71,11 +71,11 @@ test('account-cookie level ten enters snow, isolates regions and restores blue e
     assert.deepEqual({x:saved.x,z:saved.z},SNOW_ENTRY);assert.equal(saved.level,10);assert.equal(saved.gold,123);assert.deepEqual(saved.items,hero.items);
     validateEquipment(saved.items.find(item=>item.id===rare.id));
     server=await startTestServer(database);const restored=await connect(server,fixture);clients.push(restored);
-    assert.equal(restored.state.self.id,hero.id);assert.equal(locationAt(restored.state.self),'snow');assert.equal(restored.state.mobs.length,98);
+    assert.equal(restored.state.self.id,hero.id);assert.equal(locationAt(restored.state.self),'snow');assert.equal(restored.state.mobs.length,122);
     assert.deepEqual({x:restored.state.self.x,z:restored.state.self.z},SNOW_ENTRY);
     assert.deepEqual(restored.state.self.items.find(item=>item.id===rare.id),rare);assert.equal(restored.state.self.afk,null);
     send(restored,{type:'portal',portalId:'snow-forest'});await until(()=>locationAt(restored.state.self)==='forest');
-    assert.equal(restored.state.mobs.length,72);assert.deepEqual({x:restored.state.self.x,z:restored.state.self.z},SNOW_PASSAGES[1].destination);
+    assert.equal(restored.state.mobs.length,90);assert.deepEqual({x:restored.state.self.x,z:restored.state.self.z},SNOW_PASSAGES[1].destination);
     assert.equal(restored.state.self.gold,123);assert.deepEqual(restored.state.self.items.find(item=>item.id===rare.id),rare);
     await close(restored);await stopTestServer(server);
     const returned=(await database.load(fixture)).hero;assert.equal(locationAt(returned),'forest');assert.deepEqual(returned.items,hero.items);

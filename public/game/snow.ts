@@ -1,5 +1,6 @@
 import type {Position,Obstacle} from './motion.js';
 import type {MobType} from '../../shared/types.js';
+import {LARGE_SPOT_RADIUS,SNOW_PACK_BASE,extraIds,packRing} from './pack-size.js';
 export const SNOW_BOUNDS=Object.freeze({minX:260,maxX:440,minZ:-80,maxZ:85});
 export const SNOW_ENTRY=Object.freeze({x:268,z:8});
 export const SNOW_MIN_LEVEL=10;
@@ -12,10 +13,22 @@ const centers:readonly (readonly [SnowSpotId,string,number,number,MobType])[]=[
  ['snow-yak-tundra','Дальняя тундра',353,62,'yak'],['snow-spider-hollow','Ледяная впадина',381,-15,'frost-spider'],
  ['snow-golem-ruins','Застывшие руины',402,44,'ice-golem'],['snow-golem-glacier','Сердце ледника',412,-57,'ice-golem'],
 ];
-export const SNOW_SPOTS=Object.freeze(centers.map(([id,name,x,z],i)=>Object.freeze({id,name,x,z,radius:5.2,spawnIds:Object.freeze(Array.from({length:6},(_,j)=>96+i*6+j))})));
+const SNOW_LARGE_INDICES=[3,4,5,7] as const;
+export const SNOW_SPOTS=Object.freeze(centers.map(([id,name,x,z],i)=>{
+  const large=SNOW_LARGE_INDICES.includes(i as typeof SNOW_LARGE_INDICES[number]);
+  const rank=SNOW_LARGE_INDICES.indexOf(i as typeof SNOW_LARGE_INDICES[number]);
+  const ids=[...Array.from({length:6},(_,j)=>96+i*6+j),...large?extraIds(SNOW_PACK_BASE,rank):[]];
+  return Object.freeze({id,name,x,z,radius:large?LARGE_SPOT_RADIUS:5.2,spawnIds:Object.freeze(ids)});
+}));
+export const SNOW_LARGE_EXTRA_SPAWNS:readonly Readonly<Position & {type:MobType;spotId:SnowSpotId}>[]=Object.freeze(
+  SNOW_LARGE_INDICES.flatMap(i=>{
+    const [spotId,,x,z,type]=centers[i];
+    return packRing(x,z).map(([px,pz])=>Object.freeze({type,spotId,x:px,z:pz}));
+  })
+);
 export const SNOW_SPAWNS:readonly Readonly<Position & {type:MobType;spotId?:SnowSpotId;eliteId?:string}>[]=Object.freeze([
  ...centers.flatMap(([spotId,,x,z,type])=>Array.from({length:6},(_,i)=>({type,spotId,x:x+Math.cos(i*Math.PI/3)*3.5,z:z+Math.sin(i*Math.PI/3)*3.5}))),
- ...Array.from({length:48},(_,i)=>{const col=i%8,row=Math.floor(i/8),x=280+col*20;let z=-68+row*27;for(let attempt=0;attempt<12&&centers.some(([, ,sx,sz])=>Math.hypot(x-sx,z-sz)<9);attempt++)z+=1.5;return {type:(['lynx','yak','frost-spider','ice-golem'] as const)[Math.min(3,Math.floor(col/2))],x,z};}),
+ ...Array.from({length:48},(_,i)=>{const col=i%8,row=Math.floor(i/8),x=280+col*20;let z=-68+row*27;for(let attempt=0;attempt<12&&centers.some(([, ,sx,sz],si)=>Math.hypot(x-sx,z-sz)<(SNOW_LARGE_INDICES.includes(si as typeof SNOW_LARGE_INDICES[number])?LARGE_SPOT_RADIUS+4:9));attempt++)z+=1.5;return {type:(['lynx','yak','frost-spider','ice-golem'] as const)[Math.min(3,Math.floor(col/2))],x,z};}),
  {type:'yak',eliteId:'frost-matriarch',x:357,z:35},
  {type:'ice-golem',eliteId:'glacier-warden',x:423,z:-29},
 ]);

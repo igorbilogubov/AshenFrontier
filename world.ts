@@ -863,17 +863,19 @@ export class World{
       p.kills++;if(!automatic&&locationAt(m)==='forest')p.questKills++;p.xp+=earnedXp;if(!automatic&&m.id===6&&locationAt(m)==='forest')p.boss=true;
       while(p.level<MAX_LEVEL&&p.xp>=stats(p).xpNeeded){p.xp-=stats(p).xpNeeded;p.level++;p.statRevision++;this.emit('level',{level:p.level,points:5},p.id);}
       if(p.level>=MAX_LEVEL)p.xp=0;
-      this.addGroundDrop(p.id,{id:randomUUID(),kind:'gold',x:m.x,z:m.z,amount:cfg.coins,expiresAt:this.t+LOOT_TTL_MS});
-      const itemCount=m.bossId?bossItemCount(this.random):1;
-      const offsets:[[number,number],[number,number],[number,number]]=[[.22,.12],[-.24,.16],[.04,-.26]];
-      for(let i=0;i<itemCount;i++){
-        const rarity=gearRarity(m.type,m.eliteId,this.random,!!m.bossId);
-        if(rarity===null)continue;
-        const choices=regionalEquipment(p.classId,fieldRegionAt(m),rarity),definition=choices[Math.floor(this.random()*choices.length)];
-        const item=rollEquipment(definition.id,randomUUID(),this.random);
-        const [dx,dz]=offsets[i]??offsets[0];
-        const shifted=stand(m.x+dx,m.z+dz),x=shifted?m.x+dx:m.x,z=shifted?m.z+dz:m.z;
-        this.addGroundDrop(p.id,{id:randomUUID(),kind:'item',x,z,item,expiresAt:this.t+LOOT_TTL_MS});
+      if(locationAt(m)!=='stadium'){
+        this.addGroundDrop(p.id,{id:randomUUID(),kind:'gold',x:m.x,z:m.z,amount:cfg.coins,expiresAt:this.t+LOOT_TTL_MS});
+        const itemCount=m.bossId?bossItemCount(this.random):1;
+        const offsets:[[number,number],[number,number],[number,number]]=[[.22,.12],[-.24,.16],[.04,-.26]];
+        for(let i=0;i<itemCount;i++){
+          const rarity=gearRarity(m.type,m.eliteId,this.random,!!m.bossId);
+          if(rarity===null)continue;
+          const choices=regionalEquipment(p.classId,fieldRegionAt(m),rarity),definition=choices[Math.floor(this.random()*choices.length)];
+          const item=rollEquipment(definition.id,randomUUID(),this.random);
+          const [dx,dz]=offsets[i]??offsets[0];
+          const shifted=stand(m.x+dx,m.z+dz),x=shifted?m.x+dx:m.x,z=shifted?m.z+dz:m.z;
+          this.addGroundDrop(p.id,{id:randomUUID(),kind:'item',x,z,item,expiresAt:this.t+LOOT_TTL_MS});
+        }
       }
       this.emit('kill',{id:m.id,name:cfg.name,xp:earnedXp},p.id);
     }

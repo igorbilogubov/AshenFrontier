@@ -1,15 +1,15 @@
 import {travelSafe} from './travel.js';
 import {fieldBalance} from './field-balance.js';
 import {baseExperience} from './progression-curve.js';
-import {LATE_SPAWNS,LATE_MOB_TYPES,LATE_ELITE_TYPES,lateSafe} from './late-world.js';
+import {LATE_SPAWNS,LATE_MOB_TYPES,LATE_ELITE_TYPES,LATE_LARGE_EXTRA_SPAWNS,lateSafe} from './late-world.js';
 import {DUNGEON_SPAWNS,dungeonById,dungeonSafe} from './dungeons.js';
-import {WASTELAND_SPAWNS,wastelandSafe} from './wasteland.js';
-import {SNOW_SPAWNS,snowSafe} from './snow.js';
+import {WASTELAND_SPAWNS,WASTELAND_LARGE_EXTRA_SPAWNS,wastelandSafe} from './wasteland.js';
+import {SNOW_SPAWNS,SNOW_LARGE_EXTRA_SPAWNS,snowSafe} from './snow.js';
 import {campSafe} from './camp-layout.js';
 import {canOccupy,turnTowards,gaitProfile} from './motion.js';
 import type {Position} from './motion.js';
 import {nearbyObstacles} from './terrain.js';
-import {AFK_SPAWNS,BEAR_AFK_SPAWNS} from './afk.js';
+import {AFK_SPAWNS,BEAR_AFK_SPAWNS,FOREST_LARGE_EXTRA_SPAWNS} from './afk.js';
 import {STADIUM_SPAWNS,stadiumSafe} from './stadium.js';
 import {WORLD_BOUNDS,ROAMING_SPAWNS,EXTRA_ROAMING_SPAWNS,boundsForPosition} from './world-layout.js';
 import type {AfkSpotId} from './afk.js';
@@ -50,11 +50,13 @@ export const ELITE_TYPES=Object.freeze({
  'frost-matriarch':{type:'yak',name:'Матриарх метели',hp:1100,damage:40,coins:130,xp:230,scale:1.45,respawn:240},
  'glacier-warden':{type:'ice-golem',name:'Страж ледника',hp:1500,damage:52,coins:180,xp:320,scale:1.45,respawn:300},
 });
+/** Named elites and dungeon bosses currently deal and absorb four times the authored combat stats. Dungeon guards keep the previous 2× layer. */
+export const ELITE_COMBAT_SCALE=4;
 export function mobConfig(m:{type:MobType;eliteId?:string;bossId?:string;dungeonId?:string}){
  const elite=m.eliteId?ELITE_TYPES[m.eliteId as keyof typeof ELITE_TYPES]:undefined;
  const base={level:1,...MOB_TYPES[m.type],...fieldBalance(m.type)},dungeon=dungeonById(m.dungeonId);
- if(dungeon){const boss=!!m.bossId;return {...base,level:dungeon.level,name:boss?dungeon.bossName:`Страж · ${base.name}`,hp:Math.round(base.hp*(boss?10:2)),damage:Math.round(base.damage*(boss?1.8:1.15)),xp:baseExperience(dungeon.level)*(boss?12:2),coins:Math.round(base.coins*(boss?15:2)),scale:base.scale*(boss?1.6:1.13),aggro:boss?12:6,respawn:180};}
- return {...base,respawn:24,...(elite?.type===m.type?{...elite,level:Math.min(100,base.level+2),xp:baseExperience(base.level+2)*3}:{})};
+ if(dungeon){const boss=!!m.bossId,combat=boss?ELITE_COMBAT_SCALE:2;return {...base,level:dungeon.level,name:boss?dungeon.bossName:`Страж · ${base.name}`,hp:Math.round(base.hp*(boss?10:2)*combat),damage:Math.round(base.damage*(boss?1.8:1.15)*combat),xp:baseExperience(dungeon.level)*(boss?12:2),coins:Math.round(base.coins*(boss?15:2)),scale:base.scale*(boss?1.6:1.13),aggro:boss?12:6,respawn:180};}
+ return {...base,respawn:24,...(elite?.type===m.type?{...elite,hp:Math.round(elite.hp*ELITE_COMBAT_SCALE),damage:Math.round(elite.damage*ELITE_COMBAT_SCALE),level:Math.min(100,base.level+2),xp:baseExperience(base.level+2)*3}:{})};
 }
 export const SPAWNS:readonly Readonly<Position & {type:MobType;spotId?:AfkSpotId;eliteId?:string;bossId?:import('../../shared/types.js').DungeonId;dungeonId?:import('../../shared/types.js').DungeonId;bossLocked?:boolean}>[]=Object.freeze([
   {type:'wolf',x:7.6,z:1.8},{type:'wolf',x:10.4,z:-4},{type:'boar',x:12.4,z:6.4},
@@ -65,12 +67,17 @@ export const SPAWNS:readonly Readonly<Position & {type:MobType;spotId?:AfkSpotId
   ...STADIUM_SPAWNS.slice(0,18),
   ...EXTRA_ROAMING_SPAWNS,
   ...BEAR_AFK_SPAWNS,
-  ...STADIUM_SPAWNS.slice(18),
+  ...STADIUM_SPAWNS.slice(18,24),
   {type:'bear',eliteId:'elder-bear',x:-20,z:-16},
   ...SNOW_SPAWNS,
   ...WASTELAND_SPAWNS,
   ...LATE_SPAWNS as readonly (Position & {type:MobType;spotId?:AfkSpotId;eliteId?:string})[],
+  ...STADIUM_SPAWNS.slice(24),
   ...DUNGEON_SPAWNS,
+  ...FOREST_LARGE_EXTRA_SPAWNS,
+  ...SNOW_LARGE_EXTRA_SPAWNS,
+  ...WASTELAND_LARGE_EXTRA_SPAWNS,
+  ...LATE_LARGE_EXTRA_SPAWNS as readonly (Position & {type:MobType;spotId?:AfkSpotId})[],
 ]);
 export const safe=(p:Position)=>travelSafe(p)||lateSafe(p)||dungeonSafe(p)||campSafe(p)||stadiumSafe(p)||snowSafe(p)||wastelandSafe(p);
 

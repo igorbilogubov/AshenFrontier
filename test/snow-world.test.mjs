@@ -35,7 +35,7 @@ test('server enforces level ten on click and held movement, returns without gate
 
 test('snow snapshots, loot, attacks and contributions remain region isolated',()=>{
  const w=new World({random:()=>0}),p=newHero('Снег','mage'),f=newHero('Лес');Object.assign(p,SNOW_ENTRY,{level:10});w.add(p);w.add(f);
- const snap=w.snapshot(p.id);assert.equal(snap.mobs.length,98);assert.deepEqual(snap.players.map(h=>h.id),[p.id]);assert.equal(w.snapshot(f.id).mobs.length,72);
+ const snap=w.snapshot(p.id);assert.equal(snap.mobs.length,122);assert.deepEqual(snap.players.map(h=>h.id),[p.id]);assert.equal(w.snapshot(f.id).mobs.length,90);
  const snow=w.mobs[96];assert.equal(w.aimedMob(f,snow.id,999),null);
  snow.contributors.set(f.id,{at:w.t,damage:999});w.kill(snow);assert.equal(f.kills,0);assert.equal(w.snapshot(f.id).groundLoot.length,0);
 });

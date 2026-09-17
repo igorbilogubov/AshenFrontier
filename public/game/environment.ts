@@ -23,7 +23,7 @@ export function createEnvironment(scene:T.Scene){
   for(let i=0;i<positions.count;i++){
     const x=positions.getX(i),z=positions.getZ(i),distance=Math.hypot(x+1,z),path=forestTrailDistance(x,z);
     const clearing=Math.max(...SPAWNS.map(s=>Math.exp(-((x-s.x)**2+(z-s.z)**2)/9)));
-    const hollow=Math.exp(-((x-12.7)**2+(z+8.2)**2)/17),wallow=Math.exp(-((x-23)**2+(z-9.3)**2)/15);
+    const hollow=Math.exp(-((x-12.7)**2+(z+8.2)**2)/70),wallow=Math.exp(-((x-23)**2+(z-9.3)**2)/15);
     const dirt=Math.max(Math.exp(-distance*distance/28),Math.exp(-path*path/3)*.8,clearing*.48);
     const patches=Math.sin(x*.61+Math.sin(z*.32))*Math.cos(z*.73+x*.12);
     const color=new T.Color('#97a28d').lerp(new T.Color('#c7ab83'),dirt*.9);

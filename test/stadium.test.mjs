@@ -1,21 +1,40 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {World,newHero,persistentHero,safeHero,stats} from '../dist/world.js';
-import {STADIUM_BOUNDS,STADIUM_PENS,STADIUM_HUB,STADIUM_SPAWNS,STADIUM_PEN_WALLS,PORTALS} from '../dist/public/game/stadium.js';
+import {STADIUM_BOUNDS,STADIUM_PENS,STADIUM_HUB,STADIUM_SPAWNS,STADIUM_PEN_WALLS,STADIUM_EXPANSION_SPAWN_BASE,STADIUM_ROWS,STADIUM_COLS,PORTALS} from '../dist/public/game/stadium.js';
 import {BOUNDS,AFK_SPOTS,SPAWNS,MOB_TYPES,stand,safe,clearPath,translate,distance,withinSpot} from '../dist/public/game/location.js';
 import {locationAt,boundsForPosition} from '../dist/public/game/world-layout.js';
 const step=(world,n=1)=>{for(let i=0;i<n;i++)world.tick(.05);};
+const STADIUM_MOB_COUNT=STADIUM_PENS.length*6;
+function approach(pen){
+  const gateZ=pen.z+pen.depth/2,aisleZ=gateZ+3;
+  const col=Math.round((pen.x-142)/18);
+  const gapX=col<=1?151:187;
+  if(Math.abs(pen.z-(-6))<1)return [{x:160,z:14.8},{x:160,z:6},{x:pen.x,z:6},{x:pen.x,z:2},pen];
+  return [{x:160,z:14.8},{x:160,z:6},{x:gapX,z:6},{x:gapX,z:aisleZ},{x:pen.x,z:aisleZ},pen];
+}
 
-test('Stadium keeps the original three pen ids and appends one six-bear pen',()=>{
-  assert.equal(STADIUM_PENS.length,4);assert.equal(STADIUM_SPAWNS.length,24);assert.equal(SPAWNS.filter(s=>['forest','stadium','snow','wasteland'].includes(locationAt(s))).length,292);
+test('Stadium is seven rows of four regular pens, keeping the original four ids',()=>{
+  assert.equal(STADIUM_PENS.length,28);assert.equal(STADIUM_ROWS,7);assert.equal(STADIUM_COLS,4);
+  assert.equal(STADIUM_SPAWNS.length,168);assert.equal(STADIUM_MOB_COUNT,168);
   assert.equal(AFK_SPOTS.filter(p=>locationAt(p)==='forest').length,5);
-  assert.equal(AFK_SPOTS.filter(p=>locationAt(p)==='stadium').length,4);
+  assert.equal(AFK_SPOTS.filter(p=>locationAt(p)==='stadium').length,28);
   assert.deepEqual(STADIUM_PENS.slice(0,3).flatMap(p=>p.spawnIds),Array.from({length:18},(_,i)=>41+i));
   assert.deepEqual(STADIUM_PENS[3].spawnIds,[89,90,91,92,93,94]);
-  assert.deepEqual(STADIUM_SPAWNS.map(p=>p.type).reduce((n,type)=>({...n,[type]:(n[type]||0)+1}),{}),{wolf:10,boar:6,alpha:2,bear:6});
-  for(const pen of STADIUM_PENS)for(const id of pen.spawnIds){
-    const spawn=SPAWNS[id];assert.equal(spawn.spotId,pen.id);assert.equal(locationAt(spawn),'stadium');assert(stand(spawn.x,spawn.z,MOB_TYPES[spawn.type].radius));assert(withinSpot(spawn,pen,-MOB_TYPES[spawn.type].radius));assert(!safe(spawn));
+  assert.equal(STADIUM_PENS[4].spawnIds[0],STADIUM_EXPANSION_SPAWN_BASE);
+  assert.deepEqual(STADIUM_PENS.slice(0,4).map(p=>p.id),['stadium-wolves','stadium-boars','stadium-alphas','stadium-bears']);
+  assert.deepEqual(STADIUM_SPAWNS.slice(0,24).map(p=>p.type).reduce((n,type)=>({...n,[type]:(n[type]||0)+1}),{}),{wolf:10,boar:6,alpha:2,bear:6});
+  const types=STADIUM_PENS.map(p=>p.type);
+  assert.equal(new Set(types).size,28);
+  for(const pen of STADIUM_PENS){
+    assert(!pen.spawnIds.some(id=>SPAWNS[id].eliteId||SPAWNS[id].bossId),`${pen.id} has elite/boss`);
+    for(const id of pen.spawnIds){
+      const spawn=SPAWNS[id];assert.equal(spawn.spotId,pen.id);assert.equal(locationAt(spawn),'stadium');assert(stand(spawn.x,spawn.z,MOB_TYPES[spawn.type].radius));assert(withinSpot(spawn,pen,-MOB_TYPES[spawn.type].radius));assert(!safe(spawn));
+    }
   }
+  assert.equal(SPAWNS.filter(s=>locationAt(s)==='stadium').length,168);
+  assert.equal(SPAWNS.filter(s=>['forest','stadium','snow','wasteland'].includes(locationAt(s))).length,502);
+  assert.equal(SPAWNS[95].eliteId,'elder-bear');assert.equal(SPAWNS[620].spotId,'stadium-lynx');
 });
 
 test('the original map and separate arena have legal union bounds with an impassable gap',()=>{
@@ -23,15 +42,14 @@ test('the original map and separate arena have legal union bounds with an impass
   assert.equal(boundsForPosition(STADIUM_HUB),STADIUM_BOUNDS);
   for(let x=BOUNDS.maxX+.3;x<STADIUM_BOUNDS.minX-.3;x+=.25)assert(!stand(x,0),`void walkable at ${x}`);
   assert(!clearPath({x:72,z:0},{x:160,z:15}));
-  for(const point of [{x:NaN,z:0},{x:Infinity,z:0},{x:160,z:24},{x:132,z:0},{x:206,z:0}])assert(!stand(point.x,point.z));
+  for(const point of [{x:NaN,z:0},{x:Infinity,z:0},{x:160,z:24},{x:132,z:0},{x:206,z:0},{x:160,z:-150}])assert(!stand(point.x,point.z));
   const edge={x:72,z:0};translate(edge,100,0);assert(edge.x<73);assert.equal(locationAt(edge),'forest');
 });
 
-test('all four wide gates connect to the safe hub and every home without crossing pen walls',()=>{
+test('every wide gate connects to the safe hub and every home without crossing pen walls',()=>{
   for(const pen of STADIUM_PENS){
-    const points=[{x:160,z:14.8},{x:160,z:6},{x:pen.x,z:6},{x:pen.x,z:2},pen];
-    const actor={...points[0]};
-    for(const point of points.slice(1)){translate(actor,point.x-actor.x,point.z-actor.z,.52);assert(distance(actor,point)<1e-7,`${pen.id} blocked approach`);}
+    const actor={...approach(pen)[0]};
+    for(const point of approach(pen).slice(1)){translate(actor,point.x-actor.x,point.z-actor.z,.52);assert(distance(actor,point)<1e-7,`${pen.id} blocked approach at ${point.x},${point.z} landed ${actor.x},${actor.z}`);}
     for(const id of pen.spawnIds){const mover={x:pen.x,z:pen.z},spawn=SPAWNS[id];translate(mover,spawn.x-mover.x,spawn.z-mover.z,.52);assert(distance(mover,spawn)<1e-7);}
     const across={x:pen.x+5.7,z:pen.z};translate(across,4,0);assert(across.x<pen.x+7);assert(!clearPath({x:pen.x+6,z:pen.z},{x:pen.x+8,z:pen.z}));
   }
@@ -69,16 +87,17 @@ test('snapshots isolate players, mobs, ground loot and spatial effects by region
   world.addGroundDrop(arena.id,{id:'arena',kind:'gold',amount:5,x:160,z:15,expiresAt:world.t+1000});world.addGroundDrop(arena.id,{id:'forest',kind:'gold',amount:7,x:0,z:2,expiresAt:world.t+1000});
   world.emit('hit',{x:142,z:-6,amount:1,id:41});world.emit('hit',{x:10,z:0,amount:1,id:0});
   const a=world.snapshot(arena.id),f=world.snapshot(forest.id);
-  assert.deepEqual(a.players.map(p=>p.id),[arena.id]);assert.deepEqual(f.players.map(p=>p.id),[forest.id]);assert.equal(a.mobs.length,24);assert.equal(f.mobs.length,72);assert.deepEqual(a.groundLoot.map(d=>d.id),['arena']);assert.equal(a.events.length,1);assert.equal(a.events[0].id,41);assert.equal(f.events.length,1);assert.equal(f.events[0].id,0);
+  assert.deepEqual(a.players.map(p=>p.id),[arena.id]);assert.deepEqual(f.players.map(p=>p.id),[forest.id]);assert.equal(a.mobs.length,168);assert.equal(f.mobs.length,90);assert.deepEqual(a.groundLoot.map(d=>d.id),['arena']);assert.equal(a.events.length,1);assert.equal(a.events[0].id,41);assert.equal(f.events.length,1);assert.equal(f.events[0].id,0);
 });
 
-test('stationary online AFK fights in every pen for all three classes and keeps uncollected rewards on the ground',()=>{
-  for(const pen of STADIUM_PENS)for(const classId of ['warrior','archer','mage']){
-    const world=new World({random:()=>0}),p=newHero(`${classId}`,classId);world.add(p);Object.assign(p,{x:pen.x,z:pen.z,level:35});p.hp=stats(p).maxHp;p.mana=stats(p).maxMana;
+test('stationary online AFK fights sample pens for all three classes and never drops gold or items',()=>{
+  const sample=[STADIUM_PENS[0],STADIUM_PENS[3],STADIUM_PENS[4]];
+  for(const pen of sample)for(const classId of ['warrior','archer','mage']){
+    const world=new World({random:()=>0}),p=newHero(`${classId}`,classId);world.add(p);Object.assign(p,{x:pen.x,z:pen.z,level:100});p.hp=stats(p).maxHp;p.mana=stats(p).maxMana;
     world.mobs=world.mobs.filter(m=>m.spotId===pen.id);assert(world.startAfk(p));
     for(let i=0;i<800&&p.afk;i++){world.tick(.05);assert.deepEqual({x:p.x,z:p.z},{x:pen.x,z:pen.z});assert(stand(p.x,p.z));}
-    assert(p.kills>0,`${pen.id}/${classId} cannot kill`);assert(p.gold+world.snapshot(p.id).groundLoot.filter(drop=>drop.kind==='gold').reduce((total,drop)=>total+drop.amount,0)>0);assert.equal(p.questKills,0);
-    assert(p.items.length>=2);world.command(p,{type:'input',x:1,z:0,aim:null,seq:2});assert.equal(p.afk,null);
+    assert(p.kills>0,`${pen.id}/${classId} cannot kill`);assert.equal(p.gold,0);assert.equal(world.snapshot(p.id).groundLoot.length,0);assert.equal(p.questKills,0);
+    world.command(p,{type:'input',x:1,z:0,aim:null,seq:2});assert.equal(p.afk,null);
   }
 });
 
@@ -91,12 +110,13 @@ test('mobs and projectiles cannot cross the empty space between regions or deal 
   Object.assign(p,{x:STADIUM_PENS[0].x+8,z:-6});Object.assign(mob,{x:STADIUM_PENS[0].x+6,z:-6,state:'idle',type:'wolf',hp:60});assert.equal(world.hurtMob(p,mob,999),false);assert.equal(mob.hp,60);
 });
 
-test('manual and automatic Stadium kills preserve the forest quest and only the original manual alpha advances its boss flag',()=>{
+test('manual and automatic Stadium kills preserve the forest quest and drop neither gold nor items',()=>{
   for(const automatic of [false,true]){
     const world=new World({random:()=>0}),p=newHero('Задание');world.add(p);p.questKills=4;
-    for(const pen of STADIUM_PENS){Object.assign(p,{x:pen.x,z:pen.z});for(const id of pen.spawnIds)assert(world.hurtMob(p,world.mobs[id],999,automatic));}
-    assert.equal(p.kills,24);assert.equal(p.questKills,4);assert.equal(p.boss,false);assert.equal(p.questClaimed,false);assert.equal(p.gold,0);
-    Object.assign(p,{x:25,z:-1.2});assert(world.hurtMob(p,world.mobs[6],999,automatic));assert.equal(p.boss,!automatic);assert.equal(p.questKills,automatic?4:5);
+    for(const pen of STADIUM_PENS){Object.assign(p,{x:pen.x,z:pen.z});for(const id of pen.spawnIds)assert(world.hurtMob(p,world.mobs[id],1e8,automatic));}
+    assert.equal(p.kills,168);assert.equal(p.questKills,4);assert.equal(p.boss,false);assert.equal(p.questClaimed,false);assert.equal(p.gold,0);
+    assert.equal(world.groundLoot.filter(drop=>drop.owner===p.id).length,0);
+    Object.assign(p,{x:25,z:-1.2});assert(world.hurtMob(p,world.mobs[6],1e8,automatic));assert.equal(p.boss,!automatic);assert.equal(p.questKills,automatic?4:5);
   }
 });
 

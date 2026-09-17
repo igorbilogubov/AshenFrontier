@@ -211,9 +211,9 @@ function processEvents(){
     if(event.type==='heal')number(event,'heal');
     if(event.type==='loot')number(event,'loot');
     if(event.type==='kill'){toast(`${event.name} повержен · +${event.xp} опыта`);}
-    if(event.type==='safe'&&time-lastSafeToast>1.5){lastSafeToast=time;const region=locationAt(game.player);toast(region==='wasteland'?'Безопасный пост. Дальше начинаются Пепельные пустоши':region==='snow'?'Укрытие у перевала. Дальше начинается снежная охота':region==='stadium'?'Безопасная площадка. Пройдите в один из четырёх загонов':'Лагерь безопасен. Выйдите на лесную тропу');}
+    if(event.type==='safe'&&time-lastSafeToast>1.5){lastSafeToast=time;const region=locationAt(game.player);toast(region==='wasteland'?'Безопасный пост. Дальше начинаются Пепельные пустоши':region==='snow'?'Укрытие у перевала. Дальше начинается снежная охота':region==='stadium'?'Безопасная площадка. Пройдите в один из загонов':'Лагерь безопасен. Выйдите на лесную тропу');}
     if(event.type==='death'){clearInput();pendingWeapon=null;selected=null;}
-    if(event.type==='portal'){resetLocationView();const destination=dungeonAt(game.player)??lateRegionAt(game.player);toast(destination?.name??(event.location==='wasteland'?'Пепельные пустоши · восемь спотов для охоты':event.location==='snow'?'Снежный предел · восемь охотничьих спотов':event.location==='stadium'?'Стадиум · четыре загона для охоты':'Пепельная опушка'));}
+    if(event.type==='portal'){resetLocationView();const destination=dungeonAt(game.player)??lateRegionAt(game.player);toast(destination?.name??(event.location==='wasteland'?'Пепельные пустоши · восемь спотов для охоты':event.location==='snow'?'Снежный предел · восемь охотничьих спотов':event.location==='stadium'?'Стадиум · 28 загонов, без добычи':'Пепельная опушка'));}
     if(event.type==='camp'){resetLocationView();toast('У костра восстанавливаются здоровье, мана и зелья');}
     if(event.type==='quest')toast('Опушка очищена! Награда: 50 золота');
   }
@@ -245,7 +245,7 @@ function drawMap(){
 function updateUI(){
   const hero=game.player,camp=safe(hero),mob=selectedMob(),region=locationAt(hero),inStadium=region==='stadium',inSnow=region==='snow',inWasteland=region==='wasteland';
   $('location-name').textContent=inWasteland?'Пепельные пустоши':inSnow?'Снежный предел':inStadium?'Стадиум':'Пепельная опушка';
-  mini.setAttribute('aria-label',inWasteland?'Пепельные пустоши: западный пост, восемь спотов и пепельный шпиль на востоке.':inSnow?'Снежный предел: перевал на западе, восемь спотов и ледник на востоке.':inStadium?'Стадиум: четыре загона на севере, безопасная площадка и портал на юге.':'Карта Пепельной опушки: лагерь, пять спотов и руины.');
+  mini.setAttribute('aria-label',inWasteland?'Пепельные пустоши: западный пост, восемь спотов и пепельный шпиль на востоке.':inSnow?'Снежный предел: перевал на западе, восемь спотов и ледник на востоке.':inStadium?'Стадиум: семь рядов загонов на севере, безопасная площадка и портал на юге.':'Карта Пепельной опушки: лагерь, пять спотов и руины.');
   $('forest-quest').hidden=region!=='forest';$('stadium-guide').hidden=!inStadium;document.getElementById('snow-guide')!.hidden=!inSnow;document.getElementById('wasteland-guide')!.hidden=!inWasteland;
   const expansion=lateRegionAt(hero),dungeon=dungeonAt(hero);
   if(expansion||dungeon){$('location-name').textContent=(expansion??dungeon)!.name;mini.setAttribute('aria-label',`Карта: ${(expansion??dungeon)!.name}`);}

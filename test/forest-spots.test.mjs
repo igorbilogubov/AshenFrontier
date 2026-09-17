@@ -13,8 +13,12 @@ test('the original route keeps its spawn ids and four disjoint hunting spots own
     {type:'wolf',x:15.4,z:1.4},{type:'boar',x:18.2,z:-6.2},{type:'wolf',x:20.7,z:4.9},{type:'alpha',eliteId:'grey-alpha',x:25,z:-1.2},
   ]);
   assert.equal(SPAWNS.slice(0,41).length,41);assert.equal(AFK_SPOTS.length,4);
+  assert.deepEqual(AFK_SPOTS[0].spawnIds.slice(0,6),[7,8,9,10,11,12]);
+  assert.equal(AFK_SPOTS[0].spawnIds.length,12);assert.equal(AFK_SPOTS[0].radius,8.4);
+  assert.deepEqual(AFK_SPOTS[1].spawnIds,[13,14,15,16,17,18]);
+  assert.deepEqual(AFK_SPOTS[2].spawnIds,[19,20,21,22,23,24]);
+  assert.equal(AFK_SPOTS[3].spawnIds.length,12);assert.deepEqual(AFK_SPOTS[3].spawnIds.slice(0,6),[25,26,27,28,29,30]);
   for(let i=0;i<AFK_SPOTS.length;i++)for(let j=i+1;j<AFK_SPOTS.length;j++)assert(distance(AFK_SPOTS[i],AFK_SPOTS[j])>AFK_SPOTS[i].radius+AFK_SPOTS[j].radius);
-  assert.deepEqual(AFK_SPOTS.flatMap(spot=>spot.spawnIds),Array.from({length:24},(_,i)=>i+7));
   for(const spot of AFK_SPOTS){
     assert(distance(spot,CAMP)>spot.radius+CAMP.r);
     for(const id of spot.spawnIds){
@@ -52,7 +56,7 @@ test('spot selection rejects camp, malformed coordinates and outside positions',
 });
 
 test('new clustered mobs respawn at their own homes without duplicate rewards',()=>{
-  const world=new World({random:()=>0}),player=newHero('Лесной тест');world.add(player);
+  const world=new World({random:()=>.99}),player=newHero('Лесной тест');world.add(player);
   for(const spot of AFK_SPOTS){
     Object.assign(player,{x:spot.x,z:spot.z});
     for(const id of spot.spawnIds){
@@ -61,8 +65,8 @@ test('new clustered mobs respawn at their own homes without duplicate rewards',(
       assert.equal(world.hurtMob(player,mob,999),false);
     }
   }
-  assert.equal(player.kills,24);assert.equal(player.gold,0);
-  assert.equal(world.snapshot(player.id).groundLoot.filter(drop=>drop.kind==='gold').reduce((sum,drop)=>sum+drop.amount,0),12*8+12*12);
+  assert.equal(player.kills,36);assert.equal(player.gold,0);
+  assert.equal(world.snapshot(player.id).groundLoot.filter(drop=>drop.kind==='gold').reduce((sum,drop)=>sum+drop.amount,0),18*8+18*12);
   world.remove(player.id);
   for(let i=0;i<320;i++)world.tick(.05);
   // Allow a floating-point timer remainder to expire, without a patrol step.
@@ -71,5 +75,20 @@ test('new clustered mobs respawn at their own homes without duplicate rewards',(
     assert.equal(mob.state,'idle');assert.equal(mob.hp,MOB_TYPES[mob.type].hp);
     assert(distance(mob,SPAWNS[id])<.001);assert.equal(mob.spotId,spot.id);
   }
-  assert.equal(player.kills,24);assert.equal(player.gold,0);
+  assert.equal(player.kills,36);assert.equal(player.gold,0);
 });
+
+test('each ordinary species has exactly one large twelve-creature hunting pack',()=>{
+  const large=ALL_AFK_SPOTS.filter(spot=>spot.spawnIds.length===12&&!String(spot.id).startsWith('stadium'));
+  assert.equal(large.length,27);assert(large.every(spot=>spot.radius===8.4));
+  assert.equal(new Set(large.map(spot=>SPAWNS[spot.spawnIds[0]].type)).size,27);
+  for(const spot of large){
+    const types=new Set(spot.spawnIds.map(id=>SPAWNS[id].type));
+    assert.equal(types.size,1);
+    for(const id of spot.spawnIds){
+      const spawn=SPAWNS[id],radius=MOB_TYPES[spawn.type].radius;
+      assert.equal(spawn.spotId,spot.id);assert(withinSpot(spawn,spot,-radius));assert(stand(spawn.x,spawn.z,radius));
+    }
+  }
+});
+

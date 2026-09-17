@@ -3,14 +3,38 @@ import assert from 'node:assert/strict';
 import {World,newHero,stats,safeHero,persistentHero} from '../dist/world.js';
 import {DUNGEONS,DUNGEON_SPAWNS,DUNGEON_PASSAGES,inBossTelegraph,dungeonSafe} from '../dist/public/game/dungeons.js';
 import {ALL_PORTALS} from '../dist/public/game/stadium.js';
-import {SPAWNS,mobConfig,stand,clearPath,safe} from '../dist/public/game/location.js';
+import {SPAWNS,mobConfig,stand,clearPath,safe,ELITE_TYPES,MOB_TYPES} from '../dist/public/game/location.js';
+import {fieldBalance} from '../dist/public/game/field-balance.js';
 import {fieldRegionAt,locationAt,sameLocation} from '../dist/public/game/world-layout.js';
 import {LATE_REGIONS} from '../dist/public/game/late-world.js';
 import {xpNeeded} from '../dist/public/game/progression-curve.js';
 const advance=(w,seconds)=>{for(let i=0;i<Math.ceil(seconds/.05);i++)w.tick(.05);};
 function fixture(region='forest',level=100){const w=new World({random:()=>0}),d=DUNGEONS.find(d=>d.region===region),p=newHero('Dungeon QA');p.level=level;p.x=d.boss.x-4;p.z=0;p.hp=stats(p).maxHp;p.mana=stats(p).maxMana;w.add(p);return {w,d,p,boss:w.mobs.find(m=>m.bossId===d.id),guards:w.mobs.filter(m=>m.dungeonId===d.id&&!m.bossId)};}
+test('named elites and dungeon bosses use four times authored HP and damage; ordinary mobs and guards stay on the previous layer',()=>{
+ const elite=mobConfig({type:'bear',eliteId:'elder-bear'});
+ assert.equal(elite.hp,ELITE_TYPES['elder-bear'].hp*4);
+ assert.equal(elite.damage,ELITE_TYPES['elder-bear'].damage*4);
+ const ordinary=mobConfig({type:'bear'});
+ assert.equal(ordinary.hp,fieldBalance('bear').hp);
+ assert.equal(ordinary.damage,fieldBalance('bear').damage);
+ const boss=mobConfig({type:'bear',bossId:'forest-dungeon',dungeonId:'forest-dungeon'});
+ const bear=fieldBalance('bear');
+ assert.equal(boss.hp,Math.round(bear.hp*10*4));
+ assert.equal(boss.damage,Math.round(bear.damage*1.8*4));
+ const guard=mobConfig({type:'wolf',eliteId:'guard-forest',dungeonId:'forest-dungeon'});
+ const wolf=fieldBalance('wolf');
+ assert.equal(guard.hp,Math.round(wolf.hp*2*2));
+ assert.equal(guard.damage,Math.round(wolf.damage*1.15*2));
+ const late=mobConfig({type:'iron-warden',eliteId:'iron-executioner'});
+ assert.equal(late.hp,ELITE_TYPES['iron-executioner'].hp*4);
+ assert.equal(late.damage,ELITE_TYPES['iron-executioner'].damage*4);
+ const {w,boss:liveBoss,guards}=fixture();
+ assert.equal(liveBoss.hp,boss.hp);
+ assert.equal(guards[0].hp,mobConfig(guards[0]).hp);
+ assert.equal(MOB_TYPES.bear.hp,145);
+});
 test('seven dungeons have an open route, legal homes, exits and distinct regional loot',()=>{
- assert.equal(DUNGEONS.length,7);assert.equal(DUNGEON_SPAWNS.length,91);assert.equal(SPAWNS.length,711);
+ assert.equal(DUNGEONS.length,7);assert.equal(DUNGEON_SPAWNS.length,91);assert.equal(SPAWNS.length,1017);
  for(const d of DUNGEONS){assert(dungeonSafe(d.entry));assert.equal(locationAt(d.entry),d.id);assert.equal(fieldRegionAt(d.boss),d.region);assert(clearPath(d.entry,d.boss));for(const p of DUNGEON_SPAWNS.filter(s=>s.dungeonId===d.id)){assert(stand(p.x,p.z,mobConfig(p).radius));assert(!safe(p));}}
  for(const p of ALL_PORTALS){assert(stand(p.x,p.z),`${p.id} source blocked`);assert(stand(p.destination.x,p.destination.z),`${p.id} destination blocked`);}
  for(const p of DUNGEON_PASSAGES)assert(!sameLocation(p,p.destination));

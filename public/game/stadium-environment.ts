@@ -2,7 +2,7 @@ import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 import {box,cylinder,joint,mesh} from './models.js';
 import {surfaceMaterial} from './forms.js';
-import {STADIUM_BOUNDS,STADIUM_PENS,STADIUM_PEN_WALLS,STADIUM_HUB,PORTALS} from './stadium.js';
+import {STADIUM_BOUNDS,STADIUM_PENS,STADIUM_HUB,PORTALS,stadiumPenWalls} from './stadium.js';
 import type {Portal} from './stadium.js';
 
 /** Authored stone arena. Geometry is batched independently from the forest so
@@ -10,15 +10,14 @@ import type {Portal} from './stadium.js';
 export function createStadiumEnvironment(scene:T.Scene){
   const stone=['#777c75','#8b8c7e','#616c69'].map(color=>surfaceMaterial(color,{grain:.14,frequency:27}));
   const pale=surfaceMaterial('#aaa68f',{grain:.1,frequency:32});
-  const dark=surfaceMaterial('#343d3c',{grain:.12,frequency:22});
   const bronze=new T.MeshStandardMaterial({color:'#b08d55',metalness:.48,roughness:.6});
   const iron=new T.MeshStandardMaterial({color:'#414b48',metalness:.45,roughness:.7});
   const floor=surfaceMaterial('#5d6964',{grain:.08,frequency:38});
   const arena=new T.Group();arena.name='stadium-environment';scene.add(arena);
   const {minX,maxX,minZ,maxZ}=STADIUM_BOUNDS;
-  const arenaCenter=(minX+maxX)/2,arenaWidth=maxX-minX;
-  const foundation=box(arena,arenaWidth+1,.7,maxZ-minZ+1,stone[2],arenaCenter,-.37,2);foundation.castShadow=false;
-  const ground=box(arena,arenaWidth,.055,maxZ-minZ,floor,arenaCenter,-.033,2);ground.castShadow=false;
+  const arenaCenter=(minX+maxX)/2,arenaWidth=maxX-minX,arenaDepth=maxZ-minZ,arenaMidZ=(minZ+maxZ)/2;
+  const foundation=box(arena,arenaWidth+1,.7,arenaDepth+1,stone[2],arenaCenter,-.37,arenaMidZ);foundation.castShadow=false;
+  const ground=box(arena,arenaWidth,.055,arenaDepth,floor,arenaCenter,-.033,arenaMidZ);ground.castShadow=false;
   const pens=new T.Group();pens.name='stadium-pens';arena.add(pens);
   for(const pen of STADIUM_PENS){
     const dirt=surfaceMaterial(pen.tint,{grain:.12,frequency:42});
@@ -32,8 +31,8 @@ export function createStadiumEnvironment(scene:T.Scene){
     };dirt.customProgramCacheKey=()=>`stadium-soil-${pen.id}`;
     const field=box(pens,pen.width-.5,.03,pen.depth-.5,dirt,pen.x,-.005,pen.z);field.castShadow=false;
     const circle=mesh(pens,new T.RingGeometry(pen.radius-.045,pen.radius+.045,72),new T.MeshBasicMaterial({color:pen.tint,transparent:true,opacity:.38,side:T.DoubleSide}),pen.x,.021,pen.z);circle.rotation.x=-Math.PI/2;circle.castShadow=false;
-    // Low sides preserve clear sight of all six creatures from the fixed camera.
-    for(const wall of STADIUM_PEN_WALLS.filter(w=>w.x>=pen.x-7.3&&w.x<=pen.x+7.3)){
+    const gateZ=pen.z+pen.depth/2;
+    for(const wall of stadiumPenWalls(pen)){
       if(wall.w===undefined||wall.d===undefined)continue;
       box(pens,wall.w,.46,wall.d,stone[0],wall.x,.23,wall.z);
       box(pens,wall.w+.10,.10,wall.d+.10,pale,wall.x,.49,wall.z);
@@ -45,47 +44,48 @@ export function createStadiumEnvironment(scene:T.Scene){
       }
       box(pens,horizontal?length:.065,.065,horizontal?.065:length,iron,wall.x,1.07,wall.z);
     }
-    // Wide gateway and a separate crest identify each pen without closing it.
     for(const side of [-1,1]){
-      box(pens,.66,1.76,.72,stone[2],pen.x+side*2.63,.88,2);
-      box(pens,.84,.17,.9,pale,pen.x+side*2.63,1.82,2);
-      const banner=mesh(pens,new T.PlaneGeometry(.66,.92),new T.MeshStandardMaterial({color:pen.tint,side:T.DoubleSide}),pen.x+side*2.63,1.18,2.38);banner.castShadow=false;
-      box(pens,.06,.54,.018,bronze,pen.x+side*2.63,1.18,2.397);
+      box(pens,.66,1.76,.72,stone[2],pen.x+side*2.63,.88,gateZ);
+      box(pens,.84,.17,.9,pale,pen.x+side*2.63,1.82,gateZ);
+      const banner=mesh(pens,new T.PlaneGeometry(.66,.92),new T.MeshStandardMaterial({color:pen.tint,side:T.DoubleSide}),pen.x+side*2.63,1.18,gateZ+.38);banner.castShadow=false;
+      box(pens,.06,.54,.018,bronze,pen.x+side*2.63,1.18,gateZ+.397);
     }
-    // Keep the open gateway and combat silhouettes free of the nameplate.
     const label=makeLabel(`${pen.rank}  ${pen.name.toUpperCase()}`,pen.subtitle,3.2,.64,true);
-    label.position.set(pen.x-4.6,1.7,2.2);label.rotation.y=.55;pens.add(label);
-    cylinder(pens,.045,.055,.58,iron,pen.x-4.6,1.3,2,6);
-    // Broken inset pavers and sparse small stones read as worn training ground.
-    for(let i=0;i<15;i++){
+    label.position.set(pen.x-4.6,1.7,gateZ+.2);label.rotation.y=.55;pens.add(label);
+    cylinder(pens,.045,.055,.58,iron,pen.x-4.6,1.3,gateZ,6);
+    for(let i=0;i<10;i++){
       const angle=i*2.399963,r=2.0+(i%5)*.65;
       const paver=box(pens,.36+(i%3)*.15,.025,.35,stone[i%3],pen.x+Math.sin(angle)*r,.011,pen.z+Math.cos(angle)*r);paver.rotation.y=angle;paver.castShadow=false;
     }
   }
-  // Outer masonry and stepped spectator terraces remain beyond walkable bounds.
   for(const x of [minX+.35,maxX-.35]){
-    box(arena,.7,1.8,maxZ-minZ,stone[0],x,.9,2);
-    box(arena,.82,.13,maxZ-minZ,pale,x,1.865,2);
+    box(arena,.7,1.8,arenaDepth,stone[0],x,.9,arenaMidZ);
+    box(arena,.82,.13,arenaDepth,pale,x,1.865,arenaMidZ);
   }
   for(const z of [minZ+.35,maxZ-.35]){
     box(arena,arenaWidth,1.8,.7,stone[0],arenaCenter,.9,z);
     box(arena,arenaWidth,.13,.82,pale,arenaCenter,1.865,z);
   }
   for(let step=0;step<4;step++){
-    box(arena,arenaWidth+1+step*2,.55+step*.55,1.2,stone[step%3],arenaCenter,(.55+step*.55)/2,-20.1-step*1.05);
-    for(const side of [-1,1])box(arena,1.2,.55+step*.55,46+step*2,stone[step%3],arenaCenter+side*(arenaWidth/2+.9+step*1.05),(.55+step*.55)/2,2);
+    box(arena,arenaWidth+1+step*2,.55+step*.55,1.2,stone[step%3],arenaCenter,(.55+step*.55)/2,minZ-1.1-step*1.05);
+    for(const side of [-1,1])box(arena,1.2,.55+step*.55,arenaDepth+step*2,stone[step%3],arenaCenter+side*(arenaWidth/2+.9+step*1.05),(.55+step*.55)/2,arenaMidZ);
   }
   for(let x=135;x<=203;x+=5){
-    box(arena,.85,2.9,.9,stone[2],x,1.45,-18.5);box(arena,1.13,.18,1.16,pale,x,2.99,-18.5);
+    box(arena,.85,2.9,.9,stone[2],x,1.45,minZ+.5);box(arena,1.13,.18,1.16,pale,x,2.99,minZ+.5);
   }
-  // Continuous broad promenade feeds all four gates; paving never blocks actors.
   for(let x=136;x<=202;x+=2)for(const z of [4.1,6.1]){
     const slab=box(arena,1.92,.032,1.86,(Math.round(x)+Math.round(z))%3?stone[1]:stone[0],x,.002,z);slab.castShadow=false;
   }
-  for(const pen of STADIUM_PENS)for(let z=0;z<=4;z+=1.5){const slab=box(arena,4.35,.034,1.43,stone[1],pen.x,.005,z);slab.castShadow=false;}
-  for(let z=7.9;z<=20;z+=1.8)for(const side of [-1,1]){const slab=box(arena,1.75,.034,1.73,stone[1],160+side*.91,.005,z);slab.castShadow=false;}
-  const hub=mesh(arena,new T.RingGeometry(STADIUM_HUB.r-.12,STADIUM_HUB.r,96),bronze,160,.025,15);hub.rotation.x=-Math.PI/2;hub.castShadow=false;
-  const title=makeLabel('СТАДИУМ','Четыре загона · безопасная площадь',11.2,1.35);title.position.set(arenaCenter,3.9,-18);arena.add(title);
+  for(const pen of STADIUM_PENS){
+    const gateZ=pen.z+pen.depth/2;
+    for(let i=0;i<3;i++){const slab=box(arena,4.35,.034,1.43,stone[1],pen.x,.005,gateZ+1.1+i*1.4);slab.castShadow=false;}
+  }
+  for(const x of [151,169,187]){
+    for(let z=minZ+4;z<=6;z+=3){const slab=box(arena,1.55,.03,2.7,stone[1],x,.004,z);slab.castShadow=false;}
+  }
+  for(let z=7.9;z<=20;z+=1.8)for(const side of [-1,1]){const slab=box(arena,1.75,.034,1.73,stone[1],STADIUM_HUB.x+side*.91,.005,z);slab.castShadow=false;}
+  const hub=mesh(arena,new T.RingGeometry(STADIUM_HUB.r-.12,STADIUM_HUB.r,96),bronze,STADIUM_HUB.x,.025,STADIUM_HUB.z);hub.rotation.x=-Math.PI/2;hub.castShadow=false;
+  const title=makeLabel('СТАДИУМ','28 загонов · без золота и вещей',11.2,1.35);title.position.set(arenaCenter,3.9,minZ+1);arena.add(title);
   const portalGroups:{portal:Readonly<Portal>;object:T.Group}[]=[],glows:T.Mesh<T.CircleGeometry,T.MeshBasicMaterial>[]=[];
   for(const portal of PORTALS){
     const group=joint(scene,portal.x,0,portal.z);group.name=`portal-${portal.id}`;group.rotation.y=.55;
@@ -100,7 +100,6 @@ export function createStadiumEnvironment(scene:T.Scene){
     const glow=mesh(group,new T.CircleGeometry(.85,48),new T.MeshBasicMaterial({color:'#6dc9ba',transparent:true,opacity:.2,side:T.DoubleSide,depthWrite:false}),0,1.18,0);
     glow.scale.y=1.16;glow.castShadow=false;glow.receiveShadow=false;glows.push(glow);
     const rim=mesh(group,new T.TorusGeometry(.77,.025,5,64),new T.MeshBasicMaterial({color:'#9de2c7',transparent:true,opacity:.7}),0,1.18,.025);rim.scale.y=1.21;rim.castShadow=false;
-    // The interactive DOM label names this portal; avoid a duplicate 3D sign.
     portalGroups.push({portal,object:group});
     bake(group);
   }

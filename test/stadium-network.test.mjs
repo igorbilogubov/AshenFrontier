@@ -25,14 +25,14 @@ test('real portal commands isolate regions and preserve hero identity, gear and 
     await until(()=>watcher.state.players.some(p=>p.id===hero.id));
     owner.ws.send(JSON.stringify({type:'portal',portalId:'camp-stadium',x:-9999,z:9999,gold:999999}));
     await until(()=>locationAt(owner.state.self)==='stadium');await until(()=>!watcher.state.players.some(p=>p.id===hero.id));
-    assert.equal(owner.state.mobs.length,24);assert.equal(watcher.state.mobs.length,72);assert.equal(owner.state.self.gold,123);
+    assert.equal(owner.state.mobs.length,168);assert.equal(watcher.state.mobs.length,90);assert.equal(owner.state.self.gold,123);
     assert(owner.states.some(state=>state.events.some(e=>e.type==='portal'&&e.location==='stadium')));
     const arrival={x:owner.state.self.x,z:owner.state.self.z};assert.deepEqual(arrival,PORTALS[0].destination);
     await close(owner);await close(watcher);await stopTestServer(server);
     const saved=(await database.load(fixture)).hero;assert.deepEqual({x:saved.x,z:saved.z},arrival);assert.equal(saved.gold,123);assert.deepEqual(saved.items,hero.items);assert.deepEqual(saved.equipment,hero.equipment);
     server=await startTestServer(database);const restored=await connect(server,fixture);clients.push(restored);
-    assert.equal(restored.state.self.id,hero.id);assert.equal(locationAt(restored.state.self),'stadium');assert.equal(restored.state.self.afk,null);assert.equal(restored.state.mobs.length,24);assert.equal(restored.state.self.gold,123);
-    restored.ws.send(JSON.stringify({type:'portal',portalId:'stadium-camp'}));await until(()=>locationAt(restored.state.self)==='forest');assert.equal(restored.state.self.gold,123);assert.equal(restored.state.mobs.length,72);
+    assert.equal(restored.state.self.id,hero.id);assert.equal(locationAt(restored.state.self),'stadium');assert.equal(restored.state.self.afk,null);assert.equal(restored.state.mobs.length,168);assert.equal(restored.state.self.gold,123);
+    restored.ws.send(JSON.stringify({type:'portal',portalId:'stadium-camp'}));await until(()=>locationAt(restored.state.self)==='forest');assert.equal(restored.state.self.gold,123);assert.equal(restored.state.mobs.length,90);
   }finally{for(const client of clients)await close(client);await stopTestServer(server);await database.close();}
 });
 
@@ -42,7 +42,7 @@ test('network AFK chooses the real Stadium pen and cannot claim another region o
   try{
     server=await startTestServer(database);client=await connect(server,fixture);
     client.ws.send(JSON.stringify({type:'afk',enabled:true,spotId:'wolf-den',damage:999999,gold:999999}));
-    await until(()=>client.states.some(state=>state.self.afk?.spotId===pen.id));assert.equal(client.state.self.gold,0);assert.equal(client.state.mobs.length,24);
+    await until(()=>client.states.some(state=>state.self.afk?.spotId===pen.id));assert.equal(client.state.self.gold,0);assert.equal(client.state.mobs.length,168);
     client.ws.send(JSON.stringify({type:'input',x:1,z:0,aim:null,seq:1}));await until(()=>client.state.self.afk===null);assert.equal(locationAt(client.state.self),'stadium');
   }finally{await close(client);await stopTestServer(server);await database.close();}
 });

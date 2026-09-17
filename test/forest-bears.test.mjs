@@ -8,7 +8,8 @@ const bearSpot=AFK_SPOTS.find(spot=>spot.id==='bear-grove');
 
 test('six forest bears own stable appended ids in a separate accessible AFK ring',()=>{
   assert(bearSpot);
-  assert.deepEqual(bearSpot.spawnIds,[83,84,85,86,87,88]);
+  assert.deepEqual(bearSpot.spawnIds.slice(0,6),[83,84,85,86,87,88]);
+  assert.equal(bearSpot.spawnIds.length,12);assert.equal(bearSpot.radius,8.4);
   assert.equal(MOB_TYPES.bear.radius,.62);
   assert(MOB_TYPES.bear.hp>MOB_TYPES.boar.hp&&MOB_TYPES.bear.hp<MOB_TYPES.alpha.hp);
   assert(MOB_TYPES.bear.damage>MOB_TYPES.boar.damage&&MOB_TYPES.bear.damage<MOB_TYPES.alpha.damage);

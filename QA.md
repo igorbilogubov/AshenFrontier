@@ -1,8 +1,16 @@
 # Проверка общей 3D-опушки
 
+## 17 сентября 2026: элиты и боссы — ×4 HP и урон
+
+Локально, без push. `ELITE_COMBAT_SCALE=4` для именных элит и боссов; стражи остаются на ×2. `npx tsc --noEmit` и `node scripts/check.mjs` (93 модуля) прошли. `test/dungeons.test.mjs` 8/8, включая новый сценарий живого спавна; вместе с `snow-world`, `target-presentation`, `shared-world`, `forest-spots`, `late-world-layout` — 32/32 без PostgreSQL.
+
 ## 17 сентября 2026: AFK — один атакующий навык и бафы по откату
 
 Локально, без push. `npx tsc --noEmit` и `node scripts/check.mjs` (93 модуля) прошли. `test/afk-preferences.test.mjs`, `test/afk.test.mjs`, `test/skill-builds.test.mjs`, `test/client-imports.test.mjs`: 52 пройдено, 2 PG-сценария пропущены без локального PostgreSQL. Старый `skillOrder` принимается только как миграция сохранения.
+
+## 17 сентября 2026: большие охотничьи споты
+
+Локально, без push. Строгая сборка прошла. Целевые тесты без PostgreSQL: `forest-spots`, `forest-bears`, `open-world`, `snow-world`, `wasteland-layout`, `late-world-layout`, `stadium`, `dungeons` — 41/41; `patrol`, `afk`, `minimap`, `client-imports`, `snow-environment` — 28/28 плюс 4 сетевых пропуска без PG. Ровно 27 больших паков по 12, все дома стоят и доступны из лагеря. Полный `npm test` с временной PostgreSQL на этом срезе не запускался.
 
 ## 17 сентября 2026: покупка ячеек рюкзака и сундука
 

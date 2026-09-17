@@ -19,7 +19,7 @@ export const WORLD_CLEARINGS:readonly Readonly<WorldClearing>[]=Object.freeze([
   {id:'camp',name:'Лагерь',x:-1,z:0,radius:7,tint:'#b9a485'},
   {id:'west',name:'Западный луг',x:-25,z:5,radius:9,tint:'#96a578'},
   {id:'north',name:'Каменный круг',x:-14,z:-27,radius:10,tint:'#9da8a3'},
-  {id:'bear',name:'Медвежья чаща',x:-27,z:-32,radius:6.5,tint:'#927e68'},
+  {id:'bear',name:'Медвежья чаща',x:-27,z:-32,radius:9.2,tint:'#927e68'},
   {id:'south',name:'Старый дуб',x:-12,z:25,radius:11,tint:'#aaa078'},
   {id:'crossroads',name:'Большая поляна',x:23,z:24,radius:11,tint:'#acaa81'},
   {id:'east',name:'Лесоповал',x:49,z:23,radius:10,tint:'#baa17b'},

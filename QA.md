@@ -1,5 +1,9 @@
 # Проверка общей 3D-опушки
 
+## 17 сентября 2026: production — пакет schema 9
+
+Пользователь задеплоил с Mac и подтвердил, что все изменения живые. Агент сервер в этой сессии не читал: health, docker tag и `current` с VPS не снимались. Код на GitHub — `6e253cb`.
+
 ## 17 сентября 2026: вход — отпечатки вещей
 
 Production `ashen-frontier:20260917-094453` писал `Hero join/storage failed: Rolled item identity changed`. При join `safeHero` мутировал `rolls` под новые длины редкостей, затем `normalize hero` сравнивал отпечаток. `validateEquipment` больше не меняет сохранённые броски. Тесты: `loot-rarity-v2`, `equipment`, `class-equipment`; PG-сценарий `inventory-slots` если есть база.

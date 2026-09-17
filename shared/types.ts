@@ -51,6 +51,7 @@ export interface Hero extends PersistentHero {
   navigation?:{target:Point;path:Point[];startedAt:number};attackTargetId?:number;attackRepathAt?:number;travelPortalId?:string;
   targetYaw: number; vx: number; vz: number; hurt: number; gait: number; moveBlend: number; runBlend: number;
   input: HeroInput; inputAt: number; ack: number; connected: boolean; disconnectAt: number; speedScale?: number; afk: AfkState | null;
+  xpLog?:{t:number;xp:number}[];
   interactionTarget:InteractionTarget|null; shopActive:boolean; stashActive:boolean;
   effects:SkillEffect[];channel?:{skillId:SkillId;heldUntil:number;nextTick:number;targetId?:number;yaw:number};mobility?:{from:Point;to:Point;age:number;duration:number;skillId:SkillId};shieldBudget?:number;manaSourceReceived?:{amount:number;resetAt:number};
 }
@@ -74,7 +75,7 @@ export interface PublicProjectile extends Point { id: string; owner: string; yaw
 export interface Projectile extends PublicProjectile { damage: number; aoe: number; maxTargets?: number; hitIds?: number[]; pierce?: boolean; damageScaleOnPierce?: number; slowMs?: number; automatic?: boolean; targetId?:number; dot?:{skillId:SkillId;damage:number;duration:number};rootMs?:number }
 export type PublicPlayer = Pick<Hero, 'id' | 'name' | 'classId' | 'x' | 'z' | 'yaw' | 'weapon' | 'hp' | 'level' | 'dead' | 'hurt' | 'attack' | 'moveBlend' | 'runBlend' | 'gait' | 'vx' | 'vz' | 'connected'> & { maxHp: number; effects?:SkillEffect[]; appearance?:ItemAppearance };
 export type OnlinePlayer = Pick<Hero,'id'|'name'|'classId'|'level'> & {location:LocationId};
-export type SelfSnapshot = PersistentHero & {navigationTarget?:Point|null;attackTargetId?:number|null;travelPortalId?:string;campReturnRemaining?:number;appearance?:ItemAppearance;afk?:AfkState|null;afkRadius?:number;interactionTarget?:InteractionTarget|null;shopActive?:boolean;stashActive?:boolean} & Omit<CharacterStats, 'attack'> & Pick<Hero, 'targetYaw' | 'vx' | 'vz' | 'hurt' | 'gait' | 'moveBlend' | 'runBlend' | 'ack'>;
+export type SelfSnapshot = PersistentHero & {navigationTarget?:Point|null;attackTargetId?:number|null;travelPortalId?:string;campReturnRemaining?:number;appearance?:ItemAppearance;afk?:AfkState|null;afkRadius?:number;afkXpMinute?:number;interactionTarget?:InteractionTarget|null;shopActive?:boolean;stashActive?:boolean} & Omit<CharacterStats, 'attack'> & Pick<Hero, 'targetYaw' | 'vx' | 'vz' | 'hurt' | 'gait' | 'moveBlend' | 'runBlend' | 'ack'>;
 export interface EventPayloads {
   buildResult:{ok:boolean;revision:number;message?:string};
   notice: { text: string }; statResult: { ok: boolean; revision: number; message?: string }; preferencesSaved:{ok:boolean;message?:string};

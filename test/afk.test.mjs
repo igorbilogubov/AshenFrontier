@@ -241,3 +241,15 @@ test('stopping AFK removes its delayed areas before a new activation can revive 
   assert.equal(w.pendingAreas.length,1);toggle(w,p,false);assert.equal(w.pendingAreas.length,0);
   p.afkPreferences.attackSkill=null;toggle(w,p,true);step(w,30);assert.equal(target.hp,10000);
 });
+
+test('AFK reports XP gained in the last minute and does not persist the log',()=>{
+  const {w,p,spot}=fixture();
+  const m=w.mobs.find(mob=>mob.id===spot.spawnIds[0]);
+  toggle(w,p,true);assert.equal(w.snapshot(p.id).self.afkXpMinute,0);
+  m.contributors.set(p.id,{at:w.t,damage:999,automatic:true});w.kill(m);
+  const gained=w.events.find(event=>event.type==='kill'&&event.owner===p.id).xp;
+  assert(gained>0);assert.equal(w.snapshot(p.id).self.afkXpMinute,gained);
+  assert.equal('xpLog' in persistentHero(p),false);
+  w.tick(0,w.t+60001);assert.equal(w.snapshot(p.id).self.afkXpMinute,0);
+  toggle(w,p,false);assert.equal(w.snapshot(p.id).self.afkXpMinute,0);assert.equal(p.xpLog,undefined);
+});

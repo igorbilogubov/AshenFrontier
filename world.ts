@@ -47,6 +47,20 @@ const locationAt=positionalQuery(pointLocation),safe=positionalQuery(pointIsSafe
 const sameLocation=(a:Point,b:Point)=>locationAt(a)===locationAt(b);
 
 const liveMob=(m:Mob)=>m.state!=='dead'&&!m.bossLocked;
+const AFK_XP_WINDOW_MS=60_000;
+function noteAfkXp(p:Hero,t:number,xp:number){
+  if(!p.afk||!(xp>0))return;
+  const log=p.xpLog??(p.xpLog=[]);
+  log.push({t,xp});
+  const from=t-AFK_XP_WINDOW_MS;
+  while(log.length&&log[0].t<=from)log.shift();
+}
+function afkXpMinute(p:Hero,t:number){
+  if(!p.afk)return 0;
+  const from=t-AFK_XP_WINDOW_MS;
+  let sum=0;for(const entry of p.xpLog??[])if(entry.t>from)sum+=entry.xp;
+  return sum;
+}
 const validPoint=(value:unknown):value is Point=>isRecord(value)&&typeof value.x==='number'&&Number.isFinite(value.x)&&typeof value.z==='number'&&Number.isFinite(value.z);
 const bodyStrike=(origin:Point,m:Mob,yaw:number,range:number,halfAngle:number)=>{
   const d=distance(origin,m),radius=mobConfig(m).radius;
@@ -455,7 +469,7 @@ export class World{
   }
   stopAfk(p: Hero,reason?: string){
     if(!p.afk)return false;
-    p.afk=null;p.input={...p.input,x:0,z:0,aim:null};p.vx=p.vz=0;
+    p.afk=null;p.xpLog=undefined;p.input={...p.input,x:0,z:0,aim:null};p.vx=p.vz=0;
     if(p.attack?.automatic){this.stopChannel(p);p.attack=null;}
     for(const b of this.projectiles)if(b.owner===p.id&&b.automatic)b.remaining=0;
     this.pendingAreas=this.pendingAreas.filter(area=>area.caster!==p.id||!area.automatic);
@@ -469,6 +483,7 @@ export class World{
     this.stopInteraction(p);
     const spot=afkSpotAt(p);
     p.afk={anchor:{x:p.x,z:p.z},...(spot?{spotId:spot.id}:{}),targetId:null,skillCursor:0};
+    p.xpLog=[];
     p.input={...p.input,x:0,z:0,aim:null};p.vx=p.vz=p.moveBlend=p.runBlend=0;
     return true;
   }
@@ -876,7 +891,7 @@ export class World{
     for(const [id,contribution] of m.contributors){
       const p=this.players.get(id);if(!p||p.dead||this.t-contribution.at>20000||!sameLocation(p,m)||distance(p,m)>12||contribution.damage<cfg.hp*.05)continue;
       const automatic=contribution.automatic===true,earnedXp=p.level>=MAX_LEVEL?0:mobExperience(p.level,cfg.level,cfg.xp);
-      p.kills++;if(!automatic&&locationAt(m)==='forest')p.questKills++;p.xp+=earnedXp;if(!automatic&&m.id===6&&locationAt(m)==='forest')p.boss=true;
+      p.kills++;if(!automatic&&locationAt(m)==='forest')p.questKills++;p.xp+=earnedXp;noteAfkXp(p,this.t,earnedXp);if(!automatic&&m.id===6&&locationAt(m)==='forest')p.boss=true;
       while(p.level<MAX_LEVEL&&p.xp>=stats(p).xpNeeded){p.xp-=stats(p).xpNeeded;p.level++;p.statRevision++;this.emit('level',{level:p.level,points:5},p.id);}
       if(p.level>=MAX_LEVEL)p.xp=0;
       if(locationAt(m)!=='stadium'){
@@ -1217,6 +1232,6 @@ export class World{
   snapshot(forId: string): WorldSnapshot{
     const p=this.players.get(forId);
     const dungeon=p?dungeonAt(p):undefined,run=dungeon?this.dungeonRuns.get(dungeon.id):undefined;
-    return {dungeon:dungeon?{id:dungeon.id,guardsRemaining:this.mobs.filter(m=>m.dungeonId===dungeon.id&&!m.bossId&&m.state!=='dead').length,bossDefeated:this.mobs.some(m=>m.bossId===dungeon.id&&m.state==='dead'),resetIn:run?.resetAt?Math.max(0,(run.resetAt-this.t)/1000):0}:undefined,t:this.t,skillZones:this.skillZones.filter(z=>!p||sameLocation(p,z)).map(({budget,attackId,yaw,damage,automatic,...z})=>z),players:[...this.players.values()].filter(other=>!p||sameLocation(p,other)).map(p=>({id:p.id,name:p.name,classId:p.classId,x:p.x,z:p.z,yaw:p.yaw,weapon:p.weapon,hp:p.hp,maxHp:stats(p).maxHp,level:p.level,dead:p.dead,hurt:p.hurt,attack:p.attack,moveBlend:p.moveBlend,runBlend:p.runBlend,gait:p.gait,vx:p.vx,vz:p.vz,connected:p.connected,effects:p.effects,appearance:equipmentAppearance(p)})),onlinePlayers:[...this.players.values()].filter(player=>player.connected).map(player=>({id:player.id,name:player.name,classId:player.classId,level:player.level,location:locationAt(player)})),mobs:this.mobs.filter(m=>!p||sameLocation(p,m)).map(({contributors,patrol,slowUntil,rootUntil,rootImmunityUntil,dots,slow,...m})=>({...m,slow:Math.max(0,((slowUntil??0)-this.t)/1000)})),projectiles:this.projectiles.filter(b=>!p||sameLocation(p,b)).map(({damage,aoe,maxTargets,hitIds,pierce,damageScaleOnPierce,slowMs,automatic,dot,rootMs,...b})=>b),groundLoot:this.groundLoot.filter(drop=>drop.owner===forId&&(!p||sameLocation(p,drop))).map(({owner,...drop})=>drop),self:p?{...stats(p),...persistentHero(p),navigationTarget:p.navigation?.target??null,attackTargetId:p.attackTargetId??null,travelPortalId:p.travelPortalId,campReturnRemaining:p.campReturn?Math.max(0,(p.campReturn.until-this.t)/1000):0,appearance:equipmentAppearance(p),attackPower:stats(p).attack,targetYaw:p.targetYaw,vx:p.vx,vz:p.vz,hurt:p.hurt,gait:p.gait,moveBlend:p.moveBlend,runBlend:p.runBlend,ack:p.ack,afk:p.afk,afkRadius:this.afkRadius(p),interactionTarget:p.interactionTarget,shopActive:p.shopActive,stashActive:p.stashActive}:null,events:this.events.filter(e=>(!e.owner||e.owner===forId)&&(!p||!('x' in e&&'z' in e)||sameLocation(p,e)))};
+    return {dungeon:dungeon?{id:dungeon.id,guardsRemaining:this.mobs.filter(m=>m.dungeonId===dungeon.id&&!m.bossId&&m.state!=='dead').length,bossDefeated:this.mobs.some(m=>m.bossId===dungeon.id&&m.state==='dead'),resetIn:run?.resetAt?Math.max(0,(run.resetAt-this.t)/1000):0}:undefined,t:this.t,skillZones:this.skillZones.filter(z=>!p||sameLocation(p,z)).map(({budget,attackId,yaw,damage,automatic,...z})=>z),players:[...this.players.values()].filter(other=>!p||sameLocation(p,other)).map(p=>({id:p.id,name:p.name,classId:p.classId,x:p.x,z:p.z,yaw:p.yaw,weapon:p.weapon,hp:p.hp,maxHp:stats(p).maxHp,level:p.level,dead:p.dead,hurt:p.hurt,attack:p.attack,moveBlend:p.moveBlend,runBlend:p.runBlend,gait:p.gait,vx:p.vx,vz:p.vz,connected:p.connected,effects:p.effects,appearance:equipmentAppearance(p)})),onlinePlayers:[...this.players.values()].filter(player=>player.connected).map(player=>({id:player.id,name:player.name,classId:player.classId,level:player.level,location:locationAt(player)})),mobs:this.mobs.filter(m=>!p||sameLocation(p,m)).map(({contributors,patrol,slowUntil,rootUntil,rootImmunityUntil,dots,slow,...m})=>({...m,slow:Math.max(0,((slowUntil??0)-this.t)/1000)})),projectiles:this.projectiles.filter(b=>!p||sameLocation(p,b)).map(({damage,aoe,maxTargets,hitIds,pierce,damageScaleOnPierce,slowMs,automatic,dot,rootMs,...b})=>b),groundLoot:this.groundLoot.filter(drop=>drop.owner===forId&&(!p||sameLocation(p,drop))).map(({owner,...drop})=>drop),self:p?{...stats(p),...persistentHero(p),navigationTarget:p.navigation?.target??null,attackTargetId:p.attackTargetId??null,travelPortalId:p.travelPortalId,campReturnRemaining:p.campReturn?Math.max(0,(p.campReturn.until-this.t)/1000):0,appearance:equipmentAppearance(p),attackPower:stats(p).attack,targetYaw:p.targetYaw,vx:p.vx,vz:p.vz,hurt:p.hurt,gait:p.gait,moveBlend:p.moveBlend,runBlend:p.runBlend,ack:p.ack,afk:p.afk,afkRadius:this.afkRadius(p),afkXpMinute:afkXpMinute(p,this.t),interactionTarget:p.interactionTarget,shopActive:p.shopActive,stashActive:p.stashActive}:null,events:this.events.filter(e=>(!e.owner||e.owner===forId)&&(!p||!('x' in e&&'z' in e)||sameLocation(p,e)))};
   }
 }

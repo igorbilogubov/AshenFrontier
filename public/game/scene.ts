@@ -260,6 +260,9 @@ function updateUI(){
   if(expansion||dungeon)$('zone-state').textContent=camp?'Безопасное укрытие':spot?.name??`${(expansion??dungeon)!.name} · опасная зона`;
   const afk=$('afk-toggle');afk.disabled=!game.connected||!!hero.dead;afk.setAttribute('aria-pressed',String(!!hero.afk));afk.title=hero.afk?`Остановить автоохоту · F. Радиус атак: ${(hero.afkRadius??0).toFixed(1)} м.`:'Включить автоохоту здесь · F. Герой остаётся на месте; в безопасной зоне ждёт.';
   $('afk-status').textContent=hero.afk?(camp?'Автоохота · ожидание':'Автоохота включена'):'Автоохота';$('zone-state').classList.toggle('safe',camp);
+  const rate=$('afk-xp-rate'),xpMinute=hero.afk?hero.afkXpMinute??0:0;
+  rate.hidden=!hero.afk;rate.textContent=`${xpMinute.toLocaleString('ru-RU')} XP/мин`;
+  rate.title='Опыт, полученный за последнюю минуту автоохоты';
   $('hp-text').textContent=`${Math.ceil(hero.hp)} / ${Math.ceil(hero.maxHp)}`;$('hp-fill').style.height=`${Math.max(0,Math.min(1,hero.hp/hero.maxHp||0))*100}%`;
   $('hp-orb').setAttribute('aria-valuemax',String(hero.maxHp));$('hp-orb').setAttribute('aria-valuenow',String(Math.ceil(hero.hp)));
   for(const [slot,id,countId] of [['q','potion','potions'],['w','mana-potion','mana-potions']] as const){

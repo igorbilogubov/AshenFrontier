@@ -17,7 +17,7 @@ function initialPlayer():ClientPlayer {
     x:.5,z:4,yaw:Math.PI*.25,targetYaw:Math.PI*.25,vx:0,vz:0,gait:0,moveBlend:0,runBlend:0,hp:100,weapon:'sword',potions:3,
     coins:0,gold:0,xp:0,kills:0,attack:null,dead:0,hurt:0,items:[],pendingItems:[],stash:[],equipment:{},consumableInventory:[],quickSlots:{q:null,w:null},consumableOverflow:0,bagCapacity:DEFAULT_BAG_CAPACITY,stashCapacity:DEFAULT_STASH_CAPACITY,bag:Array.from({length:DEFAULT_BAG_CAPACITY},()=>null),mana:40,manaPotions:3,
     skillBuild:defaultSkillBuild('warrior',1),buildRevision:0,skillPresets:[null,null,null],
-    potionCooldown:0,manaPotionCooldown:0,specialCooldown:0,combatUntil:0,attackSerial:0,running:false,questKills:0,boss:false,questClaimed:false,ack:0};
+    potionCooldown:0,manaPotionCooldown:0,specialCooldown:0,combatUntil:0,attackSerial:0,running:false,questKills:0,boss:false,questClaimed:false,ack:0,afkXpMinute:0};
 }
 
 

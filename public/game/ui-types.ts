@@ -95,6 +95,7 @@ const elementTags = {
   'skill-mouse': 'button',
   'afk-toggle': 'button',
   'afk-status': 'span',
+  'afk-xp-rate': 'span',
   'stat-apply': 'button',
   'stat-cancel': 'button',
   'stat-points': 'b',

@@ -18,10 +18,20 @@ export const CLASSES: Record<ClassId, {name: string; color: string; hp: number; 
 };
 export const DEFAULT_BAG_CAPACITY=16;
 export const DEFAULT_STASH_CAPACITY=32;
-export const MAX_BAG_CAPACITY=255;
-export const MAX_STASH_CAPACITY=255;
-export const BAG_SLOT_PRICE=500;
-export const STASH_SLOT_PRICE=500;
+export const MAX_BAG_CAPACITY=40;
+export const MAX_STASH_CAPACITY=64;
+export const BAG_SLOT_PRICE=100;
+export const STASH_SLOT_PRICE=100;
+export const BAG_CAPACITY=DEFAULT_BAG_CAPACITY;
+export const STASH_CAPACITY=DEFAULT_STASH_CAPACITY;
+export const clampBagCapacity=(value:unknown)=>{
+  const n=typeof value==='number'&&Number.isSafeInteger(value)?value:DEFAULT_BAG_CAPACITY;
+  return Math.min(MAX_BAG_CAPACITY,Math.max(DEFAULT_BAG_CAPACITY,n));
+};
+export const clampStashCapacity=(value:unknown)=>{
+  const n=typeof value==='number'&&Number.isSafeInteger(value)?value:DEFAULT_STASH_CAPACITY;
+  return Math.min(MAX_STASH_CAPACITY,Math.max(DEFAULT_STASH_CAPACITY,n));
+};
 // items owns every instance; equipment references the worn subset. Only loose
 // items occupy backpack cells, so equipping never deletes or duplicates an item.
 export const backpackItems=(source:Pick<StatSource,'items'|'equipment'> & {stash?:readonly string[]})=>{

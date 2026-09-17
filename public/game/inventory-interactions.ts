@@ -1,6 +1,6 @@
 import type {Item,ClassId,EquipmentSlot,WorldEvent,ClientCommand} from '../../shared/types.js';
 import type {NetworkGame} from './network.js';
-import {BAG_CAPACITY,backpackItems,canEquip,CLASSES,EQUIPMENT_SLOTS,itemBonus} from '../rules.js';
+import {MAX_STASH_CAPACITY,STASH_SLOT_PRICE,backpackItems,canEquip,CLASSES,EQUIPMENT_SLOTS,itemBonus} from '../rules.js';
 import {safe,distance} from './location.js';
 import {renderItemRolls} from './item-details.js';
 import {itemArtwork} from './item-icons.js';
@@ -73,17 +73,24 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
   function transfer(item:Item,withdraw:boolean){
     if(!stashOpened||!game.player.stashActive||!canUseStash()){toast('Откройте личный сундук в доме');return;}
     if(Object.values(game.player.equipment).includes(item.id)){toast('Сначала снимите предмет');return;}
-    if(withdraw&&backpackUsage(game.player)>=BAG_CAPACITY){toast('В рюкзаке нет свободной ячейки');return;}
-    if(!withdraw&&game.player.stash.length>=32){toast('Сундук заполнен');return;}
+    if(withdraw&&backpackUsage(game.player)>=game.player.bagCapacity){toast('В рюкзаке нет свободной ячейки');return;}
+    if(!withdraw&&game.player.stash.length>=game.player.stashCapacity){toast('Сундук заполнен');return;}
     send({type:withdraw?'stashWithdraw':'stashDeposit',id:item.id});
   }
   function renderStash(){
-    const key=JSON.stringify([game.player.stash,game.player.items]);if(key===stashKey)return;stashKey=key;
-    stashCount.textContent=`${game.player.stash.length} / 32 ячейки · вещи сохранены у этого героя`;stashGrid.replaceChildren();
-    for(let i=0;i<32;i++){
-      const item=game.player.items.find(item=>item.id===game.player.stash[i]),button=node('button',`bag-cell ${item?'rarity-'+item.rarity:'empty'}`);button.type='button';
-      if(item){button.dataset.itemId=item.id;button.innerHTML=itemArtwork(item,item.classId||game.player.classId);button.setAttribute('aria-label',item.name);}else button.setAttribute('aria-label','Пустая ячейка сундука');
+    const p=game.player,key=JSON.stringify([p.stash,p.items,p.stashCapacity,p.gold,p.stashActive,p.dead,game.connected]);if(key===stashKey)return;stashKey=key;
+    stashCount.textContent=`${p.stash.length} / ${p.stashCapacity} ячеек · вещи сохранены у этого героя`;stashGrid.replaceChildren();
+    for(let i=0;i<p.stashCapacity;i++){
+      const item=p.items.find(item=>item.id===p.stash[i]),button=node('button',`bag-cell ${item?'rarity-'+item.rarity:'empty'}`);button.type='button';
+      if(item){button.dataset.itemId=item.id;button.innerHTML=itemArtwork(item,item.classId||p.classId);button.setAttribute('aria-label',item.name);}else button.setAttribute('aria-label','Пустая ячейка сундука');
       stashGrid.append(button);
+    }
+    if(p.stashCapacity<MAX_STASH_CAPACITY){
+      const plus=node('button','bag-cell bag-expand');plus.type='button';plus.innerHTML='<span>+</span>';
+      plus.title=`Купить ячейку за ${STASH_SLOT_PRICE} золота`;plus.setAttribute('aria-label',plus.title);
+      plus.disabled=!canUseStash()||!p.stashActive||p.gold<STASH_SLOT_PRICE;
+      plus.onclick=()=>{if(plus.disabled){toast(p.gold<STASH_SLOT_PRICE?`Нужно ${STASH_SLOT_PRICE} золота`:'Откройте сундук');return;}send({type:'buyStashSlot'});};
+      stashGrid.append(plus);
     }
   }
   function send(command:ClientCommand){
@@ -145,7 +152,7 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
     }else{
       if(!canEdit()){toast('Снаряжение недоступно: герой погиб или нет соединения');return;}
       if(!canEquip(game.player,item)){toast('Предмет не подходит вашему классу');return;}
-      if(mode==='unequip'&&backpackUsage(game.player)>=BAG_CAPACITY){toast('В рюкзаке нет свободной ячейки');return;}
+      if(mode==='unequip'&&backpackUsage(game.player)>=game.player.bagCapacity){toast('В рюкзаке нет свободной ячейки');return;}
     }
     send({type:mode,id:item.id});
   }
@@ -153,7 +160,7 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
     const listing=shopItems().find(value=>value.definitionId===definitionId);if(!listing)return;
     if(!canTrade()){toast('Подойдите к торговцу и откройте магазин');return;}
     if(game.player.gold<listing.price){toast('Недостаточно золота');return;}
-    if(backpackUsage(game.player)>=BAG_CAPACITY){toast('Освободите ячейку в рюкзаке');return;}
+    if(backpackUsage(game.player)>=game.player.bagCapacity){toast('Освободите ячейку в рюкзаке');return;}
     send({type:'buy',definitionId});
   }
   function buyConsumable(definitionId:string,quantity:1|50){
@@ -161,7 +168,7 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
     if(!canTrade()){toast('Подойдите к торговцу и откройте магазин');return;}
     const definitionCount=consumableQuantity(game.player,definition.id),kindCount=consumableKindQuantity(game.player,definition.kind),totalPrice=definition.price*quantity;
     if(definitionCount+quantity>definition.stackLimit||kindCount+quantity>CONSUMABLE_LIMIT){toast(`Для ${quantity} бутылок не хватает места в запасе`);return;}
-    if(!definitionCount&&backpackUsage(game.player)>=BAG_CAPACITY){toast('Освободите ячейку в рюкзаке');return;}
+    if(!definitionCount&&backpackUsage(game.player)>=game.player.bagCapacity){toast('Освободите ячейку в рюкзаке');return;}
     if(game.player.gold<totalPrice){toast(`Нужно ${totalPrice} золота`);return;}
     send({type:'buyConsumable',definitionId,quantity,requestId:crypto.randomUUID()});
   }
@@ -176,7 +183,7 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
       button.onclick=()=>showTooltip(button);button.ondblclick=()=>buy(listing.definitionId);wares.append(button);
     }
   }
-  function cell(event:Event){return event.target instanceof Element?event.target.closest<HTMLElement>('.bag-cell,.equipment-slot,.vendor-item'):null;}
+  function cell(event:Event){return event.target instanceof Element?event.target.closest<HTMLElement>('.bag-cell:not(.bag-expand),.equipment-slot,.vendor-item'):null;}
   for(const container of [inventory,vendor,stash]){
     container.addEventListener('pointerover',event=>{const target=cell(event);if(target)showTooltip(target);});
     container.addEventListener('pointerout',event=>{const target=cell(event);if(target&&(!(event.relatedTarget instanceof Node)||!target.contains(event.relatedTarget)))hideTooltip();});
@@ -245,11 +252,11 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
     if(inventory.hidden&&vendor.hidden&&stash.hidden){hideTooltip();endDrag();}
     if(pendingUntil&&(signature()!==pendingSignature||performance.now()>pendingUntil)){pendingUntil=0;pendingSignature='';}
     gold.textContent=`${game.player.gold} золота`;
-    for(const element of inventory.querySelectorAll<HTMLElement>('.bag-cell,.equipment-slot')){element.draggable=false;element.removeAttribute('title');}
+    for(const element of inventory.querySelectorAll<HTMLElement>('.bag-cell:not(.bag-expand),.equipment-slot')){element.draggable=false;element.removeAttribute('title');}
     for(const element of wares.querySelectorAll<HTMLElement>('.vendor-item')){const listing=shopItems().find(value=>value.definitionId===element.dataset.definitionId);element.classList.toggle('unaffordable',game.player.gold<(listing?.price||0));}
     for(const button of supplies.querySelectorAll<HTMLButtonElement>('.vendor-consumable-buy')){
       const definition=consumableDefinition(button.dataset.definitionId),quantity=Number(button.dataset.quantity) as 1|50;if(!definition)continue;
-      const definitionCount=consumableQuantity(game.player,definition.id),kindCount=consumableKindQuantity(game.player,definition.kind),needsCell=!definitionCount&&backpackUsage(game.player)>=BAG_CAPACITY;
+      const definitionCount=consumableQuantity(game.player,definition.id),kindCount=consumableKindQuantity(game.player,definition.kind),needsCell=!definitionCount&&backpackUsage(game.player)>=game.player.bagCapacity;
       button.disabled=!canTrade()||game.player.gold<definition.price*quantity||definitionCount+quantity>definition.stackLimit||kindCount+quantity>CONSUMABLE_LIMIT||needsCell;
     }
     const hint=document.getElementById('inventory-hint')!;hint.textContent=stashOpened?'Сундук открыт · ПКМ или перетаскивание — переложить вещь':opened?'Магазин открыт · ПКМ по вещи — продать · перетащите зелье на Q/W':'Зелье — перетащите на Q/W · вещь — ПКМ или перетащите в слот';

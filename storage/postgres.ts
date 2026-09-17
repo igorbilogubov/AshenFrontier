@@ -4,7 +4,7 @@ import type {PoolClient} from 'pg';
 import type {EquipmentSlot,Item,PersistentHero,ConsumableStack} from '../shared/types.js';
 import {MAX_CHARACTERS,type Account,type CharacterSummary,type GoogleIdentity} from '../shared/accounts.js';
 import {migrate,DATABASE_SCHEMA_VERSION} from './schema.js';
-import {BAG_CAPACITY,STASH_CAPACITY,backpackItems} from '../public/rules.js';
+import {backpackItems,clampBagCapacity,clampStashCapacity} from '../public/rules.js';
 import {CONSUMABLE_LIMIT,validateConsumables,backpackUsage,consumableKindQuantity} from '../public/game/consumables.js';
 import {defaultAfkPreferences,parseAfkPreferences} from '../public/game/afk-preferences.js';
 
@@ -54,7 +54,7 @@ function checkEntry(entry:CommitEntry):void{
   if(!hero||typeof hero.id!=='string'||!hero.id||!Number.isSafeInteger(expectedRevision)||expectedRevision<0)throw new Error('Invalid hero commit entry');
   if(!Array.isArray(hero.items)||!Array.isArray(hero.pendingItems)||!Array.isArray(hero.stash))throw new Error('Invalid hero inventory');
   const all=[...hero.items,...hero.pendingItems],ids=new Set<string>();
-  if(hero.items.length>22+hero.stashCapacity||hero.pendingItems.length>16||hero.stash.length>hero.stashCapacity)throw new Error('Inventory capacity exceeded');
+  if(hero.items.length>hero.bagCapacity+6+hero.stashCapacity||hero.pendingItems.length>16||hero.stash.length>hero.stashCapacity)throw new Error('Inventory capacity exceeded');
   for(const item of all){if(!item||typeof item.id!=='string'||!item.id||ids.has(item.id)||!slots.includes(item.slot))throw new Error('Invalid or duplicate item');ids.add(item.id);}
   const worn=new Set<string>();
   for(const slot of slots){const id=hero.equipment?.[slot];if(id){const item=hero.items.find(item=>item.id===id);if(!item||item.slot!==slot||worn.has(id))throw new Error('Invalid equipped item');worn.add(id);}}
@@ -66,6 +66,7 @@ function checkEntry(entry:CommitEntry):void{
   if(hero.potions!==consumableKindQuantity(hero,'hp')||hero.manaPotions!==consumableKindQuantity(hero,'mana'))throw new Error('Consumable counters must match inventory');
   if(hero.consumableInventory.some(stack=>ids.has(stack.id)))throw new Error('Duplicate item and consumable identity');
   if(!Number.isSafeInteger(hero.consumableOverflow)||hero.consumableOverflow<0||hero.consumableOverflow>2||backpackUsage(hero)>hero.bagCapacity+hero.consumableOverflow)throw new Error('Backpack capacity exceeded');
+  if(hero.bagCapacity!==clampBagCapacity(hero.bagCapacity)||hero.stashCapacity!==clampStashCapacity(hero.stashCapacity))throw new Error('Invalid storage capacity');
   if(!parseSkillBuild(hero.skillBuild,hero.classId,hero.level)||!Number.isSafeInteger(hero.buildRevision)||hero.buildRevision<0||!Array.isArray(hero.skillPresets)||hero.skillPresets.length!==3||hero.skillPresets.some(b=>b!==null&&!parseSkillBuild(b,hero.classId,hero.level)))throw new Error('Invalid skill build');
   if(!parseAfkPreferences(hero.afkPreferences,hero.classId))throw new Error('Invalid AFK preferences');
 }
@@ -173,7 +174,7 @@ async function readHero(client:PoolClient,heroId:string,accountId:string):Promis
   const hero:PersistentHero={
     skillBuild:parseSkillBuild(row.skill_build,row.class_id,row.level)??defaultSkillBuild(row.class_id,row.level),buildRevision:numeric(row.build_revision),skillPresets:[0,1,2].map(index=>parseSkillBuild(row.skill_presets?.[index],row.class_id,row.level)) as PersistentHero['skillPresets'],
     schemaVersion:row.schema_version,id:row.id,name:row.name,classId:row.class_id,level:row.level,
-    xp:numeric(row.xp),gold:numeric(row.gold),kills:row.kills,items,pendingItems,stash,equipment,consumableInventory,quickSlots:{q:row.quick_slot_q,w:row.quick_slot_w},consumableOverflow:row.consumable_overflow,bagCapacity:row.bag_capacity??16,stashCapacity:row.stash_capacity??32,
+    xp:numeric(row.xp),gold:numeric(row.gold),kills:row.kills,items,pendingItems,stash,equipment,consumableInventory,quickSlots:{q:row.quick_slot_q,w:row.quick_slot_w},consumableOverflow:row.consumable_overflow,bagCapacity:clampBagCapacity(row.bag_capacity),stashCapacity:clampStashCapacity(row.stash_capacity),
     allocatedStats:{strength:row.strength,dexterity:row.dexterity,vitality:row.vitality,energy:row.energy},statRevision:row.stat_revision,
     x:row.x,z:row.z,yaw:row.yaw,weapon:row.weapon,hp:row.hp,mana:row.mana,potions:consumableKindQuantity({consumableInventory},'hp'),
     potionCooldown:row.potion_cooldown,manaPotions:consumableKindQuantity({consumableInventory},'mana'),manaPotionCooldown:row.mana_potion_cooldown,specialCooldown:row.special_cooldown,skillCooldowns:row.skill_cooldowns,

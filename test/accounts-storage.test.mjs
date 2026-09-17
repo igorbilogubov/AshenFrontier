@@ -81,7 +81,7 @@ test('schema5 removes guest key access and retains orphaned legacy hero without 
   }finally{await client.end();}
   const migrated=await openHeroStore({connectionString:db.url});
   try{
-    assert.equal(await migrated.schemaVersion(),8);
+    assert.equal(await migrated.schemaVersion(),9);
     const newAccount=await migrated.upsertGoogleAccount(identity());
     assert.equal(await migrated.load(value.id,newAccount.id),null);
     assert.deepEqual(await migrated.listHeroes(newAccount.id),[]);

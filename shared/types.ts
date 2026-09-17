@@ -99,6 +99,7 @@ export type ClientCommand =
   | { type: 'equip' | 'unequip' | 'sell'; id: string } | { type: 'allocateStats'; revision: number; points: Partial<Attributes> }
   | {type:'pickup';id:string} | {type:'interact';npcId:string} | {type:'cancelInteraction'}
   | {type:'buy';definitionId:string;requestId?:string}
+  | {type:'buyBagSlot'} | {type:'buyStashSlot'}
   | {type:'buyConsumable';definitionId:string;quantity:1|50;requestId?:string}
   | {type:'buyConsumable';kind:'hp'|'mana';requestId?:string}
   | {type:'assignConsumable';slot:QuickSlot;definitionId:string|null} | {type:'useConsumable';slot:QuickSlot}

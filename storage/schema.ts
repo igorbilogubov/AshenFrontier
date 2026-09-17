@@ -1,6 +1,6 @@
 import type {PoolClient} from 'pg';
 
-export const DATABASE_SCHEMA_VERSION=8;
+export const DATABASE_SCHEMA_VERSION=9;
 
 // The migration is embedded so both source execution and dist execution use the
 // exact same schema, including in the production Docker image.
@@ -224,7 +224,7 @@ export async function migrate(client:PoolClient):Promise<void>{
     await client.query('SELECT pg_advisory_xact_lock(8675309, 4733)');
     await client.query('CREATE TABLE IF NOT EXISTS schema_migrations (version integer PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())');
     const applied=await client.query<{version:number}>('SELECT version FROM schema_migrations');
-    if([1,2,3,4,5,6,7,8].some(version=>!applied.rows.some(row=>row.version===version))){
+    if([1,2,3,4,5,6,7,8,9].some(version=>!applied.rows.some(row=>row.version===version))){
       // Data migrations must never copy counters while an older process can
       // still buy or consume them. Read-only opens of a current schema stay free.
       const world=await client.query<{locked:boolean}>('SELECT pg_try_advisory_xact_lock(8675309, 4732) AS locked');
@@ -269,13 +269,13 @@ export async function migrate(client:PoolClient):Promise<void>{
     `);await client.query('INSERT INTO schema_migrations(version) VALUES (8)');}
     const ninth=await client.query<{version:number}>('SELECT version FROM schema_migrations WHERE version=9');
     if(!ninth.rowCount){await client.query(`
-      ALTER TABLE heroes ADD COLUMN bag_capacity integer NOT NULL DEFAULT 16 CHECK (bag_capacity BETWEEN 16 AND 256);
-      ALTER TABLE heroes ADD COLUMN stash_capacity integer NOT NULL DEFAULT 32 CHECK (stash_capacity BETWEEN 32 AND 256);
+      ALTER TABLE heroes ADD COLUMN bag_capacity integer NOT NULL DEFAULT 16 CHECK (bag_capacity BETWEEN 16 AND 40);
+      ALTER TABLE heroes ADD COLUMN stash_capacity integer NOT NULL DEFAULT 32 CHECK (stash_capacity BETWEEN 32 AND 64);
       ALTER TABLE inventory_locations DROP CONSTRAINT IF EXISTS inventory_locations_check;
       ALTER TABLE inventory_locations ADD CONSTRAINT inventory_locations_check CHECK (
-        (kind='bag' AND position BETWEEN 0 AND 255 AND equipped_slot IS NULL) OR
+        (kind='bag' AND position BETWEEN 0 AND 39 AND equipped_slot IS NULL) OR
         (kind='pending' AND position BETWEEN 0 AND 15 AND equipped_slot IS NULL) OR
-        (kind='stash' AND position BETWEEN 0 AND 255 AND equipped_slot IS NULL) OR
+        (kind='stash' AND position BETWEEN 0 AND 63 AND equipped_slot IS NULL) OR
         (kind='equipped' AND position IS NULL AND equipped_slot IN ('weapon','armor','helmet','boots','ring','amulet'))
       );
     `);await client.query('INSERT INTO schema_migrations(version) VALUES (9)');}

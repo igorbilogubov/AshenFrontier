@@ -1,5 +1,17 @@
 # Проверка общей 3D-опушки
 
+## 17 сентября 2026: покупка ячеек рюкзака и сундука
+
+Ветка `codex/boss-loot-tables` поверх лута босса. Ячейки уменьшены, сетка 6 колонок, плюс докупает слоты.
+
+- `npx tsc --noEmit` успешен.
+- `node scripts/check.mjs` — 93 модуля, Docker context OK.
+- Без локального PostgreSQL (`pg_ctl` недоступен): `test/inventory-slots.test.mjs` и связанные `inventory`/`personal-stash`/`vendor`/`ground-loot`/`loot-rarity-v2`/`dungeons`/`equipment-100`/`client-imports`/`shared-world`/`consumable-inventory` — 69 пройдено, 0 падений; PG-сценарии schema 9 пропущены.
+- Новый герой больше не падает на `Invalid consumable overflow`: `bagCapacity` задаётся до расчёта overflow.
+- Push не выполнялся.
+
+
+
 ## 17 сентября 2026: опции редкости и лут босса
 
 Ветка `codex/boss-loot-tables`. Прогнаны изолированные сценарии без PostgreSQL:

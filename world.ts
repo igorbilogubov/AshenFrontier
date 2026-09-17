@@ -10,7 +10,7 @@ import {regionalEquipment,rollEquipment,validateEquipment,equipmentAppearance} f
 import type {ClassId, EquipmentSlot, Item, Hero, PersistentHero, HeroAttack, Mob, Projectile, WorldEvent, EventPayloads, WorldSnapshot, SkillId, SkillCooldowns, GroundDrop, Point, ConsumableStack, QuickSlots, SkillBuild, SkillZone, StatSource} from './shared/types.js';
 import {isRecord, isClassId, isEquipmentSlot, isWeaponId} from './shared/types.js';
 import {randomUUID} from 'node:crypto';
-import {CLASSES,EQUIPMENT_SLOTS,DEFAULT_BAG_CAPACITY,backpackItems,classFor,canEquip,STAT_KEYS,CLASS_PROGRESSION,characterStats,normalizedAllocations} from './public/rules.js';
+import {CLASSES,EQUIPMENT_SLOTS,MAX_BAG_CAPACITY,MAX_STASH_CAPACITY,BAG_SLOT_PRICE,STASH_SLOT_PRICE,backpackItems,classFor,canEquip,STAT_KEYS,CLASS_PROGRESSION,characterStats,normalizedAllocations,clampBagCapacity,clampStashCapacity} from './public/rules.js';
 import {BOUNDS,CAMP,SPAWNS,mobConfig,WEAPONS,AFK_SPOTS,afkSpotAt,withinSpot,safe as pointIsSafe,stand,clearPath,distance,translate,moveHero} from './public/game/location.js';
 import {angleDelta,turnTowards,inStrike} from './public/game/motion.js';
 import {SKILLS,skillsForClass,legacySkillId} from './public/game/skills.js';
@@ -100,7 +100,8 @@ export function safeHero(saved: unknown): Hero{
     const id=rawEquipment[slot];equipment[slot]=typeof id==='string'&&items.some(i=>i.id===id&&i.slot===slot&&canEquip({classId,level},i))?id:null;
   }
   const stash=raw.stash===undefined?[]:raw.stash;
-  if(!Array.isArray(stash)||stash.length>32||new Set(stash).size!==stash.length||stash.some(id=>typeof id!=='string'||!items.some(item=>item.id===id)||Object.values(equipment).includes(id)))throw new Error('Invalid saved stash');
+  const bagCapacity=clampBagCapacity(raw.bagCapacity),stashCapacity=clampStashCapacity(raw.stashCapacity);
+  if(!Array.isArray(stash)||stash.length>stashCapacity||new Set(stash).size!==stash.length||stash.some(id=>typeof id!=='string'||!items.some(item=>item.id===id)||Object.values(equipment).includes(id)))throw new Error('Invalid saved stash');
   const x=finite(raw.x,CAMP_SPAWN.x),z=finite(raw.z,CAMP_SPAWN.z),position=legacy||typeof raw.x!=='number'||typeof raw.z!=='number'||!Number.isFinite(raw.x)||!Number.isFinite(raw.z)||!stand(x,z)||level<(dungeonAt({x,z})?.minLevel??lateRegionAt({x,z})?.minLevel??1)||(inSnow({x,z})&&level<SNOW_MIN_LEVEL)||(inWasteland({x,z})&&level<WASTELAND_MIN_LEVEL)?CAMP_SPAWN:{x,z};
   const yaw=finite(raw.yaw,Math.PI*.25),legacyId=legacySkillId(classId),specialCooldown=legacy?0:nonnegative(raw.specialCooldown);
   const skillCooldowns: SkillCooldowns={};
@@ -116,12 +117,13 @@ export function safeHero(saved: unknown): Hero{
   const quickSlots:QuickSlots=oldConsumables?{q:'hp-basic',w:'mana-basic'}:raw.quickSlots as QuickSlots;
   validateConsumables(consumableInventory,quickSlots);
   const usage=backpackUsage({items,equipment,stash,consumableInventory});
-  const consumableOverflow=oldConsumables?Math.max(0,usage-raw.bagCapacity ?? DEFAULT_BAG_CAPACITY):Math.min(nonnegative(raw.consumableOverflow),Math.max(0,usage-raw.bagCapacity ?? DEFAULT_BAG_CAPACITY));
+  const consumableOverflow=oldConsumables?Math.max(0,usage-bagCapacity):Math.min(nonnegative(raw.consumableOverflow),Math.max(0,usage-bagCapacity));
   if(!Number.isSafeInteger(consumableOverflow)||consumableOverflow>2)throw new Error('Invalid consumable overflow');
   const p: Hero={
     skillBuild:parseSkillBuild(raw.skillBuild,classId,level)??defaultSkillBuild(classId,level),buildRevision:Math.floor(nonnegative(raw.buildRevision)),skillPresets:[0,1,2].map(index=>Array.isArray(raw.skillPresets)?parseSkillBuild(raw.skillPresets[index],classId,level):null) as Hero['skillPresets'],effects:[],
     schemaVersion:SAVE_VERSION,id:typeof raw.id==='string'?raw.id:randomUUID(),name:String(raw.name||'Странник').replace(/[\p{C}<>]/gu,'').slice(0,18),
     classId,level,xp:level>=MAX_LEVEL?0:nonnegative(raw.xp),gold:nonnegative(raw.gold??raw.coins),kills:Math.floor(nonnegative(raw.kills)),items,pendingItems,stash,equipment,consumableInventory,quickSlots,consumableOverflow,
+    bagCapacity,stashCapacity,
     allocatedStats:normalizedAllocations(migrateStats?null:raw.allocatedStats,level),statRevision:!migrateStats&&typeof raw.statRevision==='number'&&Number.isSafeInteger(raw.statRevision)&&raw.statRevision>=0?raw.statRevision:0,
     ...position,yaw,targetYaw:yaw,weapon:raw.weapon==='axe'?'axe':'sword',
     questKills:legacy?0:nonnegative(raw.questKills),boss:legacy?false:!!raw.boss,questClaimed:legacy?false:!!raw.questClaimed,
@@ -141,7 +143,7 @@ export function persistentHero(p: Hero): PersistentHero{
   // Compatibility counters are a projection, never an independent inventory.
   p.potions=consumableKindQuantity(p,'hp');p.manaPotions=consumableKindQuantity(p,'mana');
   p.consumableOverflow=Math.min(p.consumableOverflow,Math.max(0,backpackUsage(p)-p.bagCapacity));
-  const fields=['schemaVersion','id','name','classId','level','xp','gold','kills','items','pendingItems','stash','equipment','consumableInventory','quickSlots','consumableOverflow','allocatedStats','statRevision','x','z','yaw','weapon','hp','mana','potions','potionCooldown','manaPotions','manaPotionCooldown','specialCooldown','skillCooldowns','dead','combatUntil','attack','attackSerial','running','questKills','boss','questClaimed','afkPreferences','skillBuild','buildRevision','skillPresets'] as const;
+  const fields=['schemaVersion','id','name','classId','level','xp','gold','kills','items','pendingItems','stash','equipment','consumableInventory','quickSlots','consumableOverflow','bagCapacity','stashCapacity','allocatedStats','statRevision','x','z','yaw','weapon','hp','mana','potions','potionCooldown','manaPotions','manaPotionCooldown','specialCooldown','skillCooldowns','dead','combatUntil','attack','attackSerial','running','questKills','boss','questClaimed','afkPreferences','skillBuild','buildRevision','skillPresets'] as const;
   return structuredClone(Object.fromEntries(fields.map(k=>[k,p[k]]))) as unknown as PersistentHero;
 }
 export class World{
@@ -263,7 +265,7 @@ export class World{
       if(backpackUsage(p)>=p.bagCapacity){this.notice(p,'Рюкзак полон');return false;}
       p.stash.splice(index,1);return true;
     }
-    if(p.stash.includes(id)||p.stash.length>=32)return false;
+    if(p.stash.includes(id)||p.stash.length>=p.stashCapacity)return false;
     const item=backpackItems(p).find(item=>item.id===id);
     if(!item)return false;
     p.stash.push(item.id);return true;
@@ -412,6 +414,17 @@ export class World{
       if(receipts.length>64)receipts.shift();this.purchaseReceipts.set(p.id,receipts);
     }
     this.notice(p,`Куплено: ${listing.name}${quantity===1?'':` × ${quantity}`}`);return true;
+  }
+  buyStorageSlot(p:Hero,kind:'bag'|'stash'){
+    if(!p.connected||p.dead)return false;
+    if(kind==='stash'&&(!p.stashActive||!this.chestAvailable(p))){this.notice(p,'Откройте сундук, чтобы купить ячейку');return false;}
+    const price=kind==='bag'?BAG_SLOT_PRICE:STASH_SLOT_PRICE,max=kind==='bag'?MAX_BAG_CAPACITY:MAX_STASH_CAPACITY,current=kind==='bag'?p.bagCapacity:p.stashCapacity;
+    if(current>=max){this.notice(p,'Больше ячеек купить нельзя');return false;}
+    if(p.gold<price){this.notice(p,'Не хватает золота');return false;}
+    p.gold-=price;
+    if(kind==='bag')p.bagCapacity++;else p.stashCapacity++;
+    this.notice(p,kind==='bag'?`Рюкзак: ${p.bagCapacity} ячеек`:`Сундук: ${p.stashCapacity} ячеек`);
+    return true;
   }
   interactionInput(p:Hero){
     const target=p.interactionTarget;if(!target)return {x:0,z:0,aim:null};
@@ -681,6 +694,8 @@ export class World{
     if(msg.type==='cancelInteraction'){this.stopInteraction(p);return;}
     if(msg.type==='portal'){this.startPortal(p,msg.portalId);return;}
     if(msg.type==='buy'){this.buy(p,msg.definitionId,msg.requestId);return;}
+    if(msg.type==='buyBagSlot'){this.buyStorageSlot(p,'bag');return;}
+    if(msg.type==='buyStashSlot'){this.buyStorageSlot(p,'stash');return;}
     if(msg.type==='buyConsumable'){
       if('definitionId' in msg){
         if((msg.quantity!==1&&msg.quantity!==50)||!consumableDefinition(msg.definitionId))return;

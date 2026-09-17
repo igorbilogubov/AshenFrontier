@@ -80,8 +80,7 @@ function savedItems(value: unknown): Item[]{
     if(!isRecord(item)||typeof item.id!=='string'||typeof item.name!=='string'||!isEquipmentSlot(item.slot)||typeof item.power!=='number'||typeof item.rarity!=='number')throw new Error('Invalid saved item');
     if(item.classId!==undefined&&!isClassId(item.classId))throw new Error('Invalid saved item class');
     validateEquipment(item as unknown as Item);
-    const copy={...item, ...(item.slot==='weapon'&&!item.classId?{classId:'warrior' as const}:{})};
-    return copy as unknown as Item;
+    return item as unknown as Item;
   });
 }
 function savedAttack(value: unknown,classId: ClassId): HeroAttack | null{

@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {EQUIPMENT_ITEMS,regionalEquipment,rollEquipment,validateEquipment} from '../dist/public/game/equipment-items.js';
+import {EQUIPMENT_ITEMS,RARE_CLASS_ITEMS,COMMON_CLASS_ITEMS,regionalEquipment,rollEquipment,validateEquipment} from '../dist/public/game/equipment-items.js';
 import {GEAR_REGIONS} from '../dist/public/game/regional-equipment.js';
 import {bossItemCount,gearRarity,GEAR_CHANCE,WHITE_GEAR_CHANCE,GREEN_GEAR_CHANCE,ELITE_GEAR_CHANCE,BOSS_GEAR_CHANCE} from '../dist/public/game/loot-rules.js';
 import {possibleLoot} from '../dist/public/game/possible-loot.js';
+import {newHero,persistentHero,safeHero} from '../dist/world.js';
 
 const classes=['warrior','archer','mage'];
 const optionCount=rarity=>rarity===0?1:rarity===1?2:rarity===2?3:4;
@@ -104,4 +105,23 @@ test('target hints expose actual pools, white-first ordinary chances and guarant
   assert.deepEqual(boss.itemCount,{min:1,max:3});
   assert.deepEqual([...new Set(boss.categories.filter(category=>category.rarity!=='gold').map(category=>category.rarity))],[1,2,3,4]);
   assert.equal(boss.categories.some(category=>category.rarity===0),false);
+});
+
+test('historical roll counts stay frozen when current rarity tables differ',()=>{
+  const rare=rollEquipment(RARE_CLASS_ITEMS.warrior[0].id,'hist-rare',()=>.4);
+  assert.equal(rare.rolls.length,3);
+  const shorter=structuredClone(rare);shorter.rolls=shorter.rolls.slice(0,2);
+  const white=rollEquipment(COMMON_CLASS_ITEMS.warrior[0].id,'hist-white',()=>.4);
+  assert.equal(white.rolls.length,1);
+  const longer=structuredClone(white);longer.rolls=[...longer.rolls,{key:'accuracy',value:1,min:1,max:3}];
+  for(const item of [shorter,longer]){
+    const before=JSON.stringify(item);
+    validateEquipment(item);
+    assert.equal(JSON.stringify(item),before);
+  }
+  const hero=newHero();
+  hero.items.push(shorter,longer);
+  const restored=safeHero(JSON.parse(JSON.stringify(persistentHero(hero))));
+  assert.equal(restored.items.find(item=>item.id==='hist-rare').rolls.length,2);
+  assert.equal(restored.items.find(item=>item.id==='hist-white').rolls.length,2);
 });

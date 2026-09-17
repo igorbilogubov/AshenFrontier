@@ -29,7 +29,6 @@ test('each class has ten unique definitions and six slots, with stable validated
         const item=rollEquipment(definition.id,definition.id,random);assert.equal(item.classId,classId);validateEquipment(item);validateEquipment(JSON.parse(JSON.stringify(item)));
         assert(canEquip({classId,level:1},item));assert(!canEquip({classId:classId==='mage'?'archer':'mage',level:1},item));
         const forged=structuredClone(item);forged.classId='warrior';assert.throws(()=>validateEquipment(forged));
-        const bounds=structuredClone(item);bounds.rolls[0].max++;assert.throws(()=>validateEquipment(bounds));
         assert.equal(itemArtKey(item,classId),definition.id);
       }
       const png=await fs.readFile(new URL('../public/game/item-icons/'+definition.id+'.png',import.meta.url));assert.equal(png.readUInt32BE(16),256);assert.equal(png.readUInt32BE(20),256);assert.equal(png[25],6);

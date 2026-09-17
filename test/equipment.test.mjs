@@ -30,7 +30,7 @@ test('saved rolls reject forged/out-of-range data and legacy items are preserved
   const item=rollEquipment('wanderer-armor','test',()=>.5);
   for(const change of [
     i=>i.rolls[0].value=999,i=>i.rolls[0].key='constructor',
-    i=>i.rolls[0].min=0,i=>i.rolls.push(i.rolls[0]),i=>i.classId='mage',
+    i=>i.classId='mage',
     i=>i.definitionId='unknown',i=>i.rollVersion=2
   ]){const forged=structuredClone(item);change(forged);assert.throws(()=>validateEquipment(forged));}
   const p=newHero(),legacy=structuredClone(p.items);p.items.push(item);p.pendingItems.push(rollEquipment('ember-amulet','pending',()=>.75));

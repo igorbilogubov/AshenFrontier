@@ -1,5 +1,9 @@
 # Проверка общей 3D-опушки
 
+## 17 сентября 2026: вход — отпечатки вещей
+
+Production `ashen-frontier:20260917-094453` писал `Hero join/storage failed: Rolled item identity changed`. При join `safeHero` мутировал `rolls` под новые длины редкостей, затем `normalize hero` сравнивал отпечаток. `validateEquipment` больше не меняет сохранённые броски. Тесты: `loot-rarity-v2`, `equipment`, `class-equipment`; PG-сценарий `inventory-slots` если есть база.
+
 ## 17 сентября 2026: элиты и боссы — ×4 HP и урон
 
 Локально, без push. `ELITE_COMBAT_SCALE=4` для именных элит и боссов; стражи остаются на ×2. `npx tsc --noEmit` и `node scripts/check.mjs` (93 модуля) прошли. `test/dungeons.test.mjs` 8/8, включая новый сценарий живого спавна; вместе с `snow-world`, `target-presentation`, `shared-world`, `forest-spots`, `late-world-layout` — 32/32 без PostgreSQL.

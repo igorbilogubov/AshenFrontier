@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {World,newHero,persistentHero,safeHero} from '../dist/world.js';
+import {RARE_CLASS_ITEMS,rollEquipment} from '../dist/public/game/equipment-items.js';
 import {BAG_SLOT_PRICE,STASH_SLOT_PRICE,DEFAULT_BAG_CAPACITY,DEFAULT_STASH_CAPACITY,MAX_BAG_CAPACITY,MAX_STASH_CAPACITY,clampBagCapacity,clampStashCapacity} from '../dist/public/rules.js';
 import {CHEST_APPROACH} from '../dist/public/game/personal-stash.js';
 import {createTestDatabase,hasTestDatabase} from './helpers/postgres.mjs';
@@ -89,4 +90,20 @@ test('schema 9 stores purchased bag and chest cells and fills defaults for older
     assert.equal(restored.bagCapacity,DEFAULT_BAG_CAPACITY);
     assert.equal(restored.stashCapacity,DEFAULT_STASH_CAPACITY);
   }finally{await sql.end();await store?.close();await db.close();}
+});
+
+test('hero normalize commit keeps historical item fingerprints',{skip:!hasTestDatabase},async()=>{
+  const db=await createTestDatabase();let store;
+  try{
+    store=await openHeroStore({connectionString:db.url});
+    const accountId=await testAccount(store),p=newHero('Отпечаток');
+    const rare=rollEquipment(RARE_CLASS_ITEMS.warrior.find(item=>item.slot==='ring').id,'hist-rare',()=>.4);
+    rare.rolls=rare.rolls.slice(0,2);
+    p.items.push(rare);
+    const first=await store.commit([{accountId,hero:persistentHero(p),expectedRevision:0}],randomUUID());
+    const loaded=await store.load(p.id,accountId);
+    const normalized=persistentHero(safeHero(loaded.hero));
+    assert.equal(normalized.items.find(item=>item.id==='hist-rare').rolls.length,2);
+    await store.commit([{accountId,hero:normalized,expectedRevision:first[0].revision}],randomUUID(),'normalize hero');
+  }finally{await store?.close();await db.close();}
 });

@@ -123,21 +123,13 @@ export function rollEquipment(definitionId:string,id:string,random:()=>number):I
 export function validateEquipment(item:Item){
   if(item.definitionId===undefined){if(item.rolls!==undefined||item.rollVersion!==undefined)throw new Error('Item rolls need a definition');return;}
   const definition=itemDefinition(item.definitionId);
-  if(!definition||item.rarity!==(definition.rarity??1)||item.rollVersion!==1||item.slot!==definition.slot||item.classId!==definition.classId||item.itemLevel!==definition.level||!Array.isArray(item.rolls))throw new Error('Invalid saved equipment structure');
-  
-  if(item.rolls.length > definition.ranges.length){
-    item.rolls = item.rolls.slice(0, definition.ranges.length);
-  } else if (item.rolls.length < definition.ranges.length) {
-    for(let i=item.rolls.length; i<definition.ranges.length; i++){
-      const r = definition.ranges[i];
-      item.rolls.push({...r, value: r.min});
-    }
-  }
-
-  for(let i=0;i<definition.ranges.length;i++){
+  if(!definition||item.rarity!==(definition.rarity??1)||item.rollVersion!==1||item.slot!==definition.slot||item.classId!==definition.classId||item.itemLevel!==definition.level||!Array.isArray(item.rolls)||!item.rolls.length)throw new Error('Invalid saved equipment structure');
+  // Stored roll counts stay frozen. New rarity tables may have more or fewer
+  // options than a live item; mutating them would change the durable fingerprint.
+  const shared=Math.min(item.rolls.length,definition.ranges.length);
+  for(let i=0;i<shared;i++){
     const roll=item.rolls[i],range=definition.ranges[i];
     if(!roll||roll.key!==range.key)throw new Error('Invalid saved equipment roll');
-    // Not enforcing strict value bounds on load to avoid breaking saves when we adjust stat scales
   }
   if(item.power!==item.rolls[0].value)throw new Error('Invalid equipment primary value');
 }

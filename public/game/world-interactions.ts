@@ -2,6 +2,8 @@ import * as T from './vendor/three.module.js';
 import {loadWarrior} from './character.js';
 import {mesh} from './models.js';
 import {itemArtwork} from './item-icons.js';
+import {itemDisplayName} from './equipment-items.js';
+import {itemClassName,itemWrongClass} from '../rules.js';
 import {SHOP} from './shop.js';
 import {sameLocation} from './world-layout.js';
 import {PERSONAL_CHEST,insideHouse} from './camp-layout.js';
@@ -49,8 +51,17 @@ export async function createWorldInteractions(scene:T.Scene,game:NetworkGame,cho
       const ring=mesh(model,new T.RingGeometry(.23,.28,24),new T.MeshBasicMaterial({color,transparent:true,opacity:.6,side:T.DoubleSide,depthWrite:false}),0,.01,0);ring.rotation.x=-Math.PI/2;ring.castShadow=false;
     }
     const label=document.createElement('button');label.type='button';label.className=`ground-loot-label ${drop.kind==='gold'?'gold':`rarity-${drop.item?.rarity||0}`}`;
-    if(drop.item){const icon=document.createElement('span');icon.className='ground-loot-icon';icon.innerHTML=itemArtwork(drop.item,drop.item.classId||game.player.classId);label.append(icon);}
-    const name=document.createElement('span');name.textContent=drop.item?.name||`${drop.amount||0} золота`;label.append(name);label.setAttribute('aria-label',`Подобрать: ${name.textContent}`);label.onclick=()=>choose('loot',drop.id);layer.append(label);
+    if(drop.item){
+      const icon=document.createElement('span');icon.className='ground-loot-icon';icon.innerHTML=itemArtwork(drop.item,drop.item.classId||game.player.classId);label.append(icon);
+      const text=document.createElement('span');text.className='ground-loot-text';
+      const name=document.createElement('span');name.className='ground-loot-name';name.textContent=itemDisplayName(drop.item.name);
+      const klass=document.createElement('small');klass.className='ground-loot-class';klass.textContent=itemClassName(drop.item.classId);
+      if(itemWrongClass(game.player,drop.item)){label.classList.add('wrong-class');klass.textContent=`${itemClassName(drop.item.classId)} · нельзя надеть`;}
+      text.append(name,klass);label.append(text);label.setAttribute('aria-label',`Подобрать: ${name.textContent} · ${klass.textContent}`);
+    }else{
+      const name=document.createElement('span');name.textContent=`${drop.amount||0} золота`;label.append(name);label.setAttribute('aria-label',`Подобрать: ${name.textContent}`);
+    }
+    label.onclick=()=>choose('loot',drop.id);layer.append(label);
     scene.add(model);drops.set(drop.id,{model,label});
   }
   const screen=new T.Vector3();

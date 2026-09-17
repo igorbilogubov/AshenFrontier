@@ -1,10 +1,10 @@
 import type {Item,ClassId,EquipmentSlot,WorldEvent,ClientCommand} from '../../shared/types.js';
 import type {NetworkGame} from './network.js';
-import {MAX_STASH_CAPACITY,STASH_SLOT_PRICE,backpackItems,canEquip,CLASSES,EQUIPMENT_SLOTS,itemBonus} from '../rules.js';
+import {MAX_STASH_CAPACITY,STASH_SLOT_PRICE,backpackItems,canEquip,CLASSES,EQUIPMENT_SLOTS,itemBonus,itemClassName,itemWrongClass} from '../rules.js';
 import {safe,distance} from './location.js';
 import {renderItemRolls} from './item-details.js';
 import {itemArtwork} from './item-icons.js';
-import {ITEM_STAT_LABELS,rollEquipment,rollUnit} from './equipment-items.js';
+import {ITEM_STAT_LABELS,itemDisplayName,rollEquipment,rollUnit} from './equipment-items.js';
 import {SHOP,shopItems,sellPrice} from './shop.js';
 import {CONSUMABLE_CATALOG,CONSUMABLE_LIMIT,backpackUsage,consumableDefinition,consumableKindQuantity,consumableQuantity} from './consumables.js';
 import {PERSONAL_CHEST} from './personal-stash.js';
@@ -13,6 +13,13 @@ import {equippedSetCounts,itemSet} from './equipment-sets.js';
 
 export const RARITY_LABELS=['Обычный','Необычный','Редкий','Возвышенный','Сетовый'] as const;
 const node=<K extends keyof HTMLElementTagNameMap>(tag:K,className='',text='')=>{const value=document.createElement(tag);value.className=className;value.textContent=text;return value;};
+export function paintItemClass(host:HTMLElement,item:{classId?:Item['classId']}|undefined,heroClass:ClassId){
+  let mark=host.querySelector<HTMLElement>(':scope > .item-class');
+  if(!item?.classId){mark?.remove();return;}
+  if(!mark){mark=node('b','item-class');host.append(mark);}
+  mark.textContent=itemClassName(item.classId);
+  mark.classList.toggle('wrong-class',itemWrongClass({classId:heroClass},item));
+}
 export function tooltipPosition(anchor:Pick<DOMRect,'left'|'right'|'top'|'bottom'>,width:number,height:number,viewportWidth:number,viewportHeight:number){
   const margin=12;
   let x=anchor.left-width-14;if(x<margin)x=anchor.right+14;
@@ -82,7 +89,7 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
     stashCount.textContent=`${p.stash.length} / ${p.stashCapacity} ячеек · вещи сохранены у этого героя`;stashGrid.replaceChildren();
     for(let i=0;i<p.stashCapacity;i++){
       const item=p.items.find(item=>item.id===p.stash[i]),button=node('button',`bag-cell ${item?'rarity-'+item.rarity:'empty'}`);button.type='button';
-      if(item){button.dataset.itemId=item.id;button.innerHTML=itemArtwork(item,item.classId||p.classId);button.setAttribute('aria-label',item.name);}else button.setAttribute('aria-label','Пустая ячейка сундука');
+      if(item){button.dataset.itemId=item.id;button.innerHTML=itemArtwork(item,item.classId||p.classId);button.setAttribute('aria-label',`${itemDisplayName(item.name)} · ${itemClassName(item.classId)}`);paintItemClass(button,item,p.classId);}else button.setAttribute('aria-label','Пустая ячейка сундука');
       stashGrid.append(button);
     }
     if(p.stashCapacity<MAX_STASH_CAPACITY){
@@ -109,8 +116,10 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
     if(hover===element&&hoverSignature===key&&!tooltip.hidden)return;
     hideTooltip();hover=element;hoverSignature=key;element.setAttribute('aria-describedby',tooltip.id);tooltip.replaceChildren();
     const head=node('div','tooltip-heading'),art=node('div','tooltip-art');art.innerHTML=itemArtwork(item,item.classId||game.player.classId);
-    const text=node('div');text.append(node('p',`eyebrow rarity-text-${item.rarity}`,`${RARITY_LABELS[item.rarity]||RARITY_LABELS[0]} · ${EQUIPMENT_SLOTS[item.slot].name}`),node('h3','',item.name));head.append(art,text);
-    tooltip.append(head,node('p','tooltip-requirements',`${item.classId?CLASSES[item.classId].name:'Все классы'} · уровень предмета ${item.itemLevel||1}`));
+    const text=node('div');text.append(node('p',`eyebrow rarity-text-${item.rarity}`,`${RARITY_LABELS[item.rarity]||RARITY_LABELS[0]} · ${EQUIPMENT_SLOTS[item.slot].name}`),node('h3','',itemDisplayName(item.name)));head.append(art,text);
+    const wrong=itemWrongClass(game.player,item);
+    const requirement=node('p',`tooltip-requirements${wrong?' wrong-class':''}`,wrong?`${itemClassName(item.classId)} · нельзя надеть`:`${itemClassName(item.classId)} · уровень предмета ${item.itemLevel||1}`);
+    tooltip.append(head,requirement);
     const values=node('div','item-rolls');renderItemRolls(values,item,game.player.items.find(other=>other.id===game.player.equipment[item.slot]));
     if(!item.rolls)values.append(node('p','',itemBonus(item)));tooltip.append(values);
     const set=itemSet(item);
@@ -124,7 +133,8 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
       }
       tooltip.append(section);
     }
-    if(!canEquip(game.player,item))tooltip.append(node('p','tooltip-warning','Этот предмет предназначен другому классу'));
+    if(wrong)tooltip.append(node('p','tooltip-warning','Нельзя надеть: эта шмотка для другого класса'));
+    else if(!canEquip(game.player,item))tooltip.append(node('p','tooltip-warning','Нельзя надеть: не хватает уровня'));
     const worn=Object.values(game.player.equipment).includes(item.id);
     const listing=shopItems().find(value=>value.definitionId===element.dataset.definitionId);
     const stored=game.player.stash.includes(item.id);
@@ -151,7 +161,7 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
       if(Object.values(game.player.equipment).includes(item.id)){toast('Сначала снимите вещь');return;}
     }else{
       if(!canEdit()){toast('Снаряжение недоступно: герой погиб или нет соединения');return;}
-      if(!canEquip(game.player,item)){toast('Предмет не подходит вашему классу');return;}
+      if(!canEquip(game.player,item)){toast(itemWrongClass(game.player,item)?`Нельзя надеть: шмотка для класса «${itemClassName(item.classId)}»`:'Нельзя надеть: не хватает уровня');return;}
       if(mode==='unequip'&&backpackUsage(game.player)>=game.player.bagCapacity){toast('В рюкзаке нет свободной ячейки');return;}
     }
     send({type:mode,id:item.id});
@@ -179,7 +189,8 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
       const button=node('button','vendor-item');button.type='button';button.dataset.definitionId=listing.definitionId;button.draggable=false;
       const image=node('span','vendor-item-art');image.innerHTML=itemArtwork(vendorSamples.get(listing.definitionId)!,listing.classId);
       button.append(image,node('span','vendor-item-name',listing.name),node('span','vendor-price',`${listing.price} зол.`));
-      button.setAttribute('aria-label',`${listing.name} · ${listing.price} золота. Правая кнопка — купить`);
+      paintItemClass(button,listing,game.player.classId);
+      button.setAttribute('aria-label',`${listing.name} · ${itemClassName(listing.classId)} · ${listing.price} золота. Правая кнопка — купить`);
       button.onclick=()=>showTooltip(button);button.ondblclick=()=>buy(listing.definitionId);wares.append(button);
     }
   }

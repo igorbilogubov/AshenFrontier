@@ -2,10 +2,11 @@ import {bindAccountInterface} from './account-interface.js';
 import {SKILLS} from './skills.js';
 import {effectiveSkill} from './skill-builds.js';
 import {actionIcon} from './action-icons.js';
-import {bindInventoryInteractions} from './inventory-interactions.js';
-import {CLASSES,EQUIPMENT_SLOTS,BAG_SLOT_PRICE,MAX_BAG_CAPACITY,backpackItems,itemBonus,STAT_KEYS,STAT_DEFINITIONS,CLASS_PROGRESSION,characterStats} from '../rules.js';
+import {bindInventoryInteractions,paintItemClass} from './inventory-interactions.js';
+import {CLASSES,EQUIPMENT_SLOTS,BAG_SLOT_PRICE,MAX_BAG_CAPACITY,backpackItems,itemBonus,STAT_KEYS,STAT_DEFINITIONS,CLASS_PROGRESSION,characterStats,itemClassName} from '../rules.js';
 import {backpackUsage,consumableDefinition} from './consumables.js';
 import {consumableArtwork,consumableTier} from './consumable-ui.js';
+import {itemDisplayName} from './equipment-items.js';
 import {safe} from './location.js';
 import {itemIcon,itemArtwork,itemArtKey,heroSilhouette} from './item-icons.js';
 import {element as $} from './ui-types.js';
@@ -175,7 +176,8 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
     write($('hero-details'),`${c.name} · уровень ${p.level} · 6 слотов снаряжения`);write($('inventory-gold'),`${p.gold} золота`);write($('inventory-status'),editable?'Снаряжение можно менять и в бою':!game.connected?'Нет соединения':'Герой погиб');
     for(const [slot,nodes] of slotNodes){
       const item=p.items.find(value=>value.id===p.equipment[slot]);nodes.button.className=`equipment-slot${item?' rarity-'+(item.rarity||0):' empty'}`;
-      nodes.button.dataset.itemId=item?.id||'';nodes.button.setAttribute('aria-label',`${EQUIPMENT_SLOTS[slot].name}: ${item?item.name+' · '+itemBonus(item):'Пусто'}`);setIcon(nodes.icon,slot,item?.classId||p.classId,item,p.weapon);
+      nodes.button.dataset.itemId=item?.id||'';nodes.button.setAttribute('aria-label',`${EQUIPMENT_SLOTS[slot].name}: ${item?itemDisplayName(item.name)+' · '+itemClassName(item.classId)+' · '+itemBonus(item):'Пусто'}`);setIcon(nodes.icon,slot,item?.classId||p.classId,item,p.weapon);
+      paintItemClass(nodes.button,item,p.classId);
     }
     write($('bag-count'),`${usage} / ${capacity}`);
     ensureBagCells(Math.max(capacity,bag.length+stacks.length));
@@ -183,8 +185,8 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
       const item=bag[index],stack=index>=bag.length?stacks[index-bag.length]:undefined,definition=stack&&consumableDefinition(stack.definitionId);
       nodes.button.dataset.itemId=item?.id||'';nodes.button.dataset.consumableId=stack?.id||'';nodes.button.dataset.consumableDefinition=stack?.definitionId||'';
       nodes.button.className=`bag-cell${item?' rarity-'+(item.rarity||0):stack?' consumable-cell':' empty'}`;
-      nodes.button.setAttribute('aria-label',item?`${item.name}, ${itemBonus(item)}`:stack?`${definition?.name||'Зелье'}, ${stack.quantity} шт. Перетащите на Q или W`:`Пустая ячейка ${index+1}`);nodes.button.disabled=false;
-      if(item){nodes.icon.hidden=false;setIcon(nodes.icon,item.slot,item.classId||p.classId,item);}else if(stack&&definition){const tier=consumableTier(definition.id);nodes.icon.hidden=false;nodes.icon.dataset.icon='';nodes.icon.innerHTML=`<span class="potion-icon consumable-tier-${tier.rank}"></span><b class="stack-count"></b>`;nodes.icon.querySelector('.potion-icon')!.innerHTML=consumableArtwork(definition);nodes.icon.querySelector('.stack-count')!.textContent=String(stack.quantity);}else{nodes.icon.hidden=true;nodes.icon.dataset.icon='';}
+      nodes.button.setAttribute('aria-label',item?`${itemDisplayName(item.name)} · ${itemClassName(item.classId)}, ${itemBonus(item)}`:stack?`${definition?.name||'Зелье'}, ${stack.quantity} шт. Перетащите на Q или W`:`Пустая ячейка ${index+1}`);nodes.button.disabled=false;
+      if(item){nodes.icon.hidden=false;setIcon(nodes.icon,item.slot,item.classId||p.classId,item);paintItemClass(nodes.button,item,p.classId);}else if(stack&&definition){paintItemClass(nodes.button,undefined,p.classId);const tier=consumableTier(definition.id);nodes.icon.hidden=false;nodes.icon.dataset.icon='';nodes.icon.innerHTML=`<span class="potion-icon consumable-tier-${tier.rank}"></span><b class="stack-count"></b>`;nodes.icon.querySelector('.potion-icon')!.innerHTML=consumableArtwork(definition);nodes.icon.querySelector('.stack-count')!.textContent=String(stack.quantity);}else{paintItemClass(nodes.button,undefined,p.classId);nodes.icon.hidden=true;nodes.icon.dataset.icon='';}
     });
     renderBagExpand();
     $('claim-items').hidden=!p.pendingItems?.length;write($('claim-items'),`Забрать ожидающие вещи · ${p.pendingItems?.length||0}`);$('claim-items').disabled=!canReset()||usage>=capacity;

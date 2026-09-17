@@ -6,7 +6,7 @@ import {lateRegionAt} from './public/game/late-world.js';
 import {WASTELAND_PASSAGES,inWasteland,WASTELAND_MIN_LEVEL} from './public/game/wasteland.js';
 import {SNOW_PASSAGES,inSnow,SNOW_MIN_LEVEL} from './public/game/snow.js';
 import {CAMP_SPAWN} from './public/game/camp-layout.js';
-import {regionalEquipment,rollEquipment,validateEquipment,equipmentAppearance} from './public/game/equipment-items.js';
+import {regionalDropPool,rollEquipment,validateEquipment,equipmentAppearance,itemDisplayName} from './public/game/equipment-items.js';
 import type {ClassId, EquipmentSlot, Item, Hero, PersistentHero, HeroAttack, Mob, Projectile, WorldEvent, EventPayloads, WorldSnapshot, SkillId, SkillCooldowns, GroundDrop, Point, ConsumableStack, QuickSlots, SkillBuild, SkillZone, StatSource} from './shared/types.js';
 import {isRecord, isClassId, isEquipmentSlot, isWeaponId} from './shared/types.js';
 import {randomUUID} from 'node:crypto';
@@ -211,7 +211,7 @@ export class World{
       if(backpackUsage(p)>=p.bagCapacity){this.notice(p,'Рюкзак полон. Вещь остаётся на земле');this.stopInteraction(p);return false;}
       // Remove first; a repeated command cannot award the same instance twice.
       this.groundLoot.splice(this.groundLoot.indexOf(drop),1);
-      p.items.push(drop.item);this.emit('item',{name:drop.item.name,pending:false},p.id);
+      p.items.push(drop.item);this.emit('item',{name:itemDisplayName(drop.item.name),pending:false},p.id);
     }else{
       const amount=drop.amount;
       if(typeof amount!=='number'||!Number.isSafeInteger(amount)||amount<=0)return false;
@@ -391,7 +391,7 @@ export class World{
       const receipts=this.purchaseReceipts.get(p.id)??[];receipts.push(requestId);
       if(receipts.length>64)receipts.shift();this.purchaseReceipts.set(p.id,receipts);
     }
-    this.notice(p,`Куплено: ${item.name}`);return true;
+    this.notice(p,`Куплено: ${itemDisplayName(item.name)}`);return true;
   }
   buyConsumable(p:Hero,kindOrDefinitionId:unknown,requestId?:unknown,quantity:unknown=1){
     if(!p.shopActive||!this.vendorAvailable(p))return false;
@@ -869,7 +869,7 @@ export class World{
         for(let i=0;i<itemCount;i++){
           const rarity=gearRarity(m.type,m.eliteId,this.random,!!m.bossId);
           if(rarity===null)continue;
-          const choices=regionalEquipment(p.classId,fieldRegionAt(m),rarity),definition=choices[Math.floor(this.random()*choices.length)];
+          const choices=regionalDropPool(fieldRegionAt(m),rarity),definition=choices[Math.floor(this.random()*choices.length)];
           const item=rollEquipment(definition.id,randomUUID(),this.random);
           const [dx,dz]=offsets[i]??offsets[0];
           const shifted=stand(m.x+dx,m.z+dz),x=shifted?m.x+dx:m.x,z=shifted?m.z+dz:m.z;

@@ -37,7 +37,7 @@ test('no guaranteed first-kill gear; ordinary total chance is 4% and drops one r
   assert.equal(none.w.snapshot(none.p.id).groundLoot.filter(d=>d.kind==='item').length,0);
   const all=fixture(()=>0);kill(all.w,all.p,all.m);
   const itemDrop=all.w.snapshot(all.p.id).groundLoot.filter(d=>d.kind==='item');assert.equal(itemDrop.length,1);
-  validateEquipment(itemDrop[0].item);assert.equal(itemDrop[0].item.classId,all.p.classId);
+  validateEquipment(itemDrop[0].item);assert.ok(['warrior','archer','mage'].includes(itemDrop[0].item.classId));
   assert(stand(itemDrop[0].x,itemDrop[0].z));
   const previous=structuredClone(itemDrop[0].item);all.w.command(all.p,{type:'pickup',id:itemDrop[0].id});
   assert.deepEqual(all.p.items.at(-1),previous);assert.deepEqual(safeHero(persistentHero(all.p)).items.at(-1),previous);

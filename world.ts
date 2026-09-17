@@ -10,7 +10,7 @@ import {regionalEquipment,rollEquipment,validateEquipment,equipmentAppearance} f
 import type {ClassId, EquipmentSlot, Item, Hero, PersistentHero, HeroAttack, Mob, Projectile, WorldEvent, EventPayloads, WorldSnapshot, SkillId, SkillCooldowns, GroundDrop, Point, ConsumableStack, QuickSlots, SkillBuild, SkillZone, StatSource} from './shared/types.js';
 import {isRecord, isClassId, isEquipmentSlot, isWeaponId} from './shared/types.js';
 import {randomUUID} from 'node:crypto';
-import {CLASSES,EQUIPMENT_SLOTS,BAG_CAPACITY,backpackItems,classFor,canEquip,STAT_KEYS,CLASS_PROGRESSION,characterStats,normalizedAllocations} from './public/rules.js';
+import {CLASSES,EQUIPMENT_SLOTS,DEFAULT_BAG_CAPACITY,backpackItems,classFor,canEquip,STAT_KEYS,CLASS_PROGRESSION,characterStats,normalizedAllocations} from './public/rules.js';
 import {BOUNDS,CAMP,SPAWNS,mobConfig,WEAPONS,AFK_SPOTS,afkSpotAt,withinSpot,safe as pointIsSafe,stand,clearPath,distance,translate,moveHero} from './public/game/location.js';
 import {angleDelta,turnTowards,inStrike} from './public/game/motion.js';
 import {SKILLS,skillsForClass,legacySkillId} from './public/game/skills.js';
@@ -116,7 +116,7 @@ export function safeHero(saved: unknown): Hero{
   const quickSlots:QuickSlots=oldConsumables?{q:'hp-basic',w:'mana-basic'}:raw.quickSlots as QuickSlots;
   validateConsumables(consumableInventory,quickSlots);
   const usage=backpackUsage({items,equipment,stash,consumableInventory});
-  const consumableOverflow=oldConsumables?Math.max(0,usage-BAG_CAPACITY):Math.min(nonnegative(raw.consumableOverflow),Math.max(0,usage-BAG_CAPACITY));
+  const consumableOverflow=oldConsumables?Math.max(0,usage-raw.bagCapacity ?? DEFAULT_BAG_CAPACITY):Math.min(nonnegative(raw.consumableOverflow),Math.max(0,usage-raw.bagCapacity ?? DEFAULT_BAG_CAPACITY));
   if(!Number.isSafeInteger(consumableOverflow)||consumableOverflow>2)throw new Error('Invalid consumable overflow');
   const p: Hero={
     skillBuild:parseSkillBuild(raw.skillBuild,classId,level)??defaultSkillBuild(classId,level),buildRevision:Math.floor(nonnegative(raw.buildRevision)),skillPresets:[0,1,2].map(index=>Array.isArray(raw.skillPresets)?parseSkillBuild(raw.skillPresets[index],classId,level):null) as Hero['skillPresets'],effects:[],
@@ -140,7 +140,7 @@ export function safeHero(saved: unknown): Hero{
 export function persistentHero(p: Hero): PersistentHero{
   // Compatibility counters are a projection, never an independent inventory.
   p.potions=consumableKindQuantity(p,'hp');p.manaPotions=consumableKindQuantity(p,'mana');
-  p.consumableOverflow=Math.min(p.consumableOverflow,Math.max(0,backpackUsage(p)-BAG_CAPACITY));
+  p.consumableOverflow=Math.min(p.consumableOverflow,Math.max(0,backpackUsage(p)-p.bagCapacity));
   const fields=['schemaVersion','id','name','classId','level','xp','gold','kills','items','pendingItems','stash','equipment','consumableInventory','quickSlots','consumableOverflow','allocatedStats','statRevision','x','z','yaw','weapon','hp','mana','potions','potionCooldown','manaPotions','manaPotionCooldown','specialCooldown','skillCooldowns','dead','combatUntil','attack','attackSerial','running','questKills','boss','questClaimed','afkPreferences','skillBuild','buildRevision','skillPresets'] as const;
   return structuredClone(Object.fromEntries(fields.map(k=>[k,p[k]]))) as unknown as PersistentHero;
 }
@@ -207,7 +207,7 @@ export class World{
     if(distance(p,drop)>maxRange||!clearPath(p,drop))return false;
     if(drop.kind==='item'){
       if(!drop.item)return false;
-      if(backpackUsage(p)>=BAG_CAPACITY){this.notice(p,'Рюкзак полон. Вещь остаётся на земле');this.stopInteraction(p);return false;}
+      if(backpackUsage(p)>=p.bagCapacity){this.notice(p,'Рюкзак полон. Вещь остаётся на земле');this.stopInteraction(p);return false;}
       // Remove first; a repeated command cannot award the same instance twice.
       this.groundLoot.splice(this.groundLoot.indexOf(drop),1);
       p.items.push(drop.item);this.emit('item',{name:drop.item.name,pending:false},p.id);
@@ -260,7 +260,7 @@ export class World{
     if(withdraw){
       const index=p.stash.indexOf(id);
       if(index<0)return false;
-      if(backpackUsage(p)>=BAG_CAPACITY){this.notice(p,'Рюкзак полон');return false;}
+      if(backpackUsage(p)>=p.bagCapacity){this.notice(p,'Рюкзак полон');return false;}
       p.stash.splice(index,1);return true;
     }
     if(p.stash.includes(id)||p.stash.length>=32)return false;
@@ -382,7 +382,7 @@ export class World{
       if(requestId.length>80||requestId.length===0)return false;
       if(this.purchaseReceipts.get(p.id)?.includes(requestId))return false;
     }else if(requestId!==undefined)return false;
-    if(backpackUsage(p)>=BAG_CAPACITY){this.notice(p,'Рюкзак полон');return false;}
+    if(backpackUsage(p)>=p.bagCapacity){this.notice(p,'Рюкзак полон');return false;}
     if(p.gold<price){this.notice(p,'Не хватает золота');return false;}
     const item=rollEquipment(String(definitionId),randomUUID(),()=>0);
     p.gold-=price;p.items.push(item);
@@ -403,7 +403,7 @@ export class World{
     if(count+quantity>CONSUMABLE_LIMIT||stack&&stack.quantity+quantity>listing.stackLimit){this.notice(p,'Запас зелий полон');return false;}
     const price=listing.price*quantity;
     if(p.gold<price){this.notice(p,'Не хватает золота');return false;}
-    if(!stack&&backpackUsage(p)>=BAG_CAPACITY){this.notice(p,'Рюкзак полон');return false;}
+    if(!stack&&backpackUsage(p)>=p.bagCapacity){this.notice(p,'Рюкзак полон');return false;}
     p.gold-=price;
     if(stack)stack.quantity+=quantity;else p.consumableInventory.push({id:randomUUID(),definitionId:listing.id,quantity});
     p.potions=consumableKindQuantity(p,'hp');p.manaPotions=consumableKindQuantity(p,'mana');
@@ -696,10 +696,10 @@ export class World{
     if(typeof msg.type==='string'&&['equip','unequip','sell','claim'].includes(msg.type)){
       if(p.dead)return;
       if((msg.type==='sell'||msg.type==='claim')&&(!safe(p)||p.attack||p.combatUntil>this.t)){this.notice(p,'Это действие доступно у костра, вне боя');return;}
-      if(msg.type==='claim'){while(p.pendingItems.length&&backpackUsage(p)<BAG_CAPACITY)p.items.push(p.pendingItems.shift()!);return;}
+      if(msg.type==='claim'){while(p.pendingItems.length&&backpackUsage(p)<p.bagCapacity)p.items.push(p.pendingItems.shift()!);return;}
       const item=backpackItems(p).find(i=>i.id===msg.id)??(msg.type==='unequip'?p.items.find(i=>i.id===msg.id&&p.equipment[i.slot]===i.id):undefined);if(!item)return;
       if(msg.type==='equip'&&canEquip(p,item)){p.equipment[item.slot]=item.id;if(item.definitionId&&item.slot==='weapon')p.weapon='sword';this.clampResources(p);}
-      if(msg.type==='unequip'&&p.equipment[item.slot]===item.id){if(backpackUsage(p)>=BAG_CAPACITY){this.notice(p,'Рюкзак полон. Освободите ячейку, чтобы снять вещь.');return;}p.equipment[item.slot]=null;this.clampResources(p);}
+      if(msg.type==='unequip'&&p.equipment[item.slot]===item.id){if(backpackUsage(p)>=p.bagCapacity){this.notice(p,'Рюкзак полон. Освободите ячейку, чтобы снять вещь.');return;}p.equipment[item.slot]=null;this.clampResources(p);}
       if(msg.type==='sell'&&p.shopActive&&this.vendorAvailable(p)&&!Object.values(p.equipment).includes(item.id)){p.gold+=sellPrice(item);p.items=p.items.filter(i=>i.id!==item.id);}
 
     }
@@ -781,7 +781,7 @@ export class World{
     if(mana){p.mana+=amount;p.manaPotionCooldown=listing.cooldown;}
     else {p.hp+=amount;p.potionCooldown=listing.cooldown;this.emit('heal',{amount,x:p.x,z:p.z},p.id);}
     p.potions=consumableKindQuantity(p,'hp');p.manaPotions=consumableKindQuantity(p,'mana');
-    p.consumableOverflow=Math.min(p.consumableOverflow,Math.max(0,backpackUsage(p)-BAG_CAPACITY));
+    p.consumableOverflow=Math.min(p.consumableOverflow,Math.max(0,backpackUsage(p)-p.bagCapacity));
     return true;
   }
   /** AFK may only use an assigned bottle of the requested resource kind. */
@@ -941,7 +941,7 @@ export class World{
   /** Only personal filtered drops within stationary AFK pickup reach; AFK never approaches. */
   afkDrop(p:Hero){
     if(!p.afk||!p.connected||p.dead)return undefined;
-    const room=backpackUsage(p)<BAG_CAPACITY,prefs=p.afkPreferences;
+    const room=backpackUsage(p)<p.bagCapacity,prefs=p.afkPreferences;
 
     return this.groundLoot.filter(drop=>drop.owner===p.id&&drop.expiresAt>this.t&&
       (drop.kind==='gold'?prefs.pickupGold:room&&!!drop.item&&prefs.pickupRarities.includes(drop.item.rarity))&&sameLocation(p,drop)&&

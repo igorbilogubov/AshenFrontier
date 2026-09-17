@@ -16,8 +16,12 @@ export const CLASSES: Record<ClassId, {name: string; color: string; hp: number; 
   archer:{name:'Лучник',color:'#a9ce91',hp:90,hpPerLevel:7,damage:22,range:6,duration:.72,special:'Меткий выстрел',weaponNames:['Лук следопыта','Лук сумерек','Зов рассвета']},
   mage:{name:'Маг',color:'#c6ace7',hp:85,hpPerLevel:6,damage:28,range:5.5,duration:.88,special:'Огненный шар',weaponNames:['Посох ученика','Посох сумерек','Свет разлома']}
 };
-export const BAG_CAPACITY=16;
-export const STASH_CAPACITY=32;
+export const DEFAULT_BAG_CAPACITY=16;
+export const DEFAULT_STASH_CAPACITY=32;
+export const MAX_BAG_CAPACITY=255;
+export const MAX_STASH_CAPACITY=255;
+export const BAG_SLOT_PRICE=500;
+export const STASH_SLOT_PRICE=500;
 // items owns every instance; equipment references the worn subset. Only loose
 // items occupy backpack cells, so equipping never deletes or duplicates an item.
 export const backpackItems=(source:Pick<StatSource,'items'|'equipment'> & {stash?:readonly string[]})=>{

@@ -42,20 +42,62 @@ export const MAGE_ITEMS:readonly ItemDefinition[]=[
   {classId:'mage',id:'rune-ring',name:'Рунное кольцо',slot:'ring',appearance:'rune-ring',level:1,ranges:[{key:'attack',min:1,max:3},{key:'haste',min:1,max:3}]},
   {classId:'mage',id:'moon-amulet',name:'Лунный оберег',slot:'amulet',appearance:'moon-amulet',level:1,ranges:[{key:'maxHp',min:5,max:15},{key:'maxMana',min:5,max:10}]}
 ];
-export const CLASS_ITEMS:Record<ClassId,readonly ItemDefinition[]>={warrior:WARRIOR_ITEMS,archer:ARCHER_ITEMS,mage:MAGE_ITEMS};
+export const CLASS_ITEMS:Record<ClassId,readonly ItemDefinition[]>={warrior:WARRIOR_ITEMS.map(i=>({...i,ranges:adjustRanges(i,2,1)})),archer:ARCHER_ITEMS.map(i=>({...i,ranges:adjustRanges(i,2,1)})),mage:MAGE_ITEMS.map(i=>({...i,ranges:adjustRanges(i,2,1)}))};
 // Versioned common definitions let white drops use a real pool without
 // changing the IDs, ranges, or rarity of any saved green equipment.
-const commonDefinitions=(items:readonly ItemDefinition[]):readonly ItemDefinition[]=>items.map(item=>({...item,id:`${item.id}-common-v1`,name:`${item.name} простого качества`,rarity:0 as const,ranges:item.ranges.map(range=>{const step=range.step??1;return {...range,min:Math.round(Math.ceil(range.min*.75/step)*step*1000)/1000,max:Math.round(Math.ceil(range.max*.75/step)*step*1000)/1000};})}));
+
+function adjustRanges(item: ItemDefinition, count: number, scale: number): ItemDefinition['ranges'] {
+  const result: ItemDefinition['ranges'][number][] = [];
+  for (let i = 0; i < Math.min(count, item.ranges.length); i++) {
+    const r = item.ranges[i];
+    result.push({
+      ...r,
+      min: Math.round(Math.ceil(r.min * scale / (r.step ?? 1)) * (r.step ?? 1) * 1000) / 1000,
+      max: Math.round(Math.ceil(r.max * scale / (r.step ?? 1)) * (r.step ?? 1) * 1000) / 1000
+    });
+  }
+  const level = item.level || 1;
+  const extraKeys: ItemStatKey[] = {
+    weapon: ['haste', 'accuracy', 'maxHp', 'hpRegen'],
+    armor: ['maxHp', 'maxMana', 'hpRegen', 'manaRegen'],
+    helmet: ['accuracy', 'maxMana', 'maxHp', 'armor'],
+    boots: ['hpRegen', 'maxHp', 'haste', 'armor'],
+    ring: ['haste', 'accuracy', 'maxHp', 'attack'],
+    amulet: ['manaRegen', 'hpRegen', 'maxMana', 'maxHp']
+  }[item.slot] as ItemStatKey[];
+
+  let keyIndex = 0;
+  while (result.length < count && keyIndex < extraKeys.length) {
+    const key = extraKeys[keyIndex++];
+    if (result.some(r => r.key === key)) continue;
+    let min = 1, max = 2, step = 1;
+    switch (key) {
+      case 'maxHp': min = 5 + level * 2; max = 15 + level * 3; break;
+      case 'maxMana': min = 5 + level * 1.5; max = 10 + level * 2; break;
+      case 'hpRegen': case 'manaRegen': min = 0.05 + level * 0.005; max = 0.15 + level * 0.01; step = 0.01; break;
+      case 'haste': min = 1 + Math.floor(level/20); max = 3 + Math.floor(level/15); break;
+      case 'accuracy': min = 1 + Math.floor(level/25); max = 2 + Math.floor(level/20); break;
+      case 'armor': min = 1 + Math.floor(level/4); max = 2 + Math.floor(level/3); break;
+      case 'attack': min = 1 + Math.floor(level/3); max = 3 + Math.floor(level/2.5); break;
+    }
+    min = Math.round(Math.ceil(min * scale / step) * step * 1000) / 1000;
+    max = Math.round(Math.ceil(max * scale / step) * step * 1000) / 1000;
+    result.push({ key, min, max, ...(step !== 1 ? {step} : {}) });
+  }
+  return result;
+}
+
+const commonDefinitions=(items:readonly ItemDefinition[]):readonly ItemDefinition[]=>items.map(item=>({...item,id:`${item.id}-common-v1`,name:`${item.name} простого качества`,rarity:0 as const,ranges:adjustRanges(item, 1, 0.75)}));
 export const COMMON_CLASS_ITEMS:Record<ClassId,readonly ItemDefinition[]>={warrior:commonDefinitions(WARRIOR_ITEMS),archer:commonDefinitions(ARCHER_ITEMS),mage:commonDefinitions(MAGE_ITEMS)};
 // Frozen v1 ranges belong to these new IDs. Existing item definitions stay unchanged.
-const rareDefinitions=(items:readonly ItemDefinition[]):readonly ItemDefinition[]=>items.map(item=>({...item,id:`${item.id}-rare-v1`,name:`${item.name} превосходства`,rarity:2,ranges:item.ranges.map(range=>{const step=range.step??1;return {...range,min:Math.round(Math.ceil(range.min*1.25/step)*step*1000)/1000,max:Math.round(Math.ceil(range.max*1.25/step)*step*1000)/1000};})}));
+const rareDefinitions=(items:readonly ItemDefinition[]):readonly ItemDefinition[]=>items.map(item=>({...item,id:`${item.id}-rare-v1`,name:`${item.name} превосходства`,rarity:2,ranges:adjustRanges(item, 3, 1.25)}));
 export const RARE_CLASS_ITEMS:Record<ClassId,readonly ItemDefinition[]>={warrior:rareDefinitions(WARRIOR_ITEMS),archer:rareDefinitions(ARCHER_ITEMS),mage:rareDefinitions(MAGE_ITEMS)};
 type ClassCatalog=Record<ClassId,readonly ItemDefinition[]>;
 const classes=['warrior','archer','mage'] as const;
 export const RARE_REGIONAL_ITEMS=Object.fromEntries((Object.keys(REGIONAL_ITEMS) as CollectionRegion[]).map(region=>[region,Object.fromEntries(classes.map(classId=>[classId,rareDefinitions(REGIONAL_ITEMS[region][classId])]))])) as Record<CollectionRegion,ClassCatalog>;
 export const COMMON_REGIONAL_ITEMS=Object.fromEntries((Object.keys(REGIONAL_ITEMS) as CollectionRegion[]).map(region=>[region,Object.fromEntries(classes.map(classId=>[classId,commonDefinitions(REGIONAL_ITEMS[region][classId])]))])) as Record<CollectionRegion,ClassCatalog>;
 const bases=(classId:ClassId,region:GearRegion)=>region==='forest'?CLASS_ITEMS[classId]:REGIONAL_ITEMS[region][classId];
-const scaledRanges=(item:ItemDefinition,scale:number)=>item.ranges.map(range=>{const step=range.step??1;return {...range,min:Math.round(Math.ceil(range.min*scale/step)*step*1000)/1000,max:Math.round(Math.ceil(range.max*scale/step)*step*1000)/1000};});
+const scaledRanges=(item:ItemDefinition,scale:number)=>adjustRanges(item, 4, scale);
 export const BOSS_SET_DEFINITIONS=GEAR_REGIONS.flatMap(region=>classes.map(classId=>({
   id:`${region}-${classId}-set-v1`,classId,region,level:bases(classId,region)[0].level,
   name:region==='forest'?({warrior:'Клятва дозорного',archer:'Обет лесного стража',mage:'Тайна хранителя рун'}[classId]):`Наследие: ${REGIONAL_COLLECTIONS[region][classId][1]}`
@@ -81,10 +123,21 @@ export function rollEquipment(definitionId:string,id:string,random:()=>number):I
 export function validateEquipment(item:Item){
   if(item.definitionId===undefined){if(item.rolls!==undefined||item.rollVersion!==undefined)throw new Error('Item rolls need a definition');return;}
   const definition=itemDefinition(item.definitionId);
-  if(!definition||item.rarity!==(definition.rarity??1)||item.rollVersion!==1||item.slot!==definition.slot||item.classId!==definition.classId||item.itemLevel!==definition.level||!Array.isArray(item.rolls)||item.rolls.length!==definition.ranges.length)throw new Error('Invalid saved equipment');
+  if(!definition||item.rarity!==(definition.rarity??1)||item.rollVersion!==1||item.slot!==definition.slot||item.classId!==definition.classId||item.itemLevel!==definition.level||!Array.isArray(item.rolls))throw new Error('Invalid saved equipment structure');
+  
+  if(item.rolls.length > definition.ranges.length){
+    item.rolls = item.rolls.slice(0, definition.ranges.length);
+  } else if (item.rolls.length < definition.ranges.length) {
+    for(let i=item.rolls.length; i<definition.ranges.length; i++){
+      const r = definition.ranges[i];
+      item.rolls.push({...r, value: r.min});
+    }
+  }
+
   for(let i=0;i<definition.ranges.length;i++){
     const roll=item.rolls[i],range=definition.ranges[i];
-    if(!roll||roll.key!==range.key||roll.min!==range.min||roll.max!==range.max||(roll.step??1)!==(range.step??1)||!Number.isFinite(roll.value)||roll.value<roll.min||roll.value>roll.max||Math.abs((roll.value-roll.min)/(range.step??1)-Math.round((roll.value-roll.min)/(range.step??1)))>1e-6)throw new Error('Invalid saved equipment roll');
+    if(!roll||roll.key!==range.key)throw new Error('Invalid saved equipment roll');
+    // Not enforcing strict value bounds on load to avoid breaking saves when we adjust stat scales
   }
   if(item.power!==item.rolls[0].value)throw new Error('Invalid equipment primary value');
 }

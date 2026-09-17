@@ -267,6 +267,19 @@ export async function migrate(client:PoolClient):Promise<void>{
       );
       ALTER TABLE heroes ADD CONSTRAINT heroes_skill_build_check CHECK (skill_build IS NULL OR (jsonb_typeof(skill_build)='object' AND jsonb_typeof(skill_build->'slots')='array' AND jsonb_array_length(skill_build->'slots')=5 AND jsonb_typeof(skill_build->'talents')='object'));
     `);await client.query('INSERT INTO schema_migrations(version) VALUES (8)');}
+    const ninth=await client.query<{version:number}>('SELECT version FROM schema_migrations WHERE version=9');
+    if(!ninth.rowCount){await client.query(`
+      ALTER TABLE heroes ADD COLUMN bag_capacity integer NOT NULL DEFAULT 16 CHECK (bag_capacity BETWEEN 16 AND 256);
+      ALTER TABLE heroes ADD COLUMN stash_capacity integer NOT NULL DEFAULT 32 CHECK (stash_capacity BETWEEN 32 AND 256);
+      ALTER TABLE inventory_locations DROP CONSTRAINT IF EXISTS inventory_locations_check;
+      ALTER TABLE inventory_locations ADD CONSTRAINT inventory_locations_check CHECK (
+        (kind='bag' AND position BETWEEN 0 AND 255 AND equipped_slot IS NULL) OR
+        (kind='pending' AND position BETWEEN 0 AND 15 AND equipped_slot IS NULL) OR
+        (kind='stash' AND position BETWEEN 0 AND 255 AND equipped_slot IS NULL) OR
+        (kind='equipped' AND position IS NULL AND equipped_slot IN ('weapon','armor','helmet','boots','ring','amulet'))
+      );
+    `);await client.query('INSERT INTO schema_migrations(version) VALUES (9)');}
+
     await client.query('COMMIT');
   }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}
 }

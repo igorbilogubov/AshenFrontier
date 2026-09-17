@@ -42,7 +42,7 @@ function collection(region:CollectionRegion,classId:ClassId):ItemDefinition[]{
     ranges.ring=[range('attack',b.ring[0],b.ring[1]),range('haste',1,3)];
     ranges.amulet=[range('maxHp',Math.round(b.hp[0]*.7),Math.round(b.hp[1]*.7)),range('maxMana',Math.round(b.hp[0]*.6),Math.round(b.hp[1]*.6)),range('manaRegen',.3+index*.1,.45+index*.1,.01)];
   }
-  return slots.map(slot=>({id:`${prefix}-${slot}-v1`,classId,slot,appearance:`${prefix}-${slot}`,name:`${names[slot]} ${suffix}`,level:config.level,ranges:ranges[slot]}));
+  return slots.map(slot=>({id:`${prefix}-${slot}-v1`,classId,slot,appearance:`${prefix}-${slot}`,name:`${names[slot]} ${suffix}`,level:config.level,ranges:ranges[slot].slice(0, 2)}));
 }
 export const REGIONAL_ITEMS=Object.fromEntries((Object.keys(REGIONAL_COLLECTIONS) as CollectionRegion[]).map(region=>[region,Object.fromEntries(classes.map(classId=>[classId,collection(region,classId)]))])) as unknown as Record<CollectionRegion,Record<ClassId,readonly ItemDefinition[]>>;
 export function regionalAppearance(appearance:unknown):{region:CollectionRegion;classId:ClassId;slot:EquipmentSlot;base:string}|undefined{

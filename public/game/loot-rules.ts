@@ -6,22 +6,58 @@ export const LOOT_TTL_MS=180_000;
 export const MAX_GROUND_DROPS_PER_HERO=48;
 export const PICKUP_RANGE=1.4;
 export const AFK_PICKUP_RANGE=4;
-export const WHITE_GEAR_CHANCE:Readonly<Partial<Record<MobType,number>>>=Object.freeze({wolf:.03,boar:.03,bear:.03,alpha:.06,lynx:.03,yak:.03,'frost-spider':.03,'ice-golem':.03,'ash-jackal':.03,scorpion:.03,'monitor-lizard':.03,scarab:.03});
-export const GREEN_GEAR_CHANCE:Readonly<Partial<Record<MobType,number>>>=Object.freeze({wolf:.01,boar:.01,bear:.01,alpha:.04,lynx:.01,yak:.01,'frost-spider':.01,'ice-golem':.01,'ash-jackal':.01,scorpion:.01,'monitor-lizard':.01,scarab:.01});
-/** Total ordinary-equipment chance; individual white/green chances stay explicit above. */
-export const GEAR_CHANCE:Readonly<Partial<Record<MobType,number>>>=Object.freeze({wolf:.04,boar:.04,bear:.04,alpha:.10,lynx:.04,yak:.04,'frost-spider':.04,'ice-golem':.04,'ash-jackal':.04,scorpion:.04,'monitor-lizard':.04,scarab:.04});
-export const gearDrops=(type:MobType,random:()=>number)=>random()<(GEAR_CHANCE[type]??.025);
 
-export const ELITE_GEAR_CHANCE=.13;
-export const ELITE_RARE_CHANCE=.03;
-/** One roll: 3% rare, 10% uncommon, 87% no equipment for named elites. */
-export const BOSS_GEAR_CHANCE=.57;
-export const BOSS_RARITY_CHANCES=Object.freeze({1:.10,2:.35,3:.08,4:.04});
-/** Bosses use one mutually exclusive roll, never four independent item rolls. */
+const ordinaryWhite=.03;
+const ordinaryGreen=.01;
+const alphaWhite=.06;
+const alphaGreen=.04;
+const ordinaryTypes=['wolf','boar','bear','lynx','yak','frost-spider','ice-golem','ash-jackal','scorpion','monitor-lizard','scarab'] as const;
+
+const chanceMap=(ordinary:number,alpha:number)=>Object.freeze(
+  Object.fromEntries([...ordinaryTypes.map(type=>[type,ordinary]),['alpha',alpha]])
+) as Readonly<Partial<Record<MobType,number>>>;
+
+export const WHITE_GEAR_CHANCE=chanceMap(ordinaryWhite,alphaWhite);
+export const GREEN_GEAR_CHANCE=chanceMap(ordinaryGreen,alphaGreen);
+/** Total ordinary-equipment chance; individual white/green chances stay explicit above. */
+export const GEAR_CHANCE=chanceMap(ordinaryWhite+ordinaryGreen,alphaWhite+alphaGreen);
+export const gearDrops=(type:MobType,random:()=>number)=>random()<(GEAR_CHANCE[type]??ordinaryWhite+ordinaryGreen);
+
+export const ELITE_WHITE_CHANCE=.20;
+export const ELITE_GREEN_CHANCE=.12;
+export const ELITE_BLUE_CHANCE=.04;
+export const ELITE_GEAR_CHANCE=ELITE_WHITE_CHANCE+ELITE_GREEN_CHANCE+ELITE_BLUE_CHANCE;
+export const ELITE_RARE_CHANCE=ELITE_BLUE_CHANCE;
+
+export const BOSS_ITEM_MIN=1;
+export const BOSS_ITEM_MAX=3;
+/** Bosses always drop at least one item; this is the chance a given boss item roll yields gear. */
+export const BOSS_GEAR_CHANCE=1;
+/** Per dropped boss item: green > blue > yellow > purple, never white, never empty. */
+export const BOSS_RARITY_CHANCES=Object.freeze({1:.50,2:.30,3:.15,4:.05});
+
+export function bossItemCount(random:()=>number):number{
+  const roll=random();if(!Number.isFinite(roll)||roll<0||roll>=1)throw new Error('Random source must return [0, 1)');
+  return BOSS_ITEM_MIN+Math.floor(roll*(BOSS_ITEM_MAX-BOSS_ITEM_MIN+1));
+}
+
+/** One mutually exclusive roll. Ordinary: white then green. Elite: white then green then blue. Boss: green then blue then yellow then set. */
 export function gearRarity(type:MobType,eliteId:string|undefined,random:()=>number,boss=false):0|1|2|3|4|null{
- const roll=random();if(!Number.isFinite(roll)||roll<0||roll>=1)throw new Error('Random source must return [0, 1)');
- if(boss)return roll<.04?4:roll<.12?3:roll<.32?2:roll<.62?1:roll<.92?0:null;
- if(eliteId)return roll<.04?2:roll<.16?1:roll<.36?0:null;
- const white=WHITE_GEAR_CHANCE[type]??.03,green=GREEN_GEAR_CHANCE[type]??.01;
- return roll<green?1:roll<white+green?0:null;
+  const roll=random();if(!Number.isFinite(roll)||roll<0||roll>=1)throw new Error('Random source must return [0, 1)');
+  if(boss){
+    if(roll<.50)return 1;
+    if(roll<.80)return 2;
+    if(roll<.95)return 3;
+    return 4;
+  }
+  if(eliteId){
+    if(roll<ELITE_WHITE_CHANCE)return 0;
+    if(roll<ELITE_WHITE_CHANCE+ELITE_GREEN_CHANCE)return 1;
+    if(roll<ELITE_GEAR_CHANCE)return 2;
+    return null;
+  }
+  const white=WHITE_GEAR_CHANCE[type]??ordinaryWhite,green=GREEN_GEAR_CHANCE[type]??ordinaryGreen;
+  if(roll<white)return 0;
+  if(roll<white+green)return 1;
+  return null;
 }

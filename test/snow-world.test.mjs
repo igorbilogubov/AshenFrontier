@@ -40,15 +40,18 @@ test('snow snapshots, loot, attacks and contributions remain region isolated',()
  snow.contributors.set(f.id,{at:w.t,damage:999});w.kill(snow);assert.equal(f.kills,0);assert.equal(w.snapshot(f.id).groundLoot.length,0);
 });
 
-test('elite rare reward is 3% absolute, ordinary gear can be white and saved rare ranges remain exact',()=>{
- assert.equal(gearRarity('yak','frost-matriarch',()=>.029999),2);assert.equal(gearRarity('yak','frost-matriarch',()=>.03),1);assert.equal(gearRarity('yak','frost-matriarch',()=>.4),null);assert.equal(gearRarity('yak',undefined,()=>0),0);
+test('elite rare reward is 4% absolute, ordinary gear can be white and saved rare ranges remain exact',()=>{
+ assert.equal(gearRarity('yak','frost-matriarch',()=>.199999),0);assert.equal(gearRarity('yak','frost-matriarch',()=>.20),1);assert.equal(gearRarity('yak','frost-matriarch',()=>.32),2);assert.equal(gearRarity('yak','frost-matriarch',()=>.4),null);assert.equal(gearRarity('yak',undefined,()=>0),0);
  for(const classId of ['warrior','archer','mage'])for(const [i,definition] of RARE_CLASS_ITEMS[classId].entries()){
   const item=rollEquipment(definition.id,definition.id,()=>.5);validateEquipment(item);assert.equal(item.rarity,2);assert.equal(definition.appearance,CLASS_ITEMS[classId][i].appearance);
-  for(const [j,roll] of item.rolls.entries())assert(roll.max>CLASS_ITEMS[classId][i].ranges[j].max);
+  for(const [j,roll] of item.rolls.entries()){
+    const green=CLASS_ITEMS[classId][i].ranges[j];if(!green)continue;
+    assert(roll.max>green.max);
+  }
   assert.deepEqual(rollEquipment(definition.id,definition.id,()=>.5),item);
  }
  for(const id of [6,95,192,193]){
-  const w=new World({random:()=>0}),p=newHero('Награда');w.add(p);const m=w.mobs[id];Object.assign(p,{x:m.x,z:m.z,level:20});m.contributors.set(p.id,{at:w.t,damage:9999});w.kill(m);
+  const w=new World({random:()=>.33}),p=newHero('Награда');w.add(p);const m=w.mobs[id];Object.assign(p,{x:m.x,z:m.z,level:20});m.contributors.set(p.id,{at:w.t,damage:9999});w.kill(m);
   const drop=w.snapshot(p.id).groundLoot.filter(d=>d.kind==='item');assert.equal(drop.length,1);assert.equal(drop[0].item.rarity,2);assert(m.timer>=180);
   assert(w.pickUp(p,drop[0].id));assert.deepEqual(safeHero(persistentHero(p)).items,p.items);
   w.mobs=[m];const timer=m.timer;m.timer=.08;step(w,2);assert.equal(m.state,'idle');assert.equal(m.hp,mobConfig(m).hp);assert(timer>24);

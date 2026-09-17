@@ -36,10 +36,21 @@ test('all three boss warnings damage only players inside the displayed shape and
  p.x=d.entry.x;p.z=0;const safeHp=p.hp;advance(w,2);assert(p.hp>=safeHp);assert(!boss.telegraph);
 });
 test('boss rewards use parent region, support yellow and set rolls, and cap progression at100',()=>{
- for(const [random,rarity] of [[.08,3],[.02,4]]){
+ for(const [random,rarity] of [[.90,3],[.96,4]]){
   const {w,d,p,boss,guards}=fixture('citadel',99);w.random=()=>random;for(const g of guards)g.state='dead';w.refreshDungeon(d.id);p.x=boss.x;p.z=boss.z;p.xp=xpNeeded(99)-1;assert(w.hurtMob(p,boss,1e9));assert.equal(p.level,100);assert.equal(p.xp,0);
-  const item=w.groundLoot.find(g=>g.kind==='item').item;assert.equal(item.rarity,rarity);assert.equal(item.itemLevel,85);const saved=safeHero(persistentHero(p));assert.equal(saved.level,100);assert.equal(stats(saved).xpNeeded,0);
+  const items=w.groundLoot.filter(g=>g.kind==='item');const gold=w.groundLoot.filter(g=>g.kind==='gold');
+  assert.equal(gold.length,1);assert.ok(items.length>=1&&items.length<=3);assert.ok(items.every(drop=>drop.item.rarity===rarity&&drop.item.rarity!==0));
+  assert.equal(items[0].item.itemLevel,85);const saved=safeHero(persistentHero(p));assert.equal(saved.level,100);assert.equal(stats(saved).xpNeeded,0);
   p.x=d.entry.x;p.z=0;advance(w,181);assert.equal(boss.state,'idle');assert(boss.bossLocked);assert(guards.every(m=>m.state!=='dead'));
+ }
+});
+test('boss always drops gold plus one to three non-white items',()=>{
+ for(const [random,count] of [[0,1],[.34,2],[.67,3]]){
+  const {w,d,p,boss,guards}=fixture();w.random=()=>random;for(const g of guards)g.state='dead';w.refreshDungeon(d.id);p.x=boss.x;p.z=boss.z;
+  assert(w.hurtMob(p,boss,1e9));
+  const items=w.groundLoot.filter(g=>g.kind==='item');const gold=w.groundLoot.filter(g=>g.kind==='gold');
+  assert.equal(gold.length,1,String(random));assert.equal(items.length,count,String(random));
+  assert.ok(items.every(drop=>drop.item.rarity>=1&&drop.item.rarity<=4));
  }
 });
 test('level checks reject a dungeon entrance and persisted low-level region positions',()=>{

@@ -20,11 +20,11 @@ test('seven regional tiers preserve every class, slot and rarity, with immutable
  assert.deepEqual(REGIONAL_ITEMS.wasteland.warrior[0].ranges,[{key:'attack',min:30,max:44},{key:'haste',min:2,max:5}]);
 });
 test('boss loot is one mutually exclusive roll, elites never yield yellow or set items',()=>{
- const counts={none:0,1:0,2:0,3:0,4:0};
+ const counts={none:0,0:0,1:0,2:0,3:0,4:0};
  for(let i=0;i<10000;i++){const rng=()=>(i+.5)/10000;counts[gearRarity('scarab','named',rng,true)??'none']++;
-  assert.ok([null,1,2].includes(gearRarity('wolf','named',rng)));assert.ok([null,0,1].includes(gearRarity('wolf',undefined,rng)));
+  assert.ok([null,0,1,2].includes(gearRarity('wolf','named',rng)));assert.ok([null,0,1].includes(gearRarity('wolf',undefined,rng)));
  }
- assert.deepEqual(counts,{none:4300,1:1000,2:3500,3:800,4:400});
+ assert.deepEqual(counts,{none:0,0:0,1:5000,2:3000,3:1500,4:500});
 });
 test('only equipped pieces of the same set activate its 2/4 bonuses',()=>{
  assert.equal(EQUIPMENT_SETS.length,21);

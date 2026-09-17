@@ -14,7 +14,7 @@ import {CLASSES,EQUIPMENT_SLOTS,DEFAULT_BAG_CAPACITY,backpackItems,classFor,canE
 import {BOUNDS,CAMP,SPAWNS,mobConfig,WEAPONS,AFK_SPOTS,afkSpotAt,withinSpot,safe as pointIsSafe,stand,clearPath,distance,translate,moveHero} from './public/game/location.js';
 import {angleDelta,turnTowards,inStrike} from './public/game/motion.js';
 import {SKILLS,skillsForClass,legacySkillId} from './public/game/skills.js';
-import {LOOT_TTL_MS,MAX_GROUND_DROPS_PER_HERO,PICKUP_RANGE,AFK_PICKUP_RANGE,gearRarity} from './public/game/loot-rules.js';
+import {LOOT_TTL_MS,MAX_GROUND_DROPS_PER_HERO,PICKUP_RANGE,AFK_PICKUP_RANGE,gearRarity,bossItemCount} from './public/game/loot-rules.js';
 import {portalById,ALL_PASSAGES} from './public/game/stadium.js';
 import {locationAt as pointLocation,fieldRegionAt} from './public/game/world-layout.js';
 import {SHOP,shopPrice,sellPrice} from './public/game/shop.js';
@@ -854,11 +854,15 @@ export class World{
       while(p.level<MAX_LEVEL&&p.xp>=stats(p).xpNeeded){p.xp-=stats(p).xpNeeded;p.level++;p.statRevision++;this.emit('level',{level:p.level,points:5},p.id);}
       if(p.level>=MAX_LEVEL)p.xp=0;
       this.addGroundDrop(p.id,{id:randomUUID(),kind:'gold',x:m.x,z:m.z,amount:cfg.coins,expiresAt:this.t+LOOT_TTL_MS});
-      const rarity=gearRarity(m.type,m.eliteId,this.random,!!m.bossId);
-      if(rarity!==null){
+      const itemCount=m.bossId?bossItemCount(this.random):1;
+      const offsets:[[number,number],[number,number],[number,number]]=[[.22,.12],[-.24,.16],[.04,-.26]];
+      for(let i=0;i<itemCount;i++){
+        const rarity=gearRarity(m.type,m.eliteId,this.random,!!m.bossId);
+        if(rarity===null)continue;
         const choices=regionalEquipment(p.classId,fieldRegionAt(m),rarity),definition=choices[Math.floor(this.random()*choices.length)];
         const item=rollEquipment(definition.id,randomUUID(),this.random);
-        const shifted=stand(m.x+.22,m.z+.12),x=shifted?m.x+.22:m.x,z=shifted?m.z+.12:m.z;
+        const [dx,dz]=offsets[i]??offsets[0];
+        const shifted=stand(m.x+dx,m.z+dz),x=shifted?m.x+dx:m.x,z=shifted?m.z+dz:m.z;
         this.addGroundDrop(p.id,{id:randomUUID(),kind:'item',x,z,item,expiresAt:this.t+LOOT_TTL_MS});
       }
       this.emit('kill',{id:m.id,name:cfg.name,xp:earnedXp},p.id);

@@ -28,7 +28,7 @@ test('possible loot uses live mob coins, real one-item chance and only currently
   for(const type of Object.keys(MOB_TYPES)){
     const view=possibleLoot(type);
     assert.equal(view.gold,MOB_TYPES[type].coins);
-    assert.equal(view.itemChance,GEAR_CHANCE[type]??.025);
+    assert.equal(view.itemChance,GEAR_CHANCE[type]??.04);
     assert.deepEqual(view.categories.map(category=>category.id),['gold','weapon','weapon','armor','armor','accessory','accessory']);
     assert.equal(view.categories[0].rarity,'gold');
     for(const category of view.categories.slice(1)){
@@ -47,6 +47,7 @@ test('late regions keep their own catalog and a dungeon boss advertises all four
   assert.equal(lootRegionForType('iron-warden'),'citadel');
   const view=possibleLoot('iron-warden',undefined,'citadel-dungeon');
   assert.equal(view.itemChance,BOSS_GEAR_CHANCE);
+  assert.equal(view.itemCount.min,1);assert.equal(view.itemCount.max,3);
   assert.equal(view.categories.length,13);
   assert.deepEqual([...new Set(view.categories.slice(1).map(category=>category.rarity))],[1,2,3,4]);
   for(const category of view.categories.slice(1))assert.equal(category.chance,BOSS_RARITY_CHANCES[category.rarity]);
@@ -55,8 +56,8 @@ test('late regions keep their own catalog and a dungeon boss advertises all four
 test('dungeon guards expose their doubled dungeon reward without pretending to be bosses',()=>{
   const guard=possibleLoot('bonehound','guard-citadel',undefined,'citadel-dungeon');
   assert.equal(guard.gold,mobConfig({type:'bonehound',eliteId:'guard-citadel',dungeonId:'citadel-dungeon'}).coins);
-  assert.equal(guard.itemChance,.13);
-  assert.deepEqual([...new Set(guard.categories.slice(1).map(category=>category.rarity))],[1,2]);
+  assert.equal(guard.itemChance,.36);
+  assert.deepEqual([...new Set(guard.categories.slice(1).map(category=>category.rarity))],[0,1,2]);
 });
 
 test('selected mob gets center name/HP/real loot and ring; vendor/player remove loot, null clears all',()=>{
@@ -74,8 +75,8 @@ test('selected mob gets center name/HP/real loot and ring; vendor/player remove 
     assert.equal(loot.children.length,1,'drop row has no visible heading');
     assert(row.children.every(badge=>badge.children.length===1),'drop badges contain symbols only');
     assert(row.children[0].getAttribute('aria-label').includes('21 золота'));
+    assert(row.children.slice(1).some(badge=>badge.title.includes('3%')));
     assert(row.children.slice(1).some(badge=>badge.title.includes('1%')));
-    assert(row.children.slice(1).some(badge=>badge.title.includes('2%')));
     assert(row.children.slice(1).some(badge=>badge.className.includes('rarity-0')));
     assert(row.children.slice(1).some(badge=>badge.className.includes('rarity-1')));
     assert.equal(ring.visible,true);assert.equal(ring.position.x,12);assert.equal(ring.position.z,7);

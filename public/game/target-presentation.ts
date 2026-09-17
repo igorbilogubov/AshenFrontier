@@ -34,7 +34,8 @@ export function bindTargetPresentation(scene:T.Scene):(target:PresentedTarget|nu
     for(const category of available.categories){
       const badge=document.createElement('div');badge.className=`target-loot-category ${category.rarity==='gold'?'gold':`rarity-${category.rarity}`}`;
       const rarity=category.rarity==='gold'?'Гарантированная личная стопка':RARITY_NAMES[category.rarity]??`Редкость ${category.rarity}`;
-      badge.setAttribute('role','img');badge.setAttribute('aria-label',`${category.name}: ${rarity}${category.id==='gold'?`, ${available.gold} золота после убийства`:`, общий шанс вещи${category.chance===undefined?'':' этой редкости'} ${Math.round((category.chance??available.itemChance)*100)}%, категория случайна`}`);
+      const countNote=available.itemCount?`, ${available.itemCount.min}–${available.itemCount.max} вещи за убийство`:'';
+      badge.setAttribute('role','img');badge.setAttribute('aria-label',`${category.name}: ${rarity}${category.id==='gold'?`, ${available.gold} золота после убийства`:`, общий шанс вещи${category.chance===undefined?'':' этой редкости'} ${Math.round((category.chance??available.itemChance)*100)}%${countNote}, категория случайна`}`);
       badge.title=badge.getAttribute('aria-label')??'';
       const symbol=document.createElement('span');symbol.className='target-loot-symbol';symbol.innerHTML=`<svg viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">${ICONS[category.id]}</svg>`;
       badge.append(symbol);row.append(badge);

@@ -1,6 +1,10 @@
 import {regionalEquipment} from './equipment-items.js';
 import {mobConfig} from './location.js';
-import {BOSS_GEAR_CHANCE,BOSS_RARITY_CHANCES,GEAR_CHANCE,ELITE_GEAR_CHANCE,ELITE_RARE_CHANCE,GREEN_GEAR_CHANCE,WHITE_GEAR_CHANCE} from './loot-rules.js';
+import {
+  BOSS_GEAR_CHANCE,BOSS_ITEM_MAX,BOSS_ITEM_MIN,BOSS_RARITY_CHANCES,
+  GEAR_CHANCE,ELITE_BLUE_CHANCE,ELITE_GEAR_CHANCE,ELITE_GREEN_CHANCE,ELITE_WHITE_CHANCE,
+  GREEN_GEAR_CHANCE,WHITE_GEAR_CHANCE
+} from './loot-rules.js';
 import type {DungeonId,EquipmentSlot,MobType} from '../../shared/types.js';
 import type {GearRegion} from './regional-equipment.js';
 
@@ -15,6 +19,7 @@ export interface PossibleLootCategory {
 export interface PossibleLoot {
   gold:number;
   itemChance:number;
+  itemCount?:{min:number;max:number};
   categories:readonly PossibleLootCategory[];
 }
 
@@ -36,21 +41,30 @@ const LABELS:Readonly<Record<LootCategoryId,string>>=Object.freeze({
   gold:'Золото',weapon:'Оружие',armor:'Броня',accessory:'Аксессуары'
 });
 const BOSS_RARITIES=[1,2,3,4] as const;
+const ordinaryWhite=(type:MobType)=>WHITE_GEAR_CHANCE[type]??.03;
+const ordinaryGreen=(type:MobType)=>GREEN_GEAR_CHANCE[type]??.01;
 
 /** Display only categories that the current server item catalog can actually roll. */
 export function possibleLoot(type:MobType,eliteId?:string,bossId?:DungeonId,dungeonId?:DungeonId):PossibleLoot{
   const categories:PossibleLootCategory[]=[{id:'gold',name:LABELS.gold,rarity:'gold',slots:[]}];
   const region=(bossId??dungeonId)?(bossId??dungeonId)!.replace(/-dungeon$/,'') as GearRegion:lootRegionForType(type);
-  const rarities:readonly (0|1|2|3|4)[]=bossId?BOSS_RARITIES:eliteId?[1,2]:[0,1];
+  const rarities:readonly (0|1|2|3|4)[]=bossId?BOSS_RARITIES:eliteId?[0,1,2]:[0,1];
   for(const id of ['weapon','armor','accessory'] as const){
     const slots=GROUPS[id];
     for(const rarity of rarities){
       const definitions=(['warrior','archer','mage'] as const).flatMap(classId=>regionalEquipment(classId,region,rarity)).filter(item=>slots.includes(item.slot));
       if(!definitions.length)continue;
-      const chance=bossId?BOSS_RARITY_CHANCES[rarity as keyof typeof BOSS_RARITY_CHANCES]:eliteId?(rarity===2?ELITE_RARE_CHANCE:ELITE_GEAR_CHANCE-ELITE_RARE_CHANCE):rarity===0?(WHITE_GEAR_CHANCE[type]??.005):(GREEN_GEAR_CHANCE[type]??.02);
+      const chance=bossId?BOSS_RARITY_CHANCES[rarity as keyof typeof BOSS_RARITY_CHANCES]:eliteId?(
+        rarity===0?ELITE_WHITE_CHANCE:rarity===1?ELITE_GREEN_CHANCE:ELITE_BLUE_CHANCE
+      ):rarity===0?ordinaryWhite(type):ordinaryGreen(type);
       categories.push({id,name:LABELS[id],rarity,slots,...(chance===undefined?{}:{chance})});
     }
   }
   const config=mobConfig({type,eliteId,bossId,dungeonId:dungeonId??bossId});
-  return {gold:config.coins,itemChance:bossId?BOSS_GEAR_CHANCE:eliteId?ELITE_GEAR_CHANCE:(GEAR_CHANCE[type]??.025),categories};
+  return {
+    gold:config.coins,
+    itemChance:bossId?BOSS_GEAR_CHANCE:eliteId?ELITE_GEAR_CHANCE:(GEAR_CHANCE[type]??ordinaryWhite(type)+ordinaryGreen(type)),
+    ...(bossId?{itemCount:{min:BOSS_ITEM_MIN,max:BOSS_ITEM_MAX}}:{}),
+    categories
+  };
 }

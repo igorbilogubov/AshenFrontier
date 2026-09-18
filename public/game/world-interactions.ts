@@ -5,20 +5,25 @@ import {itemArtwork} from './item-icons.js';
 import {itemDisplayName} from './equipment-items.js';
 import {itemClassName,itemShownClass,itemWrongClass} from '../rules.js';
 import {SHOP} from './shop.js';
+import {SMITH} from './smith.js';
 import {sameLocation} from './world-layout.js';
 import {PERSONAL_CHEST,insideHouse} from './camp-layout.js';
 import type {createCampHouse} from './camp-house.js';
-type InteractionKind='loot'|'vendor'|'portal'|'chest'|'travel';
+type InteractionKind='loot'|'vendor'|'portal'|'chest'|'travel'|'smith';
 import type {NetworkGame} from './network.js';
 import type {GroundDrop} from '../../shared/types.js';
 import type {WarriorPose} from './render-types.js';
 
 export async function createWorldInteractions(scene:T.Scene,game:NetworkGame,choose:(kind:InteractionKind,id:string)=>void,portals:readonly {portal:{id:string;name:string;x:number;z:number};object:T.Group;kind?:'travel'}[]=[],campHouse?:ReturnType<typeof createCampHouse>) {
-  const layer=document.createElement('div');layer.className='world-interaction-layer';layer.setAttribute('aria-label','Добыча, торговец и порталы');document.body.append(layer);
+  const layer=document.createElement('div');layer.className='world-interaction-layer';layer.setAttribute('aria-label','Добыча, торговец, кузнец и порталы');document.body.append(layer);
   const vendor=await loadWarrior('mage');vendor.root.position.set(SHOP.x,0,SHOP.z);vendor.root.rotation.y=.4;scene.add(vendor.root);
   const idle:WarriorPose={classId:'mage',weapon:'sword',dead:0,attack:null,hurt:0,gait:0,moveBlend:0,runBlend:0,appearance:{weapon:null,armor:'acolyte-armor',helmet:null,boots:'acolyte-boots'}};
   const vendorMeshes:T.Object3D[]=[];vendor.root.traverse(object=>{if(object instanceof T.Mesh)vendorMeshes.push(object);});
   const vendorLabel=document.createElement('button');vendorLabel.type='button';vendorLabel.className='vendor-world-label';vendorLabel.innerHTML='<span>Торговец</span><small>Снаряжение · ЛКМ</small>';vendorLabel.onclick=()=>choose('vendor',SHOP.id);layer.append(vendorLabel);
+  const smith=await loadWarrior('warrior');smith.root.position.set(SMITH.x,0,SMITH.z);smith.root.rotation.y=-.5;scene.add(smith.root);
+  const smithIdle:WarriorPose={classId:'warrior',weapon:'sword',dead:0,attack:null,hurt:0,gait:0,moveBlend:0,runBlend:0,appearance:{weapon:'paladin-weapon',armor:'paladin-armor',helmet:null,boots:'paladin-boots'}};
+  const smithMeshes:T.Object3D[]=[];smith.root.traverse(object=>{if(object instanceof T.Mesh)smithMeshes.push(object);});
+  const smithLabel=document.createElement('button');smithLabel.type='button';smithLabel.className='vendor-world-label';smithLabel.innerHTML='<span>Кузнец</span><small>Заточка · ЛКМ</small>';smithLabel.onclick=()=>choose('smith',SMITH.id);layer.append(smithLabel);
   const chestLabel=document.createElement('button');chestLabel.type='button';chestLabel.className='vendor-world-label chest-world-label';chestLabel.innerHTML='<span>Личный сундук</span><small>Хранилище · ЛКМ</small>';chestLabel.onclick=()=>choose('chest',PERSONAL_CHEST.id);layer.append(chestLabel);
   const portalLabels=portals.map(entry=>{
     const label=document.createElement('button');label.type='button';label.className='vendor-world-label portal-world-label';
@@ -33,11 +38,17 @@ export async function createWorldInteractions(scene:T.Scene,game:NetworkGame,cho
   mesh(stall,new T.BoxGeometry(.95,.55,.6),floor,0,.28,0);
   mesh(stall,new T.BoxGeometry(1.04,.08,.68),new T.MeshStandardMaterial({color:'#3c4c3f'}),0,.6,0);
   for(const x of [-.34,0,.34])mesh(stall,new T.CylinderGeometry(.10,.11,.18,8),new T.MeshStandardMaterial({color:x===0?'#a77a42':'#66795b',metalness:.35,roughness:.55}),x,.72,0);
+  const anvil=new T.Group();anvil.position.set(SMITH.x+.9,0,SMITH.z-.55);scene.add(anvil);
+  mesh(anvil,new T.BoxGeometry(.7,.28,.42),new T.MeshStandardMaterial({color:'#4a4a4f',metalness:.7,roughness:.4}),0,.34,0);
+  mesh(anvil,new T.BoxGeometry(.28,.42,.28),new T.MeshStandardMaterial({color:'#3a3a3e',metalness:.45,roughness:.55}),0,.14,0);
   const goldMaterial=new T.MeshStandardMaterial({color:'#e5b258',emissive:'#885619',emissiveIntensity:.22,metalness:.7,roughness:.4});
+  const stoneMaterial=new T.MeshStandardMaterial({color:'#8a7a5c',roughness:.85});
   function add(drop:GroundDrop){
     const model=new T.Group();model.position.set(drop.x,.05,drop.z);
     if(drop.kind==='gold'){
       for(let i=0;i<4;i++){const coin=mesh(model,new T.CylinderGeometry(.12,.12,.045,8),goldMaterial,(i%2)*.17-.09,.035+Math.floor(i/2)*.03,(i%3)*.09-.08);coin.rotation.z=i*.12;}
+    }else if(drop.kind==='material'){
+      mesh(model,new T.DodecahedronGeometry(.16,0),drop.definitionId==='tempered-ingot'?new T.MeshStandardMaterial({color:'#c4a15a',metalness:.65,roughness:.35}):stoneMaterial,0,.14,0);
     }else{
       const material=new T.MeshStandardMaterial({color:'#889d93',metalness:.35,roughness:.65});
       if(drop.item?.slot==='weapon'){
@@ -50,7 +61,7 @@ export async function createWorldInteractions(scene:T.Scene,game:NetworkGame,cho
       const color=drop.item?.rarity===4?'#c58aeb':drop.item?.rarity===3?'#e3b84f':drop.item?.rarity===2?'#79b9e0':drop.item?.rarity===1?'#84be70':'#d6d9d5';
       const ring=mesh(model,new T.RingGeometry(.23,.28,24),new T.MeshBasicMaterial({color,transparent:true,opacity:.6,side:T.DoubleSide,depthWrite:false}),0,.01,0);ring.rotation.x=-Math.PI/2;ring.castShadow=false;
     }
-    const label=document.createElement('button');label.type='button';label.className=`ground-loot-label ${drop.kind==='gold'?'gold':`rarity-${drop.item?.rarity||0}`}`;
+    const label=document.createElement('button');label.type='button';label.className=`ground-loot-label ${drop.kind==='gold'?'gold':drop.kind==='material'?'material':`rarity-${drop.item?.rarity||0}`}`;
     if(drop.item){
       const icon=document.createElement('span');icon.className='ground-loot-icon';icon.innerHTML=itemArtwork(drop.item,drop.item.classId||game.player.classId);label.append(icon);
       const text=document.createElement('span');text.className='ground-loot-text';
@@ -58,6 +69,8 @@ export async function createWorldInteractions(scene:T.Scene,game:NetworkGame,cho
       const klass=document.createElement('small');klass.className='ground-loot-class';klass.textContent=itemClassName(itemShownClass(drop.item));
       if(itemWrongClass(game.player,drop.item)){label.classList.add('wrong-class');klass.textContent=`${itemClassName(itemShownClass(drop.item))} · нельзя надеть`;}
       text.append(name,klass);label.append(text);label.setAttribute('aria-label',`Подобрать: ${name.textContent} · ${klass.textContent}`);
+    }else if(drop.kind==='material'){
+      const name=document.createElement('span');name.textContent=`${drop.definitionId==='tempered-ingot'?'Закалённый слиток':'Оселок'} × ${drop.amount||1}`;label.append(name);label.setAttribute('aria-label',`Подобрать: ${name.textContent}`);
     }else{
       const name=document.createElement('span');name.textContent=`${drop.amount||0} золота`;label.append(name);label.setAttribute('aria-label',`Подобрать: ${name.textContent}`);
     }
@@ -75,6 +88,8 @@ export async function createWorldInteractions(scene:T.Scene,game:NetworkGame,cho
     layer.hidden=!enabled;
     vendor.root.visible=Math.hypot(game.player.x-SHOP.x,game.player.z-SHOP.z)<25;
     vendor.animate(dt,idle,vendor.root.visible);positionLabel(vendorLabel,SHOP.x,2.2,SHOP.z,camera,width,height);
+    smith.root.visible=Math.hypot(game.player.x-SMITH.x,game.player.z-SMITH.z)<25;
+    smith.animate(dt,smithIdle,smith.root.visible);positionLabel(smithLabel,SMITH.x,2.2,SMITH.z,camera,width,height);
     for(const {portal,label} of portalLabels){positionLabel(label,portal.x,3.15,portal.z,camera,width,height);label.classList.toggle('targeted',game.player.interactionTarget?.id===portal.id);}
     if(campHouse&&insideHouse(game.player,.38)){positionLabel(chestLabel,PERSONAL_CHEST.x,1.35,PERSONAL_CHEST.z,camera,width,height);chestLabel.classList.toggle('targeted',game.player.interactionTarget?.id===PERSONAL_CHEST.id);}else chestLabel.hidden=true;
     const active=new Set(game.groundLoot.map(drop=>drop.id));
@@ -85,6 +100,7 @@ export async function createWorldInteractions(scene:T.Scene,game:NetworkGame,cho
     let closest=Infinity,result:{kind:InteractionKind;id:string}|null=null;
     for(const [id,value] of drops){if(!value.model.visible)continue;const hit=raycaster.intersectObject(value.model,true)[0];if(hit&&hit.distance<closest){closest=hit.distance;result={kind:'loot',id};}}
     if(vendor.root.visible){const hit=raycaster.intersectObjects(vendorMeshes,false)[0];if(hit&&hit.distance<closest){closest=hit.distance;result={kind:'vendor',id:SHOP.id};}}
+    if(smith.root.visible){const hit=raycaster.intersectObjects(smithMeshes,false)[0];if(hit&&hit.distance<closest){closest=hit.distance;result={kind:'smith',id:SMITH.id};}}
     for(const {portal,object,kind} of portals){if(!sameLocation(portal,game.player))continue;const hit=raycaster.intersectObject(object,true)[0];if(hit&&hit.distance<closest){closest=hit.distance;result={kind:kind??'portal',id:portal.id};}}
     if(campHouse&&insideHouse(game.player,.38)){const hit=raycaster.intersectObjects(campHouse.pickMeshes,false)[0];if(hit&&hit.distance<closest)result={kind:'chest',id:PERSONAL_CHEST.id};}
     return result;

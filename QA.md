@@ -4,6 +4,10 @@
 
 Локально. В `index.html` характеристики делятся на `character-col-stats` / `character-col-derived`; кикеры, `class-role`, подпись снаряжения и подсказка рюкзака скрыты. Тест `test/panel-layout-ui.test.mjs`.
 
+## 18 сентября 2026: кузнец и заточка
+
+На GitHub. `test/smith.test.mjs`: шансы, срыв на +0, стадион без камней, AFK подбирает оселок, +2% к основной характеристике, schema 10 не ломает отпечаток. Существующие `groundLoot.length` при `random=0` учитывают оселок. `npm run check` прошёл. Полный `npm test` здесь без PostgreSQL.
+
 ## 17 сентября 2026: синий дроп с обычных мобов
 
 Локально. `gearRarity` для волка: 3% / 1% / 0,1%. Тесты `loot-rarity-v2`, `ground-loot`, `possibleLoot` на цели.

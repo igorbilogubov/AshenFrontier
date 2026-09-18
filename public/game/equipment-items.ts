@@ -134,6 +134,7 @@ export function validateEquipment(item:Item){
     const roll=item.rolls[i],range=definition.ranges[i];
     if(!roll||roll.key!==range.key)throw new Error('Invalid saved equipment roll');
   }
+  if(item.enhance!==undefined&&(!Number.isInteger(item.enhance)||item.enhance<0||item.enhance>9))throw new Error('Invalid saved equipment structure');
   if(item.power!==item.rolls[0].value)throw new Error('Invalid equipment primary value');
 }
 export function equipmentAppearance(source:StatSource):ItemAppearance|undefined{

@@ -62,3 +62,18 @@ footer{bottom:0;z-index:20}
 @media(max-width:600px){#chat-panel{left:10px;bottom:0}.hud-core .dock{grid-template-columns:repeat(4,minmax(0,1fr))}.hero-shortcuts{bottom:230px;right:8px}.hero-shortcuts button{width:40px;height:46px}.hero-shortcuts .shortcut-icon{width:22px;height:22px}.hud-core .dock .action-cell{height:57px!important}.hud-core .dock .action-art{width:28px;height:28px}}
 
 @media(min-width:601px) and (max-width:1200px){.hero-shortcuts{bottom:174px}}
+
+.bag-cell .item-enhance,.equipment-slot .item-enhance{position:absolute;right:2px;top:2px;z-index:2;padding:0 3px;border-radius:4px;background:#101a16e6;color:#70decb;font:700 8px/12px system-ui}
+.item-enhance-note{margin:0 0 8px;color:#70decb;font:11px/1.4 Georgia,serif}
+.ground-loot-label.material{color:#d7c39a;border-color:#c4a15a88}
+.smith-stocks{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 14px}
+.smith-stock{display:flex;align-items:center;gap:8px;padding:8px;border:1px solid #b3c0a959;background:#14231d;color:#e5d8b5}
+.smith-stock strong{display:block;font:12px/1.2 Georgia,serif;color:#e6dbc0}
+.smith-stock small{color:#9fb3a5;font:10px system-ui}
+.smith-table{display:grid;gap:4px;margin:0 0 14px}
+.smith-row{margin:0;padding:5px 8px;border:1px solid #7f956b38;background:#16271f;color:#c9d4c0;font:10px/1.3 system-ui}
+.smith-zone{margin-top:4px}
+.smith-material{display:block;width:100%;height:100%}
+.smith-material svg{width:100%;height:100%}
+.bag-cell.consumable-cell .smith-material{width:min(36px,100%);height:36px;margin:auto}
+

@@ -40,7 +40,7 @@ test('attacks use server range, timing and cooldown rather than packet damage',(
 test('both nearby contributors earn personal persistent loot and a distant/idle bystander does not',()=>{
   const {w,p}=setup(),m=isolated(w,p),other=newHero('Союзник'),idle=newHero('Наблюдатель');Object.assign(other,{x:7,z:2.3});w.add(other);w.add(idle);
   w.hurtMob(p,m,25);w.hurtMob(other,m,35);
-  for(const player of [p,other]){assert.equal(player.gold,0);assert.equal(player.xp,13);assert.equal(player.questKills,1);assert.equal(player.items.length,2);assert.equal(w.snapshot(player.id).groundLoot.length,2);}
+  for(const player of [p,other]){assert.equal(player.gold,0);assert.equal(player.xp,13);assert.equal(player.questKills,1);assert.equal(player.items.length,2);assert.equal(w.snapshot(player.id).groundLoot.length,3);}
   assert.equal(idle.gold,0);assert.equal(idle.items.length,2);
   assert.deepEqual(w.snapshot(idle.id).groundLoot,[]);
   const reward=w.snapshot(p.id).groundLoot.length;w.kill(m);assert.equal(w.snapshot(p.id).groundLoot.length,reward);
@@ -51,7 +51,7 @@ test('full bag leaves newly earned equipment on the ground until manually collec
   const {w,p}=setup(),m=isolated(w,p);while(p.items.length<18)p.items.push(makeLoot(p.classId,1,0,'ring'));
   w.hurtMob(p,m,100);assert.equal(p.items.length,18);assert.equal(p.pendingItems.length,0);
   const item=w.snapshot(p.id).groundLoot.find(drop=>drop.kind==='item');assert(item);
-  w.command(p,{type:'pickup',id:item.id});assert.equal(w.snapshot(p.id).groundLoot.length,2);
+  w.command(p,{type:'pickup',id:item.id});assert.equal(w.snapshot(p.id).groundLoot.length,3);
   // A reconnect preserves owned equipment but discards unpicked loose rewards.
   const restored=safeHero(persistentHero(p));assert.equal(restored.pendingItems.length,0);
   const restart=new World();restart.add(restored);assert.deepEqual(restart.snapshot(restored.id).groundLoot,[]);

@@ -7,7 +7,15 @@ async function requireDisposable(client){
   const name=(await client.query('SELECT current_database() AS name')).rows[0].name;
   assert(/^ashen_test_[a-f0-9]{24}$/.test(name),'Historical fixtures require a disposable test database');
 }
+export async function removeEnhanceSchema(client){
+  await requireDisposable(client);
+  await client.query(`
+    ALTER TABLE item_instances DROP COLUMN IF EXISTS enhance;
+    DELETE FROM schema_migrations WHERE version=10;
+  `);
+}
 export async function removeStorageCapacitySchema(client){
+  await removeEnhanceSchema(client);
   await requireDisposable(client);
   await client.query(`
     ALTER TABLE heroes DROP COLUMN IF EXISTS bag_capacity;

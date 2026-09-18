@@ -155,6 +155,7 @@ export function createAnimatedWarrior(gltf:{scene:T.Object3D;animations:T.Animat
   function animate(dt:number,hero:WarriorPose,sampleAnimation=true){
     if(preview)return;
     equipment(hero.weapon,hero.classId,hero.appearance);
+    lateVisuals.applyEnhancement(hero.enhance??0);
     if(wasDead&&!hero.dead)reset();
     const target=Object.fromEntries(CLIP_NAMES.map(n=>[n,0]));
     if(hero.dead){

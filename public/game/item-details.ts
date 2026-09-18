@@ -1,19 +1,38 @@
 import type {Item,ItemStatKey} from '../../shared/types.js';
 import {ITEM_STAT_LABELS,rollValue,rollRange,rollPosition,rollUnit} from './equipment-items.js';
+import {enhanceRollBonus,itemEnhance} from './smith.js';
 const format=new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2});
 const legacyKey:Record<string,ItemStatKey|undefined>={weapon:'attack',armor:'armor',helmet:'armor',ring:'attack',amulet:'maxHp'};
-export function itemStatValue(item:Item|undefined,key:ItemStatKey){return item?.rolls?.find(roll=>roll.key===key)?.value??(!item?.definitionId&&legacyKey[item?.slot??'']===key?item?.power??0:0);}
+const rollBonus=(item:Item|undefined,key:ItemStatKey)=>{
+  const index=item?.rolls?.findIndex(roll=>roll.key===key)??-1;
+  return index>=0&&item?enhanceRollBonus(item,item.rolls![index],index):0;
+};
+export function itemStatValue(item:Item|undefined,key:ItemStatKey){
+  const roll=item?.rolls?.find(roll=>roll.key===key);
+  if(roll)return roll.value+rollBonus(item,key);
+  return !item?.definitionId&&legacyKey[item?.slot??'']===key?(item?.power??0)+((item?.enhance??0)>0?Math.round((item?.power??0)*.02*(item?.enhance??0)*1000)/1000:0):0;
+}
 export function renderItemRolls(container:HTMLElement,item:Item|undefined,equipped?:Item){
   container.replaceChildren();if(!item?.rolls)return;
-  for(const roll of item.rolls){
+  const level=itemEnhance(item);
+  if(level){
+    const mark=document.createElement('p');mark.className='item-enhance-note';
+    mark.textContent=`Заточка +${level} · +${Math.round(level*2)}% к основной характеристике`;
+    container.append(mark);
+  }
+  for(const [index,roll] of item.rolls.entries()){
     const row=document.createElement('div');row.className='item-roll';
     const line=document.createElement('div'),label=document.createElement('span'),value=document.createElement('strong');
-    label.textContent=ITEM_STAT_LABELS[roll.key];value.textContent=rollValue(roll);line.append(label,value);
+    const bonus=enhanceRollBonus(item,roll,index);
+    label.textContent=ITEM_STAT_LABELS[roll.key];
+    value.textContent=bonus?`+${format.format(roll.value+bonus)}${rollUnit(roll.key)}` : rollValue(roll);
+    if(bonus)value.title=`база ${rollValue(roll)}`;
+    line.append(label,value);
     const track=document.createElement('div');track.className='roll-track';const fill=document.createElement('i');fill.style.width=`${rollPosition(roll)*100}%`;track.append(fill);
     const meta=document.createElement('div');meta.className='roll-meta';const range=document.createElement('span');range.textContent=`Диапазон ${rollRange(roll)}`;meta.append(range);
     const note=document.createElement('span');if(roll.value===roll.max){note.className='roll-best';note.textContent='МАКСИМУМ';}meta.append(note);
     row.append(line,track,meta);
-    if(equipped&&equipped.id!==item.id){const delta=roll.value-itemStatValue(equipped,roll.key),comparison=document.createElement('small');comparison.className=delta>0?'roll-gain':delta<0?'roll-loss':'roll-same';comparison.textContent=`${delta>0?'+':''}${format.format(delta)}${rollUnit(roll.key)} к надетому предмету`;row.append(comparison);}
+    if(equipped&&equipped.id!==item.id){const delta=itemStatValue(item,roll.key)-itemStatValue(equipped,roll.key),comparison=document.createElement('small');comparison.className=delta>0?'roll-gain':delta<0?'roll-loss':'roll-same';comparison.textContent=`${delta>0?'+':''}${format.format(delta)}${rollUnit(roll.key)} к надетому предмету`;row.append(comparison);}
     container.append(row);
   }
   // Also expose bonuses that disappear when the selected item lacks their key.

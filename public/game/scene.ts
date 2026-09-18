@@ -7,6 +7,7 @@ import {bindAfkSettings} from './afk-settings-ui.js';
 import {bindSkillbook} from './skillbook-ui.js';
 import {bindTargetPresentation} from './target-presentation.js';
 import {SHOP} from './shop.js';
+import {SMITH} from './smith.js';
 import * as T from './vendor/three.module.js';
 import {mesh} from './models.js';
 import {loadWarrior} from './character.js';
@@ -46,7 +47,7 @@ import type {Point,PublicPlayer,PublicMob,WeaponId} from '../../shared/types.js'
 type Warrior=Awaited<ReturnType<typeof loadWarrior>>;
 type MobModel=ReturnType<typeof createMob>;
 type RemoteWarrior=Warrior & {label:HTMLDivElement};
-type VisualHero=Pick<PublicPlayer,'id'|'x'|'z'|'yaw'|'gait'|'runBlend'|'moveBlend'|'dead'|'weapon'|'classId'|'hurt'|'attack'|'appearance'>;
+type VisualHero=Pick<PublicPlayer,'id'|'x'|'z'|'yaw'|'gait'|'runBlend'|'moveBlend'|'dead'|'weapon'|'classId'|'hurt'|'attack'|'appearance'|'enhance'>;
 interface FloatingNumber {element:HTMLSpanElement;x:number;z:number;y:number;life:number}
 interface Particle {mesh:T.Mesh<T.IcosahedronGeometry,T.MeshBasicMaterial>;v:T.Vector3;life:number}
 interface HeldMouse {x:number;y:number;active:boolean;point:T.Vector3|null;attacking:boolean;casting:boolean;pointerId:number|null;}
@@ -55,7 +56,7 @@ let benchmark:Benchmark|undefined,skillEffects:ReturnType<typeof createSkillEffe
 const canvas=$('scene');
 let renderer:T.WebGLRenderer,scene:T.Scene,camera:T.OrthographicCamera,sun:T.DirectionalLight,world:ReturnType<typeof createEnvironment>,warrior:Warrior,game:NetworkGame,ready=false,last=0,time=0,accumulator=0;
 let afkSettings:ReturnType<typeof bindAfkSettings>|undefined,skillbook:ReturnType<typeof bindSkillbook>|undefined;
-let selectedEntity:{kind:'vendor'|'player';id:string}|null=null,updateTarget:ReturnType<typeof bindTargetPresentation>|undefined;
+let selectedEntity:{kind:'vendor'|'smith'|'player';id:string}|null=null,updateTarget:ReturnType<typeof bindTargetPresentation>|undefined;
 let width=innerWidth,height=innerHeight,selected:number|null=null,pendingWeapon:WeaponId|null=null;
 let noticeTimer:ReturnType<typeof setTimeout>|undefined=undefined,lastSafeToast=0,uiTimer=0,frames:number[]=[],frameCounter=0,paused=false;
 let snow:ReturnType<typeof createSnowEnvironment>,wasteland:ReturnType<typeof createWastelandEnvironment>,forestRegion:T.Scene,stadiumRegion:T.Scene;
@@ -178,9 +179,9 @@ function releaseMovement(){
 
 }
 function clearInput(){keys.clear();heldHudSkill=null;stopChannel();releaseMovement();mouse.active=false;mouse.point=null;game?.stopInput();if(game?.connected)game.send({type:'cancelInteraction'});}
-function chooseInteraction(kind:'loot'|'vendor'|'portal'|'chest'|'travel',id:string){
+function chooseInteraction(kind:'loot'|'vendor'|'portal'|'chest'|'travel'|'smith',id:string){
   if(!ready||!game.connected||game.player.dead)return;
-  if(kind==='vendor'){selected=null;selectedEntity={kind:'vendor',id};}
+  if(kind==='vendor'||kind==='smith'){selected=null;selectedEntity={kind,id};}
   releaseMovement();keys.clear();cancelAfk();game.send(kind==='loot'?{type:'pickup',id}:kind==='travel'?{type:'travelOpen',portalId:id}:kind==='portal'?{type:'portal',portalId:id}:{type:'interact',npcId:id});
 }
 function returnToCamp(){
@@ -291,6 +292,8 @@ function updateUI(){
   $('quest-hint').textContent=hero.questClaimed?'Задание выполнено. Можно продолжить охоту.':hero.questKills>=5&&hero.boss?'Возвращайтесь в безопасный лагерь.':hero.questKills>=5?'Вожак ждёт у руин, дальше по тропе.':'Идите по тропе направо, за указатель.';
   if(selectedEntity?.kind==='vendor'){
     if(sameLocation(SHOP,hero)&&distance(SHOP,hero)<23)updateTarget?.({kind:'vendor',id:SHOP.id,name:SHOP.name,subtitle:'Снаряжение и припасы',x:SHOP.x,z:SHOP.z});else{selectedEntity=null;updateTarget?.(null);}
+  }else if(selectedEntity?.kind==='smith'){
+    if(sameLocation(SMITH,hero)&&distance(SMITH,hero)<23)updateTarget?.({kind:'vendor',id:SMITH.id,name:SMITH.name,subtitle:'Заточка снаряжения',x:SMITH.x,z:SMITH.z});else{selectedEntity=null;updateTarget?.(null);}
   }else if(selectedEntity?.kind==='player'){
     const other=game.players.find(p=>p.id===selectedEntity?.id);if(other&&other.connected&&sameLocation(other,hero)&&distance(other,hero)<23)updateTarget?.({kind:'player',...other});else{selectedEntity=null;updateTarget?.(null);}
   }else updateTarget?.(mob&&mob.state!=='dead'&&distance(mob,hero)<23?{kind:'mob',type:mob.type,eliteId:mob.eliteId,...{bossId:mob.bossId,dungeonId:mob.dungeonId},name:mobConfig(mob).name,x:mob.x,z:mob.z,hp:mob.hp,maxHp:mobConfig(mob).hp}:null);

@@ -16,6 +16,10 @@ const lockHealthSql=`SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=pg_backend_p
   AND locktype='advisory' AND classid=8675309::oid AND objid=4732::oid
   AND mode='ExclusiveLock' AND granted) AS locked`;
 const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
+function identityItem(item:Item){
+  if(item.enhance===undefined)return item;
+  const {enhance:_,...core}=item;return core;
+}
 function canonical(value:unknown):string{
   if(Array.isArray(value))return `[${value.map(canonical).join(',')}]`;
   if(value&&typeof value==='object')return `{${Object.entries(value).filter(([,v])=>v!==undefined).sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>`${JSON.stringify(k)}:${canonical(v)}`).join(',')}}`;
@@ -93,19 +97,19 @@ async function writeInventory(client:PoolClient,hero:PersistentHero):Promise<{ga
   await client.query('UPDATE item_instances SET item_index=item_index+1000 WHERE hero_id=$1',[hero.id]);
   for(const id of lost)await client.query('DELETE FROM item_instances WHERE id=$1 AND hero_id=$2',[id,hero.id]);
   for(let index=0;index<all.length;index++){
-    const item=all[index],fingerprint=digest(canonical(item));
+    const item=all[index],fingerprint=digest(canonical(identityItem(item)));
     if(oldIds.has(item.id)){
       const identity=await client.query<{fingerprint:string}>('SELECT fingerprint FROM item_identity WHERE id=$1',[item.id]);
       if(identity.rows[0]?.fingerprint!==fingerprint)throw new StoreConflictError('Rolled item identity changed');
-      await client.query('UPDATE item_instances SET item_index=$1 WHERE id=$2 AND hero_id=$3',[index,item.id,hero.id]);
+      await client.query('UPDATE item_instances SET item_index=$1,enhance=$2 WHERE id=$3 AND hero_id=$4',[index,item.enhance??0,item.id,hero.id]);
     }else{
       const identity=await client.query<{fingerprint:string}>('SELECT fingerprint FROM item_identity WHERE id=$1',[item.id]);
       if(identity.rowCount)throw new StoreConflictError('Item identity already exists');
       await client.query('INSERT INTO item_identity(id,fingerprint) VALUES ($1,$2)',[item.id,fingerprint]);
-      await client.query(`INSERT INTO item_instances(id,hero_id,item_index,name,slot,rarity,power,class_id,bound,definition_id,roll_version,item_level)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,[
+      await client.query(`INSERT INTO item_instances(id,hero_id,item_index,name,slot,rarity,power,class_id,bound,definition_id,roll_version,item_level,enhance)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,[
           item.id,hero.id,index,item.name,item.slot,item.rarity,item.power,item.classId??null,item.bound??null,
-          item.definitionId??null,item.rollVersion??null,item.itemLevel??null]);
+          item.definitionId??null,item.rollVersion??null,item.itemLevel??null,item.enhance??0]);
       for(let ordinal=0;ordinal<(item.rolls?.length??0);ordinal++){
         const roll=item.rolls![ordinal];
         await client.query(`INSERT INTO item_rolls(item_id,ordinal,stat_key,value,min_value,max_value,step)
@@ -168,6 +172,7 @@ async function readHero(client:PoolClient,heroId:string,accountId:string):Promis
       ...(raw.definition_id===null?{}:{definitionId:raw.definition_id}),
       ...(raw.roll_version===null?{}:{rollVersion:raw.roll_version}),
       ...(raw.item_level===null?{}:{itemLevel:raw.item_level}),
+      ...(raw.enhance>0?{enhance:raw.enhance}:{}),
       ...(raw.definition_id===null?{}:{rolls:byItem.get(raw.id)??[]})};
     if(raw.kind==='pending')pendingItems.push(item);else items.push(item);
     if(raw.kind==='equipped')equipment[raw.equipped_slot as EquipmentSlot]=item.id;

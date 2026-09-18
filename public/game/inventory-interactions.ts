@@ -4,12 +4,13 @@ import {MAX_STASH_CAPACITY,STASH_SLOT_PRICE,backpackItems,canEquip,CLASSES,EQUIP
 import {safe,distance} from './location.js';
 import {renderItemRolls} from './item-details.js';
 import {itemArtwork} from './item-icons.js';
-import {ITEM_STAT_LABELS,itemDisplayName,rollEquipment,rollUnit} from './equipment-items.js';
+import {ITEM_STAT_LABELS,rollEquipment,rollUnit} from './equipment-items.js';
 import {SHOP,shopItems,sellPrice,consumableSellPrice} from './shop.js';
 import {CONSUMABLE_CATALOG,CONSUMABLE_LIMIT,backpackUsage,consumableDefinition,consumableKindQuantity,consumableQuantity} from './consumables.js';
 import {PERSONAL_CHEST} from './personal-stash.js';
 import {consumableArtwork,consumableTier} from './consumable-ui.js';
 import {equippedSetCounts,itemSet} from './equipment-sets.js';
+import {INGOT_ID,MAX_ENHANCE,SMITH,SMITH_MATERIALS,WHETSTONE_ID,enhanceGold,enhanceOffer,itemEnhance,itemTitle} from './smith.js';
 
 export const RARITY_LABELS=['Обычный','Необычный','Редкий','Возвышенный','Сетовый'] as const;
 const node=<K extends keyof HTMLElementTagNameMap>(tag:K,className='',text='')=>{const value=document.createElement(tag);value.className=className;value.textContent=text;return value;};
@@ -20,6 +21,13 @@ export function paintItemClass(host:HTMLElement,item:{classId?:Item['classId'];s
   if(!mark){mark=node('b','item-class');host.append(mark);}
   mark.textContent=itemClassName(classId);
   mark.classList.toggle('wrong-class',itemWrongClass({classId:heroClass},item));
+}
+export function paintItemEnhance(host:HTMLElement,item:Pick<Item,'enhance'>|undefined){
+  let mark=host.querySelector<HTMLElement>(':scope > .item-enhance');
+  const level=itemEnhance(item);
+  if(!level){mark?.remove();return;}
+  if(!mark){mark=node('b','item-enhance');host.append(mark);}
+  mark.textContent=`+${level}`;
 }
 export function tooltipPosition(anchor:Pick<DOMRect,'left'|'right'|'top'|'bottom'>,width:number,height:number,viewportWidth:number,viewportHeight:number){
   const margin=12;
@@ -62,20 +70,59 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
   const stashClose=node('button','panel-close','×');stashClose.type='button';stashClose.setAttribute('aria-label','Закрыть сундук');stashHeading.append(stashTitles,stashClose);
   const stashBody=node('div','panel-body'),stashCount=node('p','vendor-intro'),stashGrid=node('div','bag-grid stash-grid');stashBody.append(stashCount,stashGrid);
   stash.append(stashHeading,stashBody,node('div','panel-bottom','ПКМ или перетаскивание — переложить вещь'));document.body.append(stash);
+  const smith=node('aside','rpg-panel vendor-panel smith-panel');smith.id='smith-panel';smith.hidden=true;smith.setAttribute('aria-label','Кузнец');
+  const smithHeading=node('div','panel-title'),smithTitles=node('div');smithTitles.append(node('p','eyebrow','ЛАГЕРНЫЙ КУЗНЕЦ'),node('h2','','Заточка снаряжения'));
+  const smithClose=node('button','panel-close','×');smithClose.type='button';smithClose.setAttribute('aria-label','Закрыть кузнеца');smithHeading.append(smithTitles,smithClose);
+  const smithBody=node('div','panel-body');
+  const smithIntro=node('p','vendor-intro','Камни с охоты. Каждая попытка тратит камень и золото. Неудача сбрасывает заточку на +0.');
+  const smithStocks=node('div','smith-stocks');
+  const smithTable=node('div','smith-table');
+  for(let next=1;next<=MAX_ENHANCE;next++){
+    const row=node('p','smith-row');
+    const material=next<=6?SMITH_MATERIALS[WHETSTONE_ID]:SMITH_MATERIALS[INGOT_ID];
+    const chance=next<=3?100:next<=6?80:60;
+    row.textContent=`+${next} · ${material.name} · ${chance}% · ${enhanceGold(next)} зол.`;
+    smithTable.append(row);
+  }
+  const smithZone=node('div','vendor-sell-zone smith-zone','ПКМ по вещи в рюкзаке или слоте — заточить. Можно перетащить сюда.');
+  smithZone.setAttribute('aria-label','Заточить предмет');
+  smithBody.append(smithIntro,smithStocks,smithTable,smithZone);
+  const smithFooter=node('div','panel-bottom vendor-bottom'),smithGold=node('span'),smithHint=node('small','','+1…+3 всегда · +4…+6 оселок 80% · +7…+9 слиток 60%');
+  smithFooter.append(smithGold,smithHint);smith.append(smithHeading,smithBody,smithFooter);document.body.append(smith);
   let stashOpened=false,stashKey='';
-  let opened=false,tab:ClassId=game.player.classId,hover:HTMLElement|null=null,hoverSignature='',pendingSignature='',pendingUntil=0,dragging=false;
+  let opened=false,smithOpened=false,smithKey='',tab:ClassId=game.player.classId,hover:HTMLElement|null=null,hoverSignature='',pendingSignature='',pendingUntil=0,dragging=false;
   const vendorSamples=new Map(shopItems().map(listing=>[listing.definitionId,rollEquipment(listing.definitionId,`shop-preview:${listing.definitionId}`,()=>0)]));
   const signature=()=>JSON.stringify([game.player.gold,game.player.items,game.player.equipment,game.player.stash,game.player.consumableInventory,game.player.quickSlots]);
   const canTrade=()=>opened&&game.player.shopActive===true&&game.connected&&!game.player.dead&&!game.player.attack&&safe(game.player)&&distance(game.player,SHOP)<=SHOP.range&&(game.player.combatUntil||0)<=game.serverTime;
+  const canSmith=()=>smithOpened&&game.player.smithActive===true&&game.connected&&!game.player.dead&&!game.player.attack&&safe(game.player)&&distance(game.player,SMITH)<=SMITH.range&&(game.player.combatUntil||0)<=game.serverTime;
   const canEdit=()=>game.connected&&!game.player.dead;
   const canUseStash=()=>canEdit()&&!game.player.attack&&safe(game.player)&&(game.player.combatUntil||0)<=game.serverTime;
+  const syncTradeLayout=()=>document.body.classList.toggle('vendor-open',opened||smithOpened);
   function hideTooltip(){tooltip.hidden=true;if(hover)hover.removeAttribute('aria-describedby');hover=null;hoverSignature='';}
-  function setOpen(value:boolean){if(value&&stashOpened)setStashOpen(false);opened=value;vendor.hidden=!value;document.body.classList.toggle('vendor-open',value);hideTooltip();if(value){tab=game.player.classId;openInventory();renderShop();}update();}
+  function setOpen(value:boolean){if(value&&stashOpened)setStashOpen(false);if(value&&smithOpened)setSmithOpen(false);opened=value;vendor.hidden=!value;syncTradeLayout();hideTooltip();if(value){tab=game.player.classId;openInventory();renderShop();}update();}
   close.onclick=()=>setOpen(false);
+  function setSmithOpen(value:boolean){
+    if(value&&stashOpened)setStashOpen(false);if(value&&opened)setOpen(false);
+    smithOpened=value;smith.hidden=!value;syncTradeLayout();hideTooltip();
+    if(value){openInventory();renderSmith();}
+  }
+  smithClose.onclick=()=>setSmithOpen(false);
+  function renderSmith(){
+    const p=game.player,key=JSON.stringify([p.gold,p.consumableInventory,p.smithActive,p.dead,game.connected]);if(key===smithKey)return;smithKey=key;
+    smithStocks.replaceChildren();
+    for(const info of Object.values(SMITH_MATERIALS)){
+      const count=consumableQuantity(p,info.id),card=node('article','smith-stock');
+      card.dataset.consumableDefinition=info.id;
+      const icon=node('span','consumable-art');icon.innerHTML=consumableArtwork(info);
+      const details=node('div');details.append(node('strong','',info.name),node('small','',`${count} шт.`));
+      card.append(icon,details);smithStocks.append(card);
+    }
+    smithGold.textContent=`${p.gold} золота`;
+  }
   function setStashOpen(value:boolean,notify=true){
     const changed=stashOpened!==value;stashOpened=value;stash.hidden=!value;document.body.classList.toggle('stash-open',value);hideTooltip();
     if(!value&&changed&&notify&&game.connected)game.send({type:'stashClose'});
-    if(value){if(opened)setOpen(false);openInventory();renderStash();}
+    if(value){if(opened)setOpen(false);if(smithOpened)setSmithOpen(false);openInventory();renderStash();}
   }
   stashClose.onclick=()=>setStashOpen(false);
   function transfer(item:Item,withdraw:boolean){
@@ -90,7 +137,7 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
     stashCount.textContent=`${p.stash.length} / ${p.stashCapacity} ячеек · вещи сохранены у этого героя`;stashGrid.replaceChildren();
     for(let i=0;i<p.stashCapacity;i++){
       const item=p.items.find(item=>item.id===p.stash[i]),button=node('button',`bag-cell ${item?'rarity-'+item.rarity:'empty'}`);button.type='button';
-      if(item){button.dataset.itemId=item.id;button.innerHTML=itemArtwork(item,item.classId||p.classId);button.setAttribute('aria-label',`${itemDisplayName(item.name)} · ${itemClassName(itemShownClass(item))}`);paintItemClass(button,item,p.classId);}else button.setAttribute('aria-label','Пустая ячейка сундука');
+      if(item){button.dataset.itemId=item.id;button.innerHTML=itemArtwork(item,item.classId||p.classId);button.setAttribute('aria-label',`${itemTitle(item)} · ${itemClassName(itemShownClass(item))}`);paintItemClass(button,item,p.classId);paintItemEnhance(button,item);}else button.setAttribute('aria-label','Пустая ячейка сундука');
       stashGrid.append(button);
     }
     if(p.stashCapacity<MAX_STASH_CAPACITY){
@@ -113,11 +160,11 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
   function showTooltip(element:HTMLElement){
     if(element.dataset.consumableDefinition){showConsumableTooltip(element);return;}
     const item=itemFor(element);if(!item||dragging)return;
-    const key=JSON.stringify([item,game.player.equipment,opened,stashOpened,game.player.stash,game.player.items.find(other=>other.id===game.player.equipment[item.slot])]);
+    const key=JSON.stringify([item,game.player.equipment,opened,stashOpened,smithOpened,game.player.stash,game.player.items.find(other=>other.id===game.player.equipment[item.slot])]);
     if(hover===element&&hoverSignature===key&&!tooltip.hidden)return;
     hideTooltip();hover=element;hoverSignature=key;element.setAttribute('aria-describedby',tooltip.id);tooltip.replaceChildren();
     const head=node('div','tooltip-heading'),art=node('div','tooltip-art');art.innerHTML=itemArtwork(item,item.classId||game.player.classId);
-    const text=node('div');text.append(node('p',`eyebrow rarity-text-${item.rarity}`,`${RARITY_LABELS[item.rarity]||RARITY_LABELS[0]} · ${EQUIPMENT_SLOTS[item.slot].name}`),node('h3','',itemDisplayName(item.name)));head.append(art,text);
+    const text=node('div');text.append(node('p',`eyebrow rarity-text-${item.rarity}`,`${RARITY_LABELS[item.rarity]||RARITY_LABELS[0]} · ${EQUIPMENT_SLOTS[item.slot].name}${itemEnhance(item)?` · +${itemEnhance(item)}`:''}`),node('h3','',itemTitle(item)));head.append(art,text);
     const wrong=itemWrongClass(game.player,item);
     const requirement=node('p',`tooltip-requirements${wrong?' wrong-class':''}`,wrong?`${itemClassName(itemShownClass(item))} · нельзя надеть`:`${itemClassName(itemShownClass(item))} · уровень предмета ${item.itemLevel||1}`);
     tooltip.append(head,requirement);
@@ -140,22 +187,41 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
     const listing=shopItems().find(value=>value.definitionId===element.dataset.definitionId);
     const stored=game.player.stash.includes(item.id);
     const binding=item.bound?'Привязано к герою · ':'';
-    const status=stashOpened?`${stored?'В сундуке · ПКМ — забрать':worn?'Надето · сначала снимите предмет':'В рюкзаке · ПКМ — положить в сундук'}`:listing?`Цена: ${listing.price} золота · ПКМ — купить`:worn?`${binding}Надето · ПКМ — снять`:opened?`${binding}Продажа: ${sellPrice(item)} золота · ПКМ — продать`:`${binding}Продажа: ${sellPrice(item)} золота · ПКМ — надеть`;
+    const offer=enhanceOffer(item);
+    const smithStatus=smithOpened?(itemEnhance(item)>=MAX_ENHANCE?'Заточка +9 · дальше нельзя':offer?`ПКМ — заточить до +${offer.next} · ${offer.material.name} · ${Math.round(offer.chance*100)}% · ${offer.gold} зол.`:'Нельзя заточить'):'';
+    const status=stashOpened?`${stored?'В сундуке · ПКМ — забрать':worn?'Надето · сначала снимите предмет':'В рюкзаке · ПКМ — положить в сундук'}`:listing?`Цена: ${listing.price} золота · ПКМ — купить`:smithOpened?`${binding}${worn?'Надето · ':''}${smithStatus}`:worn?`${binding}Надето · ПКМ — снять`:opened?`${binding}Продажа: ${sellPrice(item)} золота · ПКМ — продать`:`${binding}Продажа: ${sellPrice(item)} золота · ПКМ — надеть`;
     tooltip.append(node('p','tooltip-footer',status));tooltip.hidden=false;
     const position=tooltipPosition(element.getBoundingClientRect(),tooltip.offsetWidth,tooltip.offsetHeight,innerWidth,innerHeight);
     tooltip.style.left=`${position.x}px`;tooltip.style.top=`${position.y}px`;
   }
   function showConsumableTooltip(element:HTMLElement){
     const definition=consumableDefinition(element.dataset.consumableDefinition),stack=game.player.consumableInventory.find(value=>value.id===element.dataset.consumableId);
-    if(!definition||!stack||dragging)return;
-    const key=JSON.stringify([definition.id,stack.quantity]);if(hover===element&&hoverSignature===key&&!tooltip.hidden)return;
+    if(!definition||dragging)return;
+    if(!stack&&definition.kind!=='material')return;
+    const quantity=stack?.quantity??consumableQuantity(game.player,definition.id);
+    const key=JSON.stringify([definition.id,quantity,opened,smithOpened]);if(hover===element&&hoverSignature===key&&!tooltip.hidden)return;
     hideTooltip();hover=element;element.setAttribute('aria-describedby',tooltip.id);tooltip.replaceChildren();
     hoverSignature=key;
     const heading=node('div','tooltip-heading'),art=node('div','tooltip-art');art.innerHTML=consumableArtwork(definition);
-    const text=node('div');text.append(node('p','eyebrow',definition.kind==='hp'?'ЗДОРОВЬЕ':'МАНА'),node('h3','',definition.name));heading.append(art,text);
-    const footer=opened?`Продажа: ${consumableSellPrice(definition,stack.quantity)} золота · ПКМ — продать всю стопку`:'Перетащите бутылку на Q или W, чтобы назначить. Зелье останется в рюкзаке.';
-    tooltip.append(heading,node('p','tooltip-requirements',`Восстанавливает ${definition.restore} ${definition.kind==='hp'?'HP':'MP'} · в стопке ${stack.quantity} / ${definition.stackLimit}`),node('p','tooltip-footer',footer));tooltip.hidden=false;
+    const kindLabel=definition.kind==='material'?'ЗАТОЧКА':definition.kind==='hp'?'ЗДОРОВЬЕ':'МАНА';
+    const text=node('div');text.append(node('p','eyebrow',kindLabel),node('h3','',definition.name));heading.append(art,text);
+    const requirement=definition.kind==='material'
+      ?`${definition.id===INGOT_ID?'Для +7…+9':'Для +1…+6'} · в запасе ${quantity} / ${definition.stackLimit}`
+      :`Восстанавливает ${definition.restore} ${definition.kind==='hp'?'HP':'MP'} · в стопке ${quantity} / ${definition.stackLimit}`;
+    const footer=definition.kind==='material'
+      ?(opened?`Продажа: ${consumableSellPrice(definition,quantity||1)} золота · ПКМ — продать всю стопку`:'Камень заточки. Не назначается на Q/W. Фармится с мобов, не со стадиона.')
+      :(opened?`Продажа: ${consumableSellPrice(definition,quantity)} золота · ПКМ — продать всю стопку`:'Перетащите бутылку на Q или W, чтобы назначить. Зелье останется в рюкзаке.');
+    tooltip.append(heading,node('p','tooltip-requirements',requirement),node('p','tooltip-footer',footer));tooltip.hidden=false;
     const position=tooltipPosition(element.getBoundingClientRect(),tooltip.offsetWidth,tooltip.offsetHeight,innerWidth,innerHeight);tooltip.style.left=`${position.x}px`;tooltip.style.top=`${position.y}px`;
+  }
+  function enhanceItem(item:Item){
+    if(!canSmith()){toast('Затачивать вещи можно у кузнеца');return;}
+    if(game.player.stash.includes(item.id)){toast('Сначала заберите вещь из сундука');return;}
+    const offer=enhanceOffer(item);
+    if(!offer){toast('Вещь уже заточена на +9');return;}
+    if(consumableQuantity(game.player,offer.materialId)<1){toast(`Нужен ${offer.material.name}`);return;}
+    if(game.player.gold<offer.gold){toast('Не хватает золота');return;}
+    send({type:'enhance',id:item.id});
   }
   function itemAction(item:Item,mode:'equip'|'unequip'|'sell'){
     if(mode==='sell'){
@@ -202,8 +268,8 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
       button.onclick=()=>showTooltip(button);button.ondblclick=()=>buy(listing.definitionId);wares.append(button);
     }
   }
-  function cell(event:Event){return event.target instanceof Element?event.target.closest<HTMLElement>('.bag-cell:not(.bag-expand),.equipment-slot,.vendor-item'):null;}
-  for(const container of [inventory,vendor,stash]){
+  function cell(event:Event){return event.target instanceof Element?event.target.closest<HTMLElement>('.bag-cell:not(.bag-expand),.equipment-slot,.vendor-item,.smith-stock'):null;}
+  for(const container of [inventory,vendor,stash,smith]){
     container.addEventListener('pointerover',event=>{const target=cell(event);if(target)showTooltip(target);});
     container.addEventListener('pointerout',event=>{const target=cell(event);if(target&&(!(event.relatedTarget instanceof Node)||!target.contains(event.relatedTarget)))hideTooltip();});
     container.addEventListener('focusin',event=>{const target=cell(event);if(target)showTooltip(target);});
@@ -212,7 +278,7 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
       event.preventDefault();const target=cell(event);if(!target)return;event.stopPropagation();
       if(target.dataset.definitionId){buy(target.dataset.definitionId);return;}
       if(target.dataset.consumableId){if(opened)sellConsumable(target.dataset.consumableId);return;}
-      const item=itemFor(target);if(item&&stashOpened){transfer(item,game.player.stash.includes(item.id));return;}if(item)itemAction(item,opened?'sell':Object.values(game.player.equipment).includes(item.id)?'unequip':'equip');
+      const item=itemFor(target);if(item&&stashOpened){transfer(item,game.player.stash.includes(item.id));return;}if(item&&smithOpened){enhanceItem(item);return;}if(item)itemAction(item,opened?'sell':Object.values(game.player.equipment).includes(item.id)?'unequip':'equip');
     });
     container.addEventListener('dragstart',event=>event.preventDefault());
   }
@@ -220,7 +286,11 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
   function dropItem(payload:Transfer,target:Element|null){
     if(!target)return;
     const quick=target.closest<HTMLElement>('[data-quick-slot]');
-    if(payload.consumableDefinition&&quick){const slot=quick.dataset.quickSlot;if(slot==='q'||slot==='w')game.send({type:'assignConsumable',slot,definitionId:payload.consumableDefinition});return;}
+    if(payload.consumableDefinition&&quick){
+      const definition=consumableDefinition(payload.consumableDefinition);
+      if(definition?.kind==='material'){toast('Камни заточки не назначаются на Q и W');return;}
+      const slot=quick.dataset.quickSlot;if(slot==='q'||slot==='w')game.send({type:'assignConsumable',slot,definitionId:payload.consumableDefinition});return;
+    }
     const inBag=bag.contains(target),slot=target.closest<HTMLElement>('.equipment-slot');
     if(payload.definitionId){if(inBag)buy(payload.definitionId);return;}
     const cell=target.closest<HTMLElement>('.bag-cell:not(.bag-expand)');
@@ -236,6 +306,7 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
     if(stashOpened&&stash.contains(target)){if(!game.player.stash.includes(item.id))transfer(item,false);return;}
     if(stashOpened&&inBag&&game.player.stash.includes(item.id)){transfer(item,true);return;}
     if(game.player.stash.includes(item.id))return;
+    if(smith.contains(target)){enhanceItem(item);return;}
     if(vendor.contains(target)){itemAction(item,'sell');return;}
     const worn=Object.values(game.player.equipment).includes(item.id);
     if(inBag){if(worn)itemAction(item,'unequip');return;}
@@ -248,7 +319,7 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
     const old=drag;drag=null;dragging=false;old?.ghost?.remove();document.body.classList.remove('item-dragging');
     if(old?.source.hasPointerCapture(old.pointerId))old.source.releasePointerCapture(old.pointerId);
   }
-  for(const container of [inventory,vendor,stash])container.addEventListener('pointerdown',event=>{
+  for(const container of [inventory,vendor,stash,smith])container.addEventListener('pointerdown',event=>{
     if(event.button!==0||event.isPrimary===false)return;
     const source=cell(event),item=source&&itemFor(source),consumable=source?.dataset.consumableDefinition;if(!source||(!item&&!consumable))return;
     endDrag();suppressClickUntil=0;
@@ -269,15 +340,17 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
     const payload=drag.payload,complete=dragging,target=document.elementFromPoint(event.clientX,event.clientY);
     endDrag();if(complete){event.preventDefault();suppressClickUntil=performance.now()+300;dropItem(payload,target);}
   });
-  for(const container of [inventory,vendor,stash,...[document.getElementById('potion')!,document.getElementById('mana-potion')!]])container.addEventListener('click',event=>{if(performance.now()<suppressClickUntil){event.preventDefault();event.stopImmediatePropagation();suppressClickUntil=0;}},true);
+  for(const container of [inventory,vendor,stash,smith,...[document.getElementById('potion')!,document.getElementById('mana-potion')!]])container.addEventListener('click',event=>{if(performance.now()<suppressClickUntil){event.preventDefault();event.stopImmediatePropagation();suppressClickUntil=0;}},true);
   addEventListener('pointercancel',endDrag);addEventListener('blur',endDrag);
-  addEventListener('keydown',event=>{if(event.code==='Escape'){setOpen(false);setStashOpen(false);hideTooltip();}});
+  addEventListener('keydown',event=>{if(event.code==='Escape'){setOpen(false);setStashOpen(false);setSmithOpen(false);hideTooltip();}});
   addEventListener('resize',hideTooltip);addEventListener('blur',hideTooltip);
   function update(){
-    if(opened&&(!game.connected||!game.player.shopActive||game.player.dead||distance(game.player,SHOP)>SHOP.range||inventory.hidden)){opened=false;vendor.hidden=true;document.body.classList.remove('vendor-open');hideTooltip();}
+    if(opened&&(!game.connected||!game.player.shopActive||game.player.dead||distance(game.player,SHOP)>SHOP.range||inventory.hidden)){opened=false;vendor.hidden=true;syncTradeLayout();hideTooltip();}
+    if(smithOpened&&(!game.connected||!game.player.smithActive||game.player.dead||distance(game.player,SMITH)>SMITH.range||inventory.hidden)){smithOpened=false;smith.hidden=true;syncTradeLayout();hideTooltip();}
     if(stashOpened&&(!game.connected||!game.player.stashActive||game.player.dead||distance(game.player,PERSONAL_CHEST)>PERSONAL_CHEST.range||inventory.hidden))setStashOpen(false,false);
     if(stashOpened)renderStash();
-    if(inventory.hidden&&vendor.hidden&&stash.hidden){hideTooltip();endDrag();}
+    if(smithOpened)renderSmith();
+    if(inventory.hidden&&vendor.hidden&&stash.hidden&&smith.hidden){hideTooltip();endDrag();}
     if(pendingUntil&&(signature()!==pendingSignature||performance.now()>pendingUntil)){pendingUntil=0;pendingSignature='';}
     gold.textContent=`${game.player.gold} золота`;
     for(const element of inventory.querySelectorAll<HTMLElement>('.bag-cell:not(.bag-expand),.equipment-slot')){element.draggable=false;element.removeAttribute('title');}
@@ -287,9 +360,20 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
       const definitionCount=consumableQuantity(game.player,definition.id),kindCount=consumableKindQuantity(game.player,definition.kind),needsCell=!definitionCount&&backpackUsage(game.player)>=game.player.bagCapacity;
       button.disabled=!canTrade()||game.player.gold<definition.price*quantity||definitionCount+quantity>definition.stackLimit||kindCount+quantity>CONSUMABLE_LIMIT||needsCell;
     }
-    const hint=document.getElementById('inventory-hint')!;hint.textContent=stashOpened?'Сундук открыт · ПКМ или перетаскивание — переложить вещь':opened?'Магазин открыт · ПКМ по вещи или зелью — продать · перетащите зелье на Q/W':'Перетащите вещь в другую ячейку или слот · зелье — на Q/W';
-    if(hover&&!tooltip.hidden){if(hover.dataset.consumableDefinition){if(!game.player.consumableInventory.some(stack=>stack.id===hover!.dataset.consumableId))hideTooltip();else showConsumableTooltip(hover);}else if(!itemFor(hover))hideTooltip();else showTooltip(hover);}
+    const hint=document.getElementById('inventory-hint')!;hint.textContent=stashOpened?'Сундук открыт · ПКМ или перетаскивание — переложить вещь':smithOpened?'Кузнец открыт · ПКМ по вещи — заточить':opened?'Магазин открыт · ПКМ по вещи или зелью — продать · перетащите зелье на Q/W':'Перетащите вещь в другую ячейку или слот · зелье — на Q/W';
+    if(hover&&!tooltip.hidden){
+      if(hover.dataset.consumableDefinition){
+        const stackId=hover.dataset.consumableId;
+        if(stackId&&!game.player.consumableInventory.some(stack=>stack.id===stackId))hideTooltip();
+        else showConsumableTooltip(hover);
+      }else if(!itemFor(hover))hideTooltip();else showTooltip(hover);
+    }
   }
-  function onEvent(event:WorldEvent){if(event.type==='shopOpen'&&event.npcId===SHOP.id)setOpen(true);if(event.type==='stashOpened'&&event.npcId===PERSONAL_CHEST.id)setStashOpen(true);if(event.type==='death'||event.type==='camp'){setOpen(false);setStashOpen(false,false);}}
-  return {update,onEvent,isOpen:()=>opened||stashOpened,canTrade,hideTooltip,sell:(item:Item)=>itemAction(item,'sell')};
+  function onEvent(event:WorldEvent){
+    if(event.type==='shopOpen'&&event.npcId===SHOP.id)setOpen(true);
+    if(event.type==='smithOpen'&&event.npcId===SMITH.id)setSmithOpen(true);
+    if(event.type==='stashOpened'&&event.npcId===PERSONAL_CHEST.id)setStashOpen(true);
+    if(event.type==='death'||event.type==='camp'){setOpen(false);setStashOpen(false,false);setSmithOpen(false);}
+  }
+  return {update,onEvent,isOpen:()=>opened||stashOpened||smithOpened,canTrade,hideTooltip,sell:(item:Item)=>itemAction(item,'sell')};
 }

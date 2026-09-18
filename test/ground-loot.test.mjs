@@ -68,8 +68,8 @@ test('full backpack leaves item on ground while gold remains collectible; expiry
   const {w,p,m}=fixture(()=>0);kill(w,p,m);
   while(backpackItems(p).length<BAG_CAPACITY)p.items.push(makeLoot('warrior',1,0,'ring'));
   const drops=w.snapshot(p.id).groundLoot,item=drops.find(d=>d.kind==='item'),gold=drops.find(d=>d.kind==='gold');
-  w.command(p,{type:'pickup',id:item.id});assert.equal(backpackItems(p).length,BAG_CAPACITY);assert.equal(w.snapshot(p.id).groundLoot.length,2);
-  w.command(p,{type:'pickup',id:gold.id});assert.equal(p.gold,8);assert.equal(w.snapshot(p.id).groundLoot.length,1);
+  w.command(p,{type:'pickup',id:item.id});assert.equal(backpackItems(p).length,BAG_CAPACITY);assert.equal(w.snapshot(p.id).groundLoot.length,3);
+  w.command(p,{type:'pickup',id:gold.id});assert.equal(p.gold,8);assert.equal(w.snapshot(p.id).groundLoot.length,2);
   for(let i=0;i<MAX_GROUND_DROPS_PER_HERO+2;i++)w.addGroundDrop(p.id,{id:String(i),kind:'gold',x:8,z:1.8,amount:1,expiresAt:w.t+LOOT_TTL_MS});
   assert.equal(w.snapshot(p.id).groundLoot.length,MAX_GROUND_DROPS_PER_HERO);
   tick(w,1);assert(w.snapshot(p.id).groundLoot.length);w.tick(.05,w.t+LOOT_TTL_MS+1);assert.deepEqual(w.snapshot(p.id).groundLoot,[]);

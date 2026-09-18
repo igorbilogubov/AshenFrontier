@@ -1,6 +1,7 @@
 import {xpNeeded} from './game/progression-curve.js';
 import {activeSetBonuses} from './game/equipment-sets.js';
 import {itemDefinition,ITEM_STAT_LABELS,rollValue} from './game/equipment-items.js';
+import {enhancePowerBonus,enhanceRollBonus} from './game/smith.js';
 import type {Attributes, ClassId, EquipmentSlot, Item, StatSource, CharacterStats, ConsumableStack} from '../shared/types.js';
 // Shared item/class definitions. No renderer-specific units or sprites.
 export const EQUIPMENT_SLOTS: Record<EquipmentSlot, {name: string; stat: 'attack' | 'armor' | 'speed' | 'maxHp'; statName: string; symbol: string}>={
@@ -131,8 +132,8 @@ export function characterStats(p: StatSource): CharacterStats{
   for(const [slot,definition] of Object.entries(EQUIPMENT_SLOTS) as [EquipmentSlot, (typeof EQUIPMENT_SLOTS)[EquipmentSlot]][]){
     const item=p.items?.find(i=>i.id===p.equipment?.[slot]&&i.slot===slot&&canEquip(p,i));
     if(!item)continue;
-    if(item.definitionId&&item.rolls){for(const roll of item.rolls){const value=positive(roll.value);if(roll.key==='haste')s.attackSpeed+=value/100;else if(roll.key==='accuracy')s.hitChance+=value/100;else s[roll.key]+=value;}continue;}
-    const power=positive(item.power);
+    if(item.definitionId&&item.rolls){for(const [index,roll] of item.rolls.entries()){const value=positive(roll.value)+enhanceRollBonus(item,roll,index);if(roll.key==='haste')s.attackSpeed+=value/100;else if(roll.key==='accuracy')s.hitChance+=value/100;else s[roll.key]+=value;}continue;}
+    const power=positive(item.power)+enhancePowerBonus(item);
     if(slot==='boots')s.speedScale=1+Math.min(.18,power*.005);else if(definition.stat!=='speed')s[definition.stat]+=power;
   }
   for(const bonus of activeSetBonuses(p)){if(bonus.key==='haste')s.attackSpeed+=bonus.value/100;else if(bonus.key==='accuracy')s.hitChance+=bonus.value/100;else s[bonus.key]+=bonus.value;}

@@ -14,7 +14,7 @@ const fill=p=>{while(backpackUsage(p)<16)p.items.push(makeLoot(p.classId,1,0,'ri
 
 test('catalog exposes four server-authoritative potion sizes for each resource',()=>{
   assert.equal(CONSUMABLE_STACK_LIMIT,999);assert.equal(CONSUMABLE_LIMIT,3996);
-  assert.deepEqual(Object.values(CONSUMABLE_CATALOG).map(({id,kind,restore,price,cooldown,stackLimit})=>({id,kind,restore,price,cooldown,stackLimit})),[
+  assert.deepEqual(Object.values(CONSUMABLE_CATALOG).filter(value=>value.kind!=='material').map(({id,kind,restore,price,cooldown,stackLimit})=>({id,kind,restore,price,cooldown,stackLimit})),[
     {id:'hp-basic',kind:'hp',restore:45,price:6,cooldown:4,stackLimit:999},
     {id:'hp-medium',kind:'hp',restore:180,price:24,cooldown:4,stackLimit:999},
     {id:'hp-large',kind:'hp',restore:600,price:80,cooldown:4,stackLimit:999},
@@ -24,7 +24,9 @@ test('catalog exposes four server-authoritative potion sizes for each resource',
     {id:'mana-large',kind:'mana',restore:500,price:100,cooldown:4,stackLimit:999},
     {id:'mana-greater',kind:'mana',restore:1500,price:300,cooldown:4,stackLimit:999}
   ]);
-  assert.deepEqual(shopConsumables(),Object.values(CONSUMABLE_CATALOG));
+  assert.deepEqual(shopConsumables(),Object.values(CONSUMABLE_CATALOG).filter(value=>value.kind==='hp'||value.kind==='mana'));
+  assert.equal(CONSUMABLE_CATALOG.whetstone.kind,'material');
+  assert.equal(CONSUMABLE_CATALOG['tempered-ingot'].kind,'material');
 });
 
 test('vendor buys one or fifty bottles atomically by definition and keeps legacy basic purchases',()=>{
@@ -137,7 +139,7 @@ test('schema 3 to 4 migration preserves exact old heroes and full bags, then ove
       before=(await client.query('SELECT * FROM heroes WHERE id=$1',[p.id])).rows[0];
     }finally{await client.end();}
     store=await openHeroStore({connectionString:db.url});accountId=await ownMigratedFixture(store,db.url,p.id);const result=await store.load(p.id,accountId),hero=result.hero;
-    assert.equal(await store.schemaVersion(),9);assert.equal(await store.health(),true);assert.equal(result.revision,1);
+    assert.equal(await store.schemaVersion(),10);assert.equal(await store.health(),true);assert.equal(result.revision,1);
     assert.equal(hero.potions,50);assert.equal(hero.manaPotions,17);assert.equal(hero.consumableOverflow,2);assert.equal(backpackUsage(hero),18);
     assert.deepEqual(hero.items,saved.items);assert.deepEqual(hero.equipment,saved.equipment);assert.deepEqual(hero.allocatedStats,saved.allocatedStats);assert.equal(hero.mana,7);assert.equal(hero.hp,31);assert.equal(hero.gold,321);
     const verify=new pg.Client({connectionString:db.url});await verify.connect();try{const after=(await verify.query('SELECT * FROM heroes WHERE id=$1',[p.id])).rows[0];for(const key of Object.keys(before).filter(key=>key!=='token_hash'))assert.deepEqual(after[key],before[key],key);}finally{await verify.end();}

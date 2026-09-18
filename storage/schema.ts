@@ -1,6 +1,6 @@
 import type {PoolClient} from 'pg';
 
-export const DATABASE_SCHEMA_VERSION=9;
+export const DATABASE_SCHEMA_VERSION=10;
 
 // The migration is embedded so both source execution and dist execution use the
 // exact same schema, including in the production Docker image.
@@ -279,6 +279,10 @@ export async function migrate(client:PoolClient):Promise<void>{
         (kind='equipped' AND position IS NULL AND equipped_slot IN ('weapon','armor','helmet','boots','ring','amulet'))
       );
     `);await client.query('INSERT INTO schema_migrations(version) VALUES (9)');}
+    const tenth=await client.query<{version:number}>('SELECT version FROM schema_migrations WHERE version=10');
+    if(!tenth.rowCount){await client.query(`
+      ALTER TABLE item_instances ADD COLUMN enhance integer NOT NULL DEFAULT 0 CHECK (enhance BETWEEN 0 AND 9);
+    `);await client.query('INSERT INTO schema_migrations(version) VALUES (10)');}
 
     await client.query('COMMIT');
   }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}

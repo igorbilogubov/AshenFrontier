@@ -1,6 +1,6 @@
 /* Resource vessels flank the action bar, in the same bronze and forest stone as the panels. */
-#performance{position:absolute;top:56px;left:0;min-width:62px;padding:2px 7px;border:1px solid #cdb88238;border-radius:3px;background:#112019e8;color:#c6d8b9;font:500 10px/1.5 system-ui,sans-serif;font-variant-numeric:tabular-nums;pointer-events:none}
-@media(max-width:680px){#performance{top:45px;padding:1px 6px;font-size:9px}}
+#performance{position:absolute;top:56px;left:0;min-width:62px;padding:3px 8px;border:1px solid #cdb88238;border-radius:3px;background:#112019e8;color:#c6d8b9;font:500 10px/1.45 system-ui,sans-serif;font-variant-numeric:tabular-nums;white-space:pre;pointer-events:auto}
+@media(max-width:680px){#performance{top:45px;padding:2px 6px;font-size:9px}}
 .combat-hud{
   --orb-size:124px;
   width:min(1180px,100%);

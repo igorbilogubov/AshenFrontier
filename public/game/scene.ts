@@ -40,6 +40,7 @@ import {createPersistentSkillEffects} from './persistent-skill-effects.js';
 import {createSkillProjectile,updateSkillProjectile,disposeSkillProjectile} from './skill-projectiles.js';
 import {classFor} from '../rules.js';
 import {Benchmark,stressEnabled} from './benchmark.js';
+import {HUD_PERF_HINT,hudPerformance,jsHeapBytes} from './performance-metrics.js';
 import {bindTravelPanel,createTravelPortals} from './travel-ui.js';
 import {MouseWalk} from './mouse-walk.js';
 import {createSoundBus} from './sounds.js';
@@ -59,7 +60,7 @@ let renderer:T.WebGLRenderer,scene:T.Scene,camera:T.OrthographicCamera,sun:T.Dir
 let afkSettings:ReturnType<typeof bindAfkSettings>|undefined,skillbook:ReturnType<typeof bindSkillbook>|undefined;
 let selectedEntity:{kind:'vendor'|'smith'|'player';id:string}|null=null,updateTarget:ReturnType<typeof bindTargetPresentation>|undefined;
 let width=innerWidth,height=innerHeight,selected:number|null=null,pendingWeapon:WeaponId|null=null;
-let noticeTimer:ReturnType<typeof setTimeout>|undefined=undefined,lastSafeToast=0,uiTimer=0,frames:number[]=[],frameCounter=0,paused=false;
+let noticeTimer:ReturnType<typeof setTimeout>|undefined=undefined,lastSafeToast=0,uiTimer=0,frames:number[]=[],cpuFrames:number[]=[],frameCounter=0,paused=false;
 let snow:ReturnType<typeof createSnowEnvironment>,wasteland:ReturnType<typeof createWastelandEnvironment>,forestRegion:T.Scene,stadiumRegion:T.Scene;
 let lateWorld:ReturnType<typeof createLateWorldEnvironment>,dungeonWorld:ReturnType<typeof createDungeonEnvironment>,bossEffects:ReturnType<typeof createBossEffects>;
 let mobAssets:MobAssets,stadium:ReturnType<typeof createStadiumEnvironment>;
@@ -397,12 +398,21 @@ function render(dt:number){
   if(benchmark?.variant==='no-render'){renderer.info.reset();renderer.clear();}else renderer.render(scene,camera);benchmark?.end();
 }
 function loop(timestamp:number){
-  if(!ready)return;const elapsed=last?(timestamp-last)/1000:1/60;last=timestamp;if(paused)return;
+  if(!ready)return;const started=performance.now(),elapsed=last?(timestamp-last)/1000:1/60;last=timestamp;if(paused)return;
   benchmark?.begin(timestamp);
   if(benchmark?.variant==='scheduler'){renderer.info.reset();benchmark.end();return;}
   const dt=Math.min(elapsed,.15);accumulator+=dt;
   while(accumulator>=1/60){tick(1/60);accumulator-=1/60;}
-  benchmark?.mark('simulation');render(dt);frames.push(elapsed);if(frames.length>90)frames.shift();if(++frameCounter%30===0)$('performance').textContent=`${Math.round(frames.length/frames.reduce((a,b)=>a+b,0))} FPS`;
+  benchmark?.mark('simulation');render(dt);
+  frames.push(elapsed);cpuFrames.push(performance.now()-started);
+  if(frames.length>90)frames.shift();if(cpuFrames.length>90)cpuFrames.shift();
+  if(++frameCounter%30===0){
+    const host=$('performance');
+    const fps=frames.length/frames.reduce((a,b)=>a+b,0);
+    const cpuMs=cpuFrames.reduce((a,b)=>a+b,0)/cpuFrames.length;
+    host.textContent=hudPerformance({fps,cpuMs,heapBytes:jsHeapBytes(),drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles});
+    host.title=HUD_PERF_HINT;
+  }
 }
 async function start(){
   try{

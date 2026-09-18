@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {distribution,frameSummary} from '../dist/public/game/performance-metrics.js';
+import {distribution,frameSummary,hudPerformance} from '../dist/public/game/performance-metrics.js';
 
 test('frame statistics retain long stalls and use duration-weighted FPS',()=>{
   const result=frameSummary([16,16,700]);
@@ -15,6 +15,10 @@ test('empty measurements are unavailable instead of zero-cost claims; percentile
 test('performance distributions filter invalid timings and use nearest-rank percentiles',()=>{
   const values=Array.from({length:100},(_,i)=>i+1);values.push(NaN,Infinity,-1);
   const result=distribution(values);assert.equal(result.count,100);assert.equal(result.p95,95);assert.equal(result.p99,99);
+});
+test('HUD readout shows FPS, heap, frame-budget CPU and GPU counts without claiming disk load',()=>{
+  assert.equal(hudPerformance({fps:59.6,cpuMs:8.3,heapBytes:48*1048576,drawCalls:18,triangles:140400}),'60 FPS · 48 МБ\nЦП 50% · GPU 18 / 140к');
+  assert.equal(hudPerformance({fps:30,cpuMs:33.3,drawCalls:9,triangles:800}),'30 FPS\nЦП 200% · GPU 9 / 800');
 });
 
 

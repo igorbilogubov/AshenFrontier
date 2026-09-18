@@ -20,7 +20,7 @@ export async function createWorldInteractions(scene:T.Scene,game:NetworkGame,cho
   const idle:WarriorPose={classId:'mage',weapon:'sword',dead:0,attack:null,hurt:0,gait:0,moveBlend:0,runBlend:0,appearance:{weapon:null,armor:'acolyte-armor',helmet:null,boots:'acolyte-boots'}};
   const vendorMeshes:T.Object3D[]=[];vendor.root.traverse(object=>{if(object instanceof T.Mesh)vendorMeshes.push(object);});
   const vendorLabel=document.createElement('button');vendorLabel.type='button';vendorLabel.className='vendor-world-label';vendorLabel.innerHTML='<span>Торговец</span><small>Снаряжение · ЛКМ</small>';vendorLabel.onclick=()=>choose('vendor',SHOP.id);layer.append(vendorLabel);
-  const smith=await loadWarrior('warrior');smith.root.position.set(SMITH.x,0,SMITH.z);smith.root.rotation.y=-.5;scene.add(smith.root);
+  const smith=await loadWarrior('warrior');smith.root.position.set(SMITH.x,0,SMITH.z);smith.root.rotation.y=-2.2;scene.add(smith.root);
   const smithIdle:WarriorPose={classId:'warrior',weapon:'sword',dead:0,attack:null,hurt:0,gait:0,moveBlend:0,runBlend:0,appearance:{weapon:'paladin-weapon',armor:'paladin-armor',helmet:null,boots:'paladin-boots'}};
   const smithMeshes:T.Object3D[]=[];smith.root.traverse(object=>{if(object instanceof T.Mesh)smithMeshes.push(object);});
   const smithLabel=document.createElement('button');smithLabel.type='button';smithLabel.className='vendor-world-label';smithLabel.innerHTML='<span>Кузнец</span><small>Заточка · ЛКМ</small>';smithLabel.onclick=()=>choose('smith',SMITH.id);layer.append(smithLabel);

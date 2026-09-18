@@ -5,6 +5,7 @@ import {randomUUID} from 'node:crypto';
 import {World,newHero,makeLoot,persistentHero,safeHero,stats} from '../dist/world.js';
 import {stand,safe,clearPath,distance} from '../dist/public/game/location.js';
 import {CAMP_SPAWN} from '../dist/public/game/camp-layout.js';
+import {PORTALS} from '../dist/public/game/stadium.js';
 import {SHOP} from '../dist/public/game/shop.js';
 import {locationAt} from '../dist/public/game/world-layout.js';
 import {rollEquipment} from '../dist/public/game/equipment-items.js';
@@ -28,8 +29,18 @@ const stones=(p,whetstone=20,ingot=10)=>{
 const seq=(...values)=>{let i=0;return ()=>values[Math.min(i++,values.length-1)];};
 
 test('smith stands in the safe camp with a clear path from the fire',()=>{
+  const gate=PORTALS.find(portal=>portal.id==='camp-stadium');assert(gate);
   assert(stand(SMITH.x,SMITH.z));assert(safe(SMITH));assert(clearPath(CAMP_SPAWN,SMITH));
+  assert(clearPath(SMITH,SHOP));
   assert(distance(CAMP_SPAWN,SMITH)>SMITH.range);
+  assert(distance(SMITH,gate)>4);
+});
+
+test('camp stadium portal mesh is parented to the forest scene',async()=>{
+  const source=await readFile(new URL('../public/game/stadium-environment.ts',import.meta.url),'utf8');
+  assert.match(source,/inStadium\(portal\)\?scene:campScene/);
+  const scene=await readFile(new URL('../public/game/scene.ts',import.meta.url),'utf8');
+  assert.match(scene,/createStadiumEnvironment\(stadiumRegion,forestRegion\)/);
 });
 
 test('enhance chances, materials and gold follow the locked table',()=>{
@@ -124,7 +135,7 @@ test('shop and smith sessions are exclusive; materials cannot be bought or assig
   const {w,p}=fixture();p.gold=1000;stones(p,2,1);
   openSmith(w,p);assert(p.smithActive);assert.equal(p.shopActive,false);
   w.command(p,{type:'interact',npcId:SHOP.id});
-  for(let i=0;i<80&&!p.shopActive;i++)tick(w);
+  for(let i=0;i<200&&!p.shopActive;i++)tick(w);
   assert(p.shopActive);assert.equal(p.smithActive,false);
   const gold=p.gold,whetstones=consumableQuantity(p,WHETSTONE_ID);
   w.command(p,{type:'buyConsumable',definitionId:WHETSTONE_ID,quantity:1,requestId:'stone'});

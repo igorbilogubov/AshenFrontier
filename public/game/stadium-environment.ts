@@ -2,12 +2,12 @@ import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 import {box,cylinder,joint,mesh} from './models.js';
 import {surfaceMaterial} from './forms.js';
-import {STADIUM_BOUNDS,STADIUM_PENS,STADIUM_HUB,PORTALS,stadiumPenWalls} from './stadium.js';
+import {STADIUM_BOUNDS,STADIUM_PENS,STADIUM_HUB,PORTALS,stadiumPenWalls,inStadium} from './stadium.js';
 import type {Portal} from './stadium.js';
 
 /** Authored stone arena. Geometry is batched independently from the forest so
  * its bounds are culled when the camera is in the original location. */
-export function createStadiumEnvironment(scene:T.Scene){
+export function createStadiumEnvironment(scene:T.Scene,campScene:T.Scene=scene){
   const stone=['#777c75','#8b8c7e','#616c69'].map(color=>surfaceMaterial(color,{grain:.14,frequency:27}));
   const pale=surfaceMaterial('#aaa68f',{grain:.1,frequency:32});
   const bronze=new T.MeshStandardMaterial({color:'#b08d55',metalness:.48,roughness:.6});
@@ -88,7 +88,7 @@ export function createStadiumEnvironment(scene:T.Scene){
   const title=makeLabel('СТАДИУМ','28 загонов · без золота и вещей',11.2,1.35);title.position.set(arenaCenter,3.9,minZ+1);arena.add(title);
   const portalGroups:{portal:Readonly<Portal>;object:T.Group}[]=[],glows:T.Mesh<T.CircleGeometry,T.MeshBasicMaterial>[]=[];
   for(const portal of PORTALS){
-    const group=joint(scene,portal.x,0,portal.z);group.name=`portal-${portal.id}`;group.rotation.y=.55;
+    const group=joint(inStadium(portal)?scene:campScene,portal.x,0,portal.z);group.name=`portal-${portal.id}`;group.rotation.y=.55;
     group.userData.portalId=portal.id;
     const pad=cylinder(group,1.12,1.28,.13,stone[2],0,.045,0,40);pad.castShadow=false;
     for(let i=0;i<13;i++){

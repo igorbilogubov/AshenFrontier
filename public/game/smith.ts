@@ -2,7 +2,7 @@ import type {FieldRegionId,Item,ItemRoll,MobType} from '../../shared/types.js';
 import type {ConsumableDefinition} from './consumables.js';
 import {itemDisplayName} from './equipment-items.js';
 
-export const SMITH=Object.freeze({id:'camp-smith',name:'Кузнец',x:-6.4,z:3.2,range:2.4});
+export const SMITH=Object.freeze({id:'camp-smith',name:'Кузнец',x:4.2,z:5.5,range:2.4});
 export const MAX_ENHANCE=9;
 export const ENHANCE_PER_LEVEL=.1;
 export const WHETSTONE_ID='whetstone';

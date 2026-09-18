@@ -26,7 +26,10 @@ test('late sets have different geometry silhouettes and glow is per instance, cl
  const base=await load('ashen-warrior-equipment-v1.glb'),late=await load('ashen-warrior-late-equipment-v1.glb');const hero=createAnimatedWarrior(base,'warrior',[],late.scene);
  const counts=[];for(const region of regions){const part=hero.model.getObjectByName(REGIONAL_COLLECTIONS[region].warrior[0]+'-armor');assert.ok(part);let count=0;part.traverse(o=>{if(o instanceof T.Mesh)count+=o.geometry.attributes.position.count;});counts.push(count);}assert.equal(new Set(counts).size,4);
  const material=[];hero.model.traverse(o=>{if(o instanceof T.Mesh)for(const m of Array.isArray(o.material)?o.material:[o.material])if(m.name==='dreadsovereign_Glow')material.push(m);});assert.ok(material.length);
- assert.equal(hero.applyEnhancement(99),9);assert.ok(material[0].emissiveIntensity>1.5);assert.equal(hero.applyEnhancement(-1),0);assert.equal(material[0].emissiveIntensity,.08);assert.equal(hero.applyEnhancement(NaN),0);
+ assert.equal(hero.applyEnhancement(99),9);
+ const citadelRims=[];hero.model.traverse(o=>{if(o.name==='EnhanceRim_armor')citadelRims.push(o);});
+ assert.ok(citadelRims.length);assert.ok(citadelRims[0].material.uniforms.uIntensity.value>2);
+ assert.equal(hero.applyEnhancement(-1),0);assert.equal(citadelRims[0].material.uniforms.uIntensity.value,0);assert.equal(hero.applyEnhancement(NaN),0);
  hero.equipment('sword','warrior',appearance('warrior','citadel'));const worn=hero.model.getObjectByName('dreadsovereign-armor');assert.equal(worn.visible,true);hero.equipment('sword','warrior',{});assert.equal(worn.visible,false);
  let lights=0;hero.model.traverse(o=>{if(o instanceof T.Light)lights++;});assert.equal(lights,0);hero.disposeExtras();
 });

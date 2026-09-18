@@ -19,6 +19,28 @@ const WARRIOR_FOREST_MESHES:Record<string,readonly string[]>={
   'wanderer-boots':['Traveller_Boots'],'watch-boots':['Boots'],
   'copper-ring':['Copper_Ring'],'ember-amulet':['Ember_Amulet']
 };
+const RIM_VERTEX=`varying vec3 vViewDir;varying vec3 vNormalView;
+#include <common>
+#include <batching_pars_vertex>
+#include <skinning_pars_vertex>
+void main(){
+  #include <batching_vertex>
+  #include <skinbase_vertex>
+  #include <beginnormal_vertex>
+  #include <skinnormal_vertex>
+  #include <defaultnormal_vertex>
+  vNormalView=normalize(transformedNormal);
+  #include <begin_vertex>
+  #include <skinning_vertex>
+  #include <project_vertex>
+  vViewDir=normalize(-mvPosition.xyz);
+}`;
+const RIM_FRAGMENT=`uniform vec3 uColor;uniform float uIntensity;uniform float uPower;
+varying vec3 vViewDir;varying vec3 vNormalView;
+void main(){
+  float fresnel=pow(1.0-abs(dot(normalize(vNormalView),normalize(vViewDir))),uPower);
+  gl_FragColor=vec4(uColor*fresnel*uIntensity,fresnel);
+}`;
 type GlowInfo={region:GearRegion;classId:ClassId;slot:EquipmentSlot};
 function glowInfo(appearance:string):GlowInfo|undefined{
   const regional=regionalAppearance(appearance);
@@ -29,51 +51,25 @@ function glowInfo(appearance:string):GlowInfo|undefined{
   }
 }
 function isLate(region:GearRegion){return (LATE_COLLECTION_REGIONS as readonly string[]).includes(region);}
-function hasGlowMaterial(root:T.Object3D){
-  let found=false;
-  root.traverse(object=>{
-    if(!(object instanceof T.Mesh))return;
-    for(const material of Array.isArray(object.material)?object.material:[object.material])if(material.name.endsWith('_Glow'))found=true;
-  });
-  return found;
-}
-function hasMetalMaterial(root:T.Object3D){
-  let found=false;
-  root.traverse(object=>{
-    if(!(object instanceof T.Mesh))return;
-    for(const material of Array.isArray(object.material)?object.material:[object.material])if(material.name.endsWith('_Metal'))found=true;
-  });
-  return found;
-}
-function ownMaterials(root:T.Object3D){
-  root.traverse(object=>{
-    if(!(object instanceof T.Mesh))return;
-    const list=Array.isArray(object.material)?object.material:[object.material];
-    const next=list.map(material=>{
-      if(!(material instanceof T.MeshStandardMaterial)||material.userData.earlyGlowOwned)return material;
-      const owned=material.clone();owned.userData.earlyGlowOwned=true;return owned;
-    });
-    object.material=Array.isArray(object.material)?next:next[0];
-  });
-}
-function tagEarlyMaterials(root:T.Object3D){
-  ownMaterials(root);
-  root.traverse(object=>{
-    if(!(object instanceof T.Mesh))return;
-    for(const material of Array.isArray(object.material)?object.material:[object.material]){
-      if(!(material instanceof T.MeshStandardMaterial)||material.name.endsWith('_Glow')||material.name.endsWith('_Metal'))continue;
-      const gem=/Gem|Stone|Ember/i.test(material.name);
-      const jewelry=/ring|amulet/i.test(root.name);
-      if(gem||jewelry)material.name=material.name.replace(/(_Glow)?$/,'')+'_Glow';
-      else if(material.metalness>=.25)material.name=material.name.replace(/(_Metal)?$/,'')+'_Metal';
-    }
+function createRimMaterial(){
+  return new T.ShaderMaterial({
+    name:'EnhanceRim',
+    uniforms:{uColor:{value:new T.Color('#e6c56d')},uIntensity:{value:0},uPower:{value:2.35}},
+    vertexShader:RIM_VERTEX,
+    fragmentShader:RIM_FRAGMENT,
+    transparent:true,
+    blending:T.AdditiveBlending,
+    depthWrite:false,
+    toneMapped:false,
+    fog:false,
+    lights:false,
+    side:T.FrontSide
   });
 }
 export function enhancementGlow(level:number){
   const enhancement=T.MathUtils.clamp(Math.floor(Number.isFinite(level)?level:0),0,9);
-  const intensity=enhancement===0?.08:enhancement<=3?.2+enhancement*.16:enhancement<=6?.68+(enhancement-3)*.12:.98+(enhancement-6)*.18;
-  const metal=enhancement===0?0:enhancement<=3?.03*enhancement:Math.min(.12,.09+(enhancement-3)*.01);
-  return {enhancement,intensity,metal};
+  const intensity=enhancement===0?0:.55+enhancement*.28;
+  return {enhancement,intensity};
 }
 export type SlotEnhance=Partial<Record<EquipmentSlot,number>>;
 
@@ -91,52 +87,50 @@ export function attachLateEquipment(model:T.Object3D,source:T.Object3D){
   const roots:T.Bone[]=[];extra.traverse(o=>{if(o instanceof T.Bone&&!(o.parent instanceof T.Bone))roots.push(o);});for(const root of roots)root.removeFromParent();
   model.add(extra);return extra;
 }
-/** Per-instance visibility and emissive materials; never mutates cached GLB materials. */
+function sourceMeshes(root:T.Object3D,skip:Set<T.Object3D>){
+  const list:T.Mesh[]=[];
+  root.traverse(object=>{
+    if(!(object instanceof T.Mesh)||object.name.startsWith('EnhanceRim'))return;
+    if(object!==root&&skip.has(object))return;
+    list.push(object);
+  });
+  return list;
+}
+function attachRim(source:T.Mesh,material:T.ShaderMaterial,slot:EquipmentSlot){
+  const rim=source instanceof T.SkinnedMesh?new T.SkinnedMesh(source.geometry,material):new T.Mesh(source.geometry,material);
+  rim.name=`EnhanceRim_${slot}`;
+  rim.frustumCulled=false;rim.castShadow=false;rim.receiveShadow=false;rim.renderOrder=3;rim.visible=false;
+  if(rim instanceof T.SkinnedMesh&&source instanceof T.SkinnedMesh)rim.bind(source.skeleton,source.bindMatrix);
+  source.add(rim);
+  return rim;
+}
+/** Per-instance visibility and rim overlays; never mutates cloth/metal materials. */
 export function createLateEquipmentVisuals(model:T.Object3D,classId:ClassId){
   const parts=new Map<string,T.Object3D>();
   for(const region of LATE_COLLECTION_REGIONS){const prefix=REGIONAL_COLLECTIONS[region][classId][0];for(const slot of SLOTS){const name=`${prefix}-${slot}`,part=model.getObjectByName(name);if(part){parts.set(name,part);part.visible=false;}}}
   const earlyRoots:T.Object3D[]=[];
   if(classId==='warrior')for(const names of Object.values(WARRIOR_FOREST_MESHES))for(const name of names){const part=model.getObjectByName(name);if(part)earlyRoots.push(part);}
   else for(const item of CLASS_ITEMS[classId]){const part=model.getObjectByName(item.appearance);if(part)earlyRoots.push(part);}
-  for(const root of earlyRoots)tagEarlyMaterials(root);
-  for(const part of parts.values())ownMaterials(part);
-  const bones=new Map<string,T.Bone>();model.traverse(object=>{if(object instanceof T.Bone)bones.set(cleanBoneName(object.name),object);});
-  const inlays=new Map<EquipmentSlot,T.Mesh[]>();
-  function addInlay(slot:EquipmentSlot,boneName:string,local:readonly [number,number,number]){
-    const bone=bones.get('mixamorig'+boneName)??bones.get(boneName);if(!bone)return;
-    const material=new T.MeshStandardMaterial({name:'early_Glow',color:'#111111',emissive:'#ffffff',emissiveIntensity:.08,metalness:.3,roughness:.26});
-    const mesh=new T.Mesh(new T.OctahedronGeometry(3.1),material);mesh.name=`EarlyGlow_${slot}_${boneName}`;
-    mesh.position.set(local[0],local[1],local[2]);mesh.castShadow=false;mesh.receiveShadow=false;mesh.visible=false;bone.add(mesh);
-    const list=inlays.get(slot)??[];list.push(mesh);inlays.set(slot,list);
+  const skip=new Set<T.Object3D>([...earlyRoots,...parts.values()]);
+  const rimMaterials=new Map<EquipmentSlot,T.ShaderMaterial>();
+  const rims:T.Mesh[]=[];
+  function rimMaterial(slot:EquipmentSlot){
+    let material=rimMaterials.get(slot);if(material)return material;
+    material=createRimMaterial();rimMaterials.set(slot,material);return material;
   }
-  addInlay('armor','Spine2',[0,2,14]);
-  addInlay('helmet','Head',[0,8,8]);
-  addInlay('boots','LeftLeg',[2,10,6]);addInlay('boots','RightLeg',[-2,10,6]);
-  if(classId==='archer')addInlay('weapon','LeftHand',[0,16,0]);
-  else addInlay('weapon','RightHand',[35,7,2]);
+  function addRims(root:T.Object3D,slot:EquipmentSlot){
+    const material=rimMaterial(slot);
+    for(const mesh of sourceMeshes(root,skip))rims.push(attachRim(mesh,material,slot));
+  }
+  for(const [appearance,part] of parts){const info=glowInfo(appearance);if(info)addRims(part,info.slot);}
+  for(const root of earlyRoots){
+    const info=glowInfo(root.name)||[...Object.entries(WARRIOR_FOREST_MESHES)].flatMap(([appearance,names])=>names.includes(root.name)?[glowInfo(appearance)]:[]).find(Boolean);
+    if(info)addRims(root,info.slot);
+  }
   let enhancement=0,current:ItemAppearance|undefined,lastLevels:number|SlotEnhance=0;
   function glowColor(appearance:string){
     const info=glowInfo(appearance);if(!info)return;
     return GLOW_COLORS[info.region][classId];
-  }
-  function earlyParts(slot:EquipmentSlot,appearance:string){
-    const info=glowInfo(appearance);if(!info||isLate(info.region))return [];
-    if(classId==='warrior'){
-      if(slot==='ring')return [model.getObjectByName('Copper_Ring')].filter((part):part is T.Object3D=>!!part);
-      if(slot==='amulet')return [model.getObjectByName('Ember_Amulet')].filter((part):part is T.Object3D=>!!part);
-    }
-    const base=info.region==='forest'?appearance:regionalAppearance(appearance)?.base;
-    const names=classId==='warrior'?(base?WARRIOR_FOREST_MESHES[base]??[]:[]):(base?[base]:[]);
-    return names.map(name=>model.getObjectByName(name)).filter((part):part is T.Object3D=>!!part);
-  }
-  function paint(part:T.Object3D,color:string,intensity:number,metal:number){
-    part.traverse(object=>{
-      if(!(object instanceof T.Mesh))return;
-      for(const material of Array.isArray(object.material)?object.material:[object.material])if(material instanceof T.MeshStandardMaterial){
-        if(material.name.endsWith('_Glow')){material.emissive.set(color);material.emissiveIntensity=intensity;}
-        else if(material.name.endsWith('_Metal')){material.emissive.set(color);material.emissiveIntensity=metal;}
-      }
-    });
   }
   function slotLevel(slot:EquipmentSlot,value:number|SlotEnhance){
     if(typeof value==='number')return value;
@@ -145,24 +139,13 @@ export function createLateEquipmentVisuals(model:T.Object3D,classId:ClassId){
   function applyEnhancement(value:number|SlotEnhance=lastLevels){
     const source=value;
     enhancement=typeof value==='number'?enhancementGlow(value).enhancement:Math.max(0,...SLOTS.map(slot=>enhancementGlow(slotLevel(slot,value)).enhancement));
-    for(const root of earlyRoots)paint(root,'#000000',0,0);
-    for(const [appearance,part] of parts){const variant=regionalAppearance(appearance);if(!variant||!isLate(variant.region))continue;
-      const glow=enhancementGlow(slotLevel(variant.slot,source));
-      paint(part,LATE_GLOW_COLORS[variant.region as keyof typeof LATE_GLOW_COLORS][classId],glow.intensity,glow.metal);
-    }
     for(const slot of SLOTS){
       const worn=current?.[slot]??null;
-      const info=worn?glowInfo(worn):undefined;
-      const early=!!info&&!isLate(info.region);
       const glow=enhancementGlow(slotLevel(slot,source));
-      const color=worn&&early?glowColor(worn)??GLOW_COLORS.forest[classId]:GLOW_COLORS.forest[classId];
-      if(early&&worn)for(const part of earlyParts(slot,worn))paint(part,color,glow.intensity,glow.metal);
-      const meshes=early&&worn?earlyParts(slot,worn):[];
-      const authored=meshes.some(hasGlowMaterial)||(slot==='weapon'&&classId==='warrior'&&meshes.some(hasMetalMaterial));
-      for(const mesh of inlays.get(slot)??[]){
-        mesh.visible=early&&!authored;
-        const gem=mesh.material as T.MeshStandardMaterial;gem.emissive.set(color);gem.emissiveIntensity=glow.intensity;
-      }
+      const color=worn?glowColor(worn)??GLOW_COLORS.forest[classId]:GLOW_COLORS.forest[classId];
+      const material=rimMaterials.get(slot);
+      if(material){material.uniforms.uColor.value.set(color);material.uniforms.uIntensity.value=glow.intensity;}
+      for(const rim of rims)if(rim.name===`EnhanceRim_${slot}`)rim.visible=glow.enhancement>0;
     }
     lastLevels=typeof source==='number'?source:{...source};
     return enhancement;
@@ -175,5 +158,10 @@ export function createLateEquipmentVisuals(model:T.Object3D,classId:ClassId){
     for(const [slot,value] of Object.entries(appearance)){const part=value?parts.get(value):undefined;if(part){part.visible=true;mapped[slot as keyof ItemAppearance]=null;}}
     applyEnhancement(lastLevels);return mapped;
   }
-  return {apply,applyEnhancement,get parts(){return parts;}};
+  function dispose(){
+    for(const rim of rims)rim.removeFromParent();
+    for(const material of rimMaterials.values())material.dispose();
+    rims.length=0;rimMaterials.clear();
+  }
+  return {apply,applyEnhancement,dispose,get parts(){return parts;}};
 }

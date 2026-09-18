@@ -1,5 +1,10 @@
 # Проверка общей 3D-опушки
 
+## 18 сентября 2026: контурный ореол заточки
+
+`test/early-equipment-glow.test.mjs`: ткань Armor_Body не меняет emissive/metalness/цвет после +9; ореол `EnhanceRim_*` аддитивный, `toneMapped=false`; +6 меч ярче +3 доспеха. Вставок `EarlyGlow_` нет. `test/late-equipment-art.test.mjs`: clamp 0…9 через интенсивность ореола. `npm run check`.
+
+
 ## 18 сентября 2026: чат звук и пузырь
 
 `test/chat-speech.test.mjs`: история `replace` не объявляется, speaker id/name, 5 с / высота 3.15. `test/sounds.test.mjs`: 29 клипов, есть `chat.mp3`. Сервер кладёт `id` героя в пакет. `npm run check`.

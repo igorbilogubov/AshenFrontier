@@ -15,76 +15,76 @@ async function load(name){
 }
 const watch={weapon:'watch-sword',armor:'watch-armor',helmet:'watch-helm',boots:'watch-boots',ring:'copper-ring',amulet:'ember-amulet'};
 function appearance(cls,region){return Object.fromEntries(REGIONAL_ITEMS[region][cls].map(d=>[d.slot,d.appearance]));}
-function glowMaterials(root){
+function rims(root,slot){
+  const list=[];
+  root.traverse(object=>{if(object.name===`EnhanceRim_${slot}`)list.push(object);});
+  return list;
+}
+function cloth(root){
   const list=[];
   root.traverse(object=>{
-    if(!(object instanceof T.Mesh))return;
-    for(const material of [].concat(object.material))if(material.name.endsWith('_Glow')||material.name.endsWith('_Metal'))list.push(material);
+    if(!(object instanceof T.Mesh)||object.name.startsWith('EnhanceRim'))return;
+    for(const material of [].concat(object.material))if(material instanceof T.MeshStandardMaterial)list.push(material);
   });
   return list;
 }
 
-test('forest and snow gear reuse _Glow/_Metal materials and scale with enhance',async()=>{
+test('enhancement uses a per-slot rim and leaves cloth materials alone',async()=>{
   const base=await load('ashen-warrior-equipment-v1.glb'),late=await load('ashen-warrior-late-equipment-v1.glb');
   const hero=createAnimatedWarrior(base,'warrior',[],late.scene);
   hero.equipment('sword','warrior',watch);
+  const plate=hero.model.getObjectByName('Armor_Body');
+  const before=cloth(plate).map(material=>[material.emissiveIntensity,material.metalness,material.color.getHex()]);
   assert.equal(hero.applyEnhancement(0),0);
-  const amulet=glowMaterials(hero.model.getObjectByName('Ember_Amulet'));
-  assert.ok(amulet.some(material=>material.name.endsWith('_Glow')));
-  assert.ok(amulet.every(material=>material.emissiveIntensity===.08));
-  const plate=glowMaterials(hero.model.getObjectByName('Armor_Body'));
-  assert.ok(plate.some(material=>material.name.endsWith('_Metal')));
+  assert.equal(hero.model.getObjectByName('EarlyGlow_armor_Spine2'),undefined);
+  assert.ok(rims(hero.model,'armor').every(mesh=>mesh.visible===false));
   assert.equal(hero.applyEnhancement(9),9);
-  assert.ok(amulet.some(material=>material.emissiveIntensity>1.5));
-  assert.ok(plate.some(material=>material.emissiveIntensity>0));
-  const inlay=hero.model.getObjectByName('EarlyGlow_armor_Spine2');
-  assert.ok(inlay);assert.equal(inlay.visible,true);
-  hero.root.updateMatrixWorld(true);
-  const chest=inlay.getWorldPosition(new T.Vector3());
-  assert.ok(chest.y>1&&chest.y<1.8,`chest glow height ${chest.y}`);
-  assert.ok(Math.hypot(chest.x,chest.z)<.55,`chest glow offset ${chest.x},${chest.z}`);
+  const armorRims=rims(hero.model,'armor');
+  assert.ok(armorRims.length);
+  assert.ok(armorRims.every(mesh=>mesh.visible));
+  assert.equal(armorRims[0].material.uniforms.uIntensity.value,enhancementGlow(9).intensity);
+  assert.deepEqual(cloth(plate).map(material=>[material.emissiveIntensity,material.metalness,material.color.getHex()]),before);
+  assert.ok(armorRims[0].material.toneMapped===false);
+  assert.equal(armorRims[0].material.blending,T.AdditiveBlending);
 
   hero.applyEnhancement({weapon:6,armor:3,helmet:3,boots:3,ring:3,amulet:3});
-  const swordMetal=glowMaterials(hero.model.getObjectByName('Weapon_WatchSword')).filter(material=>material.name.endsWith('_Metal'));
-  const plateMetal=plate.filter(material=>material.name.endsWith('_Metal'));
-  assert.ok(swordMetal.length&&plateMetal.length);
-  assert.notEqual(swordMetal[0],plateMetal[0],'sword paint must not share the plate material');
-  assert.equal(swordMetal[0].emissiveIntensity,enhancementGlow(6).metal);
-  assert.equal(plateMetal[0].emissiveIntensity,enhancementGlow(3).metal);
-  assert.ok(swordMetal[0].emissiveIntensity>plateMetal[0].emissiveIntensity,'a +6 sword must not paint +3 plate');
-  assert.ok(plateMetal[0].emissiveIntensity>0,'+3 plate still has its own metal glow');
-  assert.equal(inlay.material.emissiveIntensity,enhancementGlow(3).intensity);
-  assert.equal(hero.model.getObjectByName('EarlyGlow_weapon_RightHand').visible,false);
+  const swordRim=rims(hero.model,'weapon')[0],plateRim=armorRims[0];
+  assert.ok(swordRim&&plateRim);
+  assert.notEqual(swordRim.material,plateRim.material);
+  assert.equal(swordRim.material.uniforms.uIntensity.value,enhancementGlow(6).intensity);
+  assert.equal(plateRim.material.uniforms.uIntensity.value,enhancementGlow(3).intensity);
+  assert.ok(swordRim.material.uniforms.uIntensity.value>plateRim.material.uniforms.uIntensity.value);
+  assert.ok(enhancementGlow(3).intensity>1);
 
   hero.equipment('sword','warrior',appearance('warrior','snow'));
   hero.applyEnhancement(6);
   const snow=new T.Color(GLOW_COLORS.snow.warrior);
-  assert.ok(glowMaterials(hero.model.getObjectByName('Weapon_WatchSword')).some(material=>material.emissive.equals(snow)));
-  assert.ok(inlay.material.emissive.equals(snow));
+  assert.ok(rims(hero.model,'weapon')[0].material.uniforms.uColor.value.equals(snow));
+  assert.ok(rims(hero.model,'armor')[0].material.uniforms.uColor.value.equals(snow));
 
   hero.equipment('sword','warrior',appearance('warrior','citadel'));
   hero.applyEnhancement(9);
-  assert.equal(inlay.visible,false);
-  const lateGlow=glowMaterials(hero.model.getObjectByName('dreadsovereign-amulet'));
-  assert.ok(lateGlow.some(material=>material.name==='dreadsovereign_Glow'&&material.emissiveIntensity>1.5));
+  const citadel=new T.Color(GLOW_COLORS.citadel.warrior);
+  assert.ok(rims(hero.model,'armor').some(mesh=>mesh.visible&&mesh.material.uniforms.uColor.value.equals(citadel)));
   let lights=0;hero.model.traverse(object=>{if(object instanceof T.Light)lights++;});
   assert.equal(lights,0);
   hero.disposeExtras();
 });
 
-test('archer staff-less forest bows keep a hand inlay when no authored gem exists',async()=>{
+test('archer forest gear gets slot rims instead of bone inlays',async()=>{
   const base=await load('ashen-archer-equipment-v1.glb'),late=await load('ashen-archer-late-equipment-v1.glb');
   const hero=createAnimatedWarrior(base,'archer',[],late.scene);
   hero.equipment('sword','archer',{weapon:'ranger-bow',armor:'ranger-armor',helmet:'ranger-hood',boots:'ranger-boots',ring:'hawk-ring',amulet:'leaf-amulet'});
   hero.applyEnhancement(5);
-  const gem=glowMaterials(hero.model.getObjectByName('leaf-amulet'));
-  assert.ok(gem.some(material=>material.name.endsWith('_Glow')&&material.emissiveIntensity>.4));
-  const bowInlay=hero.model.getObjectByName('EarlyGlow_weapon_LeftHand');
-  assert.ok(bowInlay);assert.equal(bowInlay.visible,true);
-  const hoodInlay=hero.model.getObjectByName('EarlyGlow_helmet_Head');
-  assert.equal(hoodInlay.visible,true);
+  assert.equal(hero.model.getObjectByName('EarlyGlow_weapon_LeftHand'),undefined);
+  assert.equal(hero.model.getObjectByName('EarlyGlow_helmet_Head'),undefined);
+  const bow=rims(hero.model,'weapon'),hood=rims(hero.model,'helmet');
+  assert.ok(bow.length&&hood.length);
+  assert.ok(bow.every(mesh=>mesh.visible));
+  assert.ok(hood.every(mesh=>mesh.visible));
+  assert.equal(bow[0].material.uniforms.uIntensity.value,enhancementGlow(5).intensity);
   hero.equipment('sword','archer',{weapon:'sentinel-bow',armor:'sentinel-armor',helmet:'sentinel-hood',boots:'sentinel-boots',ring:'hawk-ring',amulet:'leaf-amulet'});
   hero.applyEnhancement(5);
-  assert.equal(hero.model.getObjectByName('EarlyGlow_helmet_Head').visible,false);
+  assert.ok(rims(hero.model,'helmet').some(mesh=>mesh.visible));
   hero.disposeExtras();
 });

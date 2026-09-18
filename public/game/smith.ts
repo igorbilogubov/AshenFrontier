@@ -15,10 +15,11 @@ export const GUARD_MATERIAL_CHANCE=.08;
 export const GUARD_WHETSTONE_CHANCE=.04;
 export const BOSS_INGOT_MIN=2;
 export const BOSS_INGOT_EXTRA=.40;
-export const MATERIAL_OVERLEVEL=10;
+export const MATERIAL_LINGER=5;
 export const MATERIAL_REGION_LEVEL=Object.freeze({
   forest:1,snow:10,wasteland:25,swamp:40,mines:55,rift:70,citadel:85
 } satisfies Record<FieldRegionId,number>);
+const MATERIAL_REGION_ORDER=Object.freeze(['forest','snow','wasteland','swamp','mines','rift','citadel'] as const satisfies readonly FieldRegionId[]);
 const ENHANCE_GOLD=Object.freeze([0,2000,3500,5500,9000,15000,25000,40000,65000,100000]);
 const LATE_INGOT_REGIONS=new Set<FieldRegionId>(['wasteland','swamp','mines','rift','citadel']);
 
@@ -69,9 +70,13 @@ const unit=(random:()=>number)=>{
 };
 const push=(drops:MaterialDrop[],id:MaterialDrop['definitionId'],amount:number)=>{if(amount>0)drops.push({definitionId:id,amount});};
 
+export function smithMaterialUntil(region:FieldRegionId){
+  const index=MATERIAL_REGION_ORDER.indexOf(region),next=MATERIAL_REGION_ORDER[index+1];
+  if(!next)return Infinity;
+  return MATERIAL_REGION_LEVEL[next]+MATERIAL_LINGER-1;
+}
 export function smithMaterialEligible(heroLevel:number,region:FieldRegionId){
-  const floor=MATERIAL_REGION_LEVEL[region];
-  return Number.isFinite(heroLevel)&&heroLevel<floor+MATERIAL_OVERLEVEL;
+  return Number.isFinite(heroLevel)&&heroLevel<=smithMaterialUntil(region);
 }
 
 /** Stadium callers must skip this. Ordinary forest/snow never yield ingots. Overleveled heroes get no stones. */

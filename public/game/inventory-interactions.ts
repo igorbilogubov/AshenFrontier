@@ -133,8 +133,8 @@ export function bindInventoryInteractions(game:NetworkGame,toast:(text:string)=>
       const unit=now.key?rollUnit(now.key):'';
       const preview=node('p','smith-preview');
       preview.textContent=offer
-        ?`${label}: ${Math.round(now.value)} (+${now.bonus}) → ${Math.round(next.value)} (+${next.bonus})${unit} · при успехе +${next.bonus-now.bonus}`
-        :`${label}: ${Math.round(now.value)} (+${now.bonus})${unit}`;
+        ?`${label}: ${Math.round(now.shown)} (+${now.bonus}) → ${Math.round(next.shown)} (+${next.bonus})${unit} · при успехе +${next.bonus-now.bonus}`
+        :`${label}: ${Math.round(now.shown)}${now.bonus?` (+${now.bonus})`:''}${unit}`;
       info.append(preview);
       if(offer){
         const cost=node('p','smith-cost',`${offer.material.name} · ${Math.round(offer.chance*100)}% · ${goldText(offer.gold)}`);

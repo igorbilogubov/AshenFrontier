@@ -12,7 +12,7 @@ import {consumableQuantity} from '../dist/public/game/consumables.js';
 import {shopConsumables} from '../dist/public/game/shop.js';
 import {characterStats} from '../dist/public/rules.js';
 import {activeSetBonuses} from '../dist/public/game/equipment-sets.js';
-import {SMITH,WHETSTONE_ID,INGOT_ID,MAX_ENHANCE,WHETSTONE_CHANCE,ELITE_WHETSTONE_CHANCE,MATERIAL_OVERLEVEL,enhanceChance,enhanceGold,enhanceMaterial,enhancePowerBonus,enhanceRollBonus,enhanceStatPreview,enhanceStep,itemEnhance,itemTitle,rollSmithMaterials,smithMaterialEligible} from '../dist/public/game/smith.js';
+import {SMITH,WHETSTONE_ID,INGOT_ID,MAX_ENHANCE,WHETSTONE_CHANCE,ELITE_WHETSTONE_CHANCE,MATERIAL_LINGER,enhanceChance,enhanceGold,enhanceMaterial,enhancePowerBonus,enhanceRollBonus,enhanceStatPreview,enhanceStep,itemEnhance,itemTitle,rollSmithMaterials,smithMaterialEligible,smithMaterialUntil} from '../dist/public/game/smith.js';
 import {openHeroStore} from '../dist/storage/postgres.js';
 import {createTestDatabase,hasTestDatabase} from './helpers/postgres.mjs';
 import {removeEnhanceSchema,testAccount} from './helpers/historical-schema.mjs';
@@ -55,18 +55,30 @@ test('ordinary forest drops only whetstones; stadium never drops materials',()=>
   assert.equal(w.snapshot(p.id).groundLoot.length,0);
 });
 
-test('heroes 10 levels above a region get no smith materials there',()=>{
-  assert.equal(MATERIAL_OVERLEVEL,10);
-  assert.equal(smithMaterialEligible(10,'forest'),true);
-  assert.equal(smithMaterialEligible(11,'forest'),false);
-  assert.equal(smithMaterialEligible(19,'snow'),true);
-  assert.equal(smithMaterialEligible(20,'snow'),false);
-  assert.equal(smithMaterialEligible(34,'wasteland'),true);
-  assert.equal(smithMaterialEligible(35,'wasteland'),false);
-  assert.deepEqual(rollSmithMaterials({type:'wolf',region:'forest',heroLevel:11},()=>0),[]);
+test('smith stones last until the next region plus five linger levels',()=>{
+  assert.equal(MATERIAL_LINGER,5);
+  assert.equal(smithMaterialUntil('forest'),14);
+  assert.equal(smithMaterialUntil('snow'),29);
+  assert.equal(smithMaterialUntil('wasteland'),44);
+  assert.equal(smithMaterialUntil('swamp'),59);
+  assert.equal(smithMaterialUntil('mines'),74);
+  assert.equal(smithMaterialUntil('rift'),89);
+  assert.equal(smithMaterialUntil('citadel'),Infinity);
+  assert.equal(smithMaterialEligible(14,'forest'),true);
+  assert.equal(smithMaterialEligible(15,'forest'),false);
+  assert.equal(smithMaterialEligible(29,'snow'),true);
+  assert.equal(smithMaterialEligible(30,'snow'),false);
+  assert.equal(smithMaterialEligible(44,'wasteland'),true);
+  assert.equal(smithMaterialEligible(45,'wasteland'),false);
+  assert.equal(smithMaterialEligible(54,'swamp'),true);
+  assert.equal(smithMaterialEligible(59,'swamp'),true);
+  assert.equal(smithMaterialEligible(60,'swamp'),false);
+  assert.equal(smithMaterialEligible(100,'citadel'),true);
+  assert.deepEqual(rollSmithMaterials({type:'wolf',region:'forest',heroLevel:14},()=>0),[{definitionId:WHETSTONE_ID,amount:1}]);
+  assert.deepEqual(rollSmithMaterials({type:'wolf',region:'forest',heroLevel:15},()=>0),[]);
   assert.deepEqual(rollSmithMaterials({type:'wolf',eliteId:'ash-alpha',region:'forest',heroLevel:48},seq(0,0)),[]);
-  assert.deepEqual(rollSmithMaterials({type:'wolf',region:'wasteland',heroLevel:34},seq(0.5,0)),[{definitionId:INGOT_ID,amount:1}]);
-  assert.deepEqual(rollSmithMaterials({type:'wolf',region:'wasteland',heroLevel:35},seq(0.5,0)),[]);
+  assert.deepEqual(rollSmithMaterials({type:'wolf',region:'wasteland',heroLevel:44},seq(0.5,0)),[{definitionId:INGOT_ID,amount:1}]);
+  assert.deepEqual(rollSmithMaterials({type:'wolf',region:'wasteland',heroLevel:45},seq(0.5,0)),[]);
   const w=new World({random:()=>0}),p=newHero('Ветеран');p.level=48;w.add(p);
   const m=w.mobs.find(mob=>locationAt(mob)==='forest'&&!mob.eliteId&&!mob.bossId);assert(m);
   Object.assign(p,{x:m.x,z:m.z});m.contributors.set(p.id,{at:w.t,damage:m.hp||99});w.mobs=w.mobs.filter(mob=>mob.id===m.id);
@@ -200,12 +212,18 @@ test('schema 10 stores enhance and keeps the fingerprint when only enhance chang
   }finally{await store?.close();await db.close();}
 });
 
-test('tooltips show integer enhance totals in parentheses; the smith waits for anvil confirm',async()=>{
+test('tooltips show total stats with enhance bonus in parentheses; the smith waits for anvil confirm',async()=>{
   const details=await readFile(new URL('../public/game/item-details.ts',import.meta.url),'utf8');
+  assert.match(details,/amount\(roll\.value\+bonus\)/);
   assert.match(details,/\(\+\$\{amount\(bonus\)\}\)/);
+  assert.doesNotMatch(details,/\+\$\{amount\(roll\.value\)\}/);
   assert.match(details,/maximumFractionDigits:0/);
+  const rolls=await readFile(new URL('../public/game/equipment-items.ts',import.meta.url),'utf8');
+  assert.match(rolls,/rollValue=\(roll:ItemRoll\)=>`\$\{number\.format\(roll\.value\)\}/);
+  assert.doesNotMatch(rolls,/rollValue=\(roll:ItemRoll\)=>`\+\$\{/);
   const ui=await readFile(new URL('../public/game/inventory-interactions.ts',import.meta.url),'utf8');
   assert.match(ui,/placeSmithItem/);
+  assert.match(ui,/now\.shown/);
   assert.match(ui,/Положите вещь на наковальню/);
   assert.match(ui,/Заточить до/);
   assert.doesNotMatch(ui,/ПКМ по вещи — заточить/);

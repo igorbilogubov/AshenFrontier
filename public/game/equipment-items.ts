@@ -147,6 +147,6 @@ export function equipmentAppearance(source:StatSource):ItemAppearance|undefined{
 }
 const number=new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2});
 export const rollUnit=(key:ItemStatKey)=>key==='accuracy'||key==='haste'?'%':key==='hpRegen'||key==='manaRegen'?' / с':'';
-export const rollValue=(roll:ItemRoll)=>`+${number.format(roll.value)}${rollUnit(roll.key)}`;
+export const rollValue=(roll:ItemRoll)=>`${number.format(roll.value)}${rollUnit(roll.key)}`;
 export const rollRange=(roll:ItemRoll)=>`${number.format(roll.min)}–${number.format(roll.max)}${rollUnit(roll.key)}`;
 export const rollPosition=(roll:ItemRoll)=>roll.max===roll.min?1:(roll.value-roll.min)/(roll.max-roll.min);

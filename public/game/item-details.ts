@@ -25,8 +25,9 @@ export function renderItemRolls(container:HTMLElement,item:Item|undefined,equipp
     const row=document.createElement('div');row.className='item-roll';
     const line=document.createElement('div'),label=document.createElement('span'),value=document.createElement('strong');
     const bonus=enhanceRollBonus(item,roll,index);
+    const unit=rollUnit(roll.key);
     label.textContent=ITEM_STAT_LABELS[roll.key];
-    value.textContent=bonus?`+${amount(roll.value)} (+${amount(bonus)})${rollUnit(roll.key)}` : rollValue(roll);
+    value.textContent=bonus?`${amount(roll.value+bonus)} (+${amount(bonus)})${unit}`:rollValue(roll);
     line.append(label,value);
     const track=document.createElement('div');track.className='roll-track';const fill=document.createElement('i');fill.style.width=`${rollPosition(roll)*100}%`;track.append(fill);
     const meta=document.createElement('div');meta.className='roll-meta';const range=document.createElement('span');range.textContent=`Диапазон ${rollRange(roll)}`;meta.append(range);

@@ -70,9 +70,22 @@ footer{bottom:0;z-index:20}
 .smith-stock{display:flex;align-items:center;gap:8px;padding:8px;border:1px solid #b3c0a959;background:#14231d;color:#e5d8b5}
 .smith-stock strong{display:block;font:12px/1.2 Georgia,serif;color:#e6dbc0}
 .smith-stock small{color:#9fb3a5;font:10px system-ui}
-.smith-table{display:grid;gap:4px;margin:0 0 14px}
-.smith-row{margin:0;padding:5px 8px;border:1px solid #7f956b38;background:#16271f;color:#c9d4c0;font:10px/1.3 system-ui}
-.smith-zone{margin-top:4px}
+.smith-anvil{display:grid;grid-template-columns:72px minmax(0,1fr);gap:10px;align-items:start;min-height:118px;padding:10px;border:1px dashed #b9a3777a;background:#8d72390c}
+.smith-anvil:has(.smith-anvil-empty){grid-template-columns:1fr}
+.smith-anvil-empty{margin:0;padding:18px 8px;color:#c4b990;font:11px/1.6 system-ui;text-align:center}
+.smith-anvil-slot{position:relative;width:72px;height:72px;padding:4px;border:1px solid #b3c0a959;background:#14231d}
+.smith-anvil-slot .item-artwork,.smith-anvil-slot svg{width:100%;height:100%;object-fit:contain;pointer-events:none}
+.smith-offer{display:grid;gap:6px;min-width:0}
+.smith-offer strong{color:#ede0b9;font:14px/1.2 Georgia,serif}
+.smith-offer p{margin:0;color:#c9d4c0;font:11px/1.45 system-ui}
+.smith-preview{color:#70decb!important}
+.smith-actions{display:grid;grid-template-columns:auto 1fr;gap:6px;margin-top:4px}
+.smith-clear,.smith-enhance{padding:8px 10px;border:1px solid #9e8a5b66;background:#26382b;color:#e5cf9f;font:11px/1.2 system-ui}
+.smith-enhance{background:#3a4f38;color:#f3dd9c;border-color:#bba267}
+.smith-enhance:hover:enabled{background:#4a6244}
+.smith-enhance:disabled{opacity:.45}
+.bag-cell.smith-offered,.equipment-slot.smith-offered{outline:2px solid #70decb;outline-offset:1px}
+.item-dragging .smith-anvil{background:#a281352c;border-color:#ddba76}
 .smith-material{display:block;width:100%;height:100%}
 .smith-material svg{width:100%;height:100%}
 .bag-cell.consumable-cell .smith-material{width:min(36px,100%);height:36px;margin:auto}

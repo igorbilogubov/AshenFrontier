@@ -1,3 +1,4 @@
+import {readFile} from 'node:fs/promises';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
@@ -11,7 +12,7 @@ import {consumableQuantity} from '../dist/public/game/consumables.js';
 import {shopConsumables} from '../dist/public/game/shop.js';
 import {characterStats} from '../dist/public/rules.js';
 import {activeSetBonuses} from '../dist/public/game/equipment-sets.js';
-import {SMITH,WHETSTONE_ID,INGOT_ID,MAX_ENHANCE,enhanceChance,enhanceGold,enhanceMaterial,enhancePowerBonus,enhanceRollBonus,itemEnhance,itemTitle,rollSmithMaterials} from '../dist/public/game/smith.js';
+import {SMITH,WHETSTONE_ID,INGOT_ID,MAX_ENHANCE,WHETSTONE_CHANCE,ELITE_WHETSTONE_CHANCE,MATERIAL_OVERLEVEL,enhanceChance,enhanceGold,enhanceMaterial,enhancePowerBonus,enhanceRollBonus,enhanceStatPreview,enhanceStep,itemEnhance,itemTitle,rollSmithMaterials,smithMaterialEligible} from '../dist/public/game/smith.js';
 import {openHeroStore} from '../dist/storage/postgres.js';
 import {createTestDatabase,hasTestDatabase} from './helpers/postgres.mjs';
 import {removeEnhanceSchema,testAccount} from './helpers/historical-schema.mjs';
@@ -36,16 +37,17 @@ test('enhance chances, materials and gold follow the locked table',()=>{
   for(const next of [1,2,3]){assert.equal(enhanceChance(next),1);assert.equal(enhanceMaterial(next),WHETSTONE_ID);}
   for(const next of [4,5,6]){assert.equal(enhanceChance(next),.8);assert.equal(enhanceMaterial(next),WHETSTONE_ID);}
   for(const next of [7,8,9]){assert.equal(enhanceChance(next),.6);assert.equal(enhanceMaterial(next),INGOT_ID);}
-  assert.equal(enhanceGold(1),20);assert.equal(enhanceGold(6),250);assert.equal(enhanceGold(9),1000);
+  assert.equal(enhanceGold(1),2000);assert.equal(enhanceGold(6),25000);assert.equal(enhanceGold(9),100000);
   assert.equal(itemTitle({name:'Меч странника простого качества',enhance:3}),'Меч странника +3');
 });
 
 test('ordinary forest drops only whetstones; stadium never drops materials',()=>{
-  assert.deepEqual(rollSmithMaterials({type:'wolf',region:'forest'},()=>0),[{definitionId:WHETSTONE_ID,amount:1}]);
-  assert.deepEqual(rollSmithMaterials({type:'wolf',region:'forest'},()=>.5),[]);
-  assert.deepEqual(rollSmithMaterials({type:'wolf',region:'wasteland'},seq(0.5,0)),[{definitionId:INGOT_ID,amount:1}]);
-  assert.deepEqual(rollSmithMaterials({type:'wolf',eliteId:'ash-alpha',region:'forest'},seq(0,0)),[{definitionId:INGOT_ID,amount:1},{definitionId:WHETSTONE_ID,amount:1}]);
-  assert.deepEqual(rollSmithMaterials({type:'wolf',bossId:'forest-dungeon',region:'forest'},seq(0,.1)),[{definitionId:INGOT_ID,amount:3},{definitionId:WHETSTONE_ID,amount:3}]);
+  assert.equal(WHETSTONE_CHANCE,.02);assert.equal(ELITE_WHETSTONE_CHANCE,.125);
+  assert.deepEqual(rollSmithMaterials({type:'wolf',region:'forest',heroLevel:1},()=>0),[{definitionId:WHETSTONE_ID,amount:1}]);
+  assert.deepEqual(rollSmithMaterials({type:'wolf',region:'forest',heroLevel:1},()=>.5),[]);
+  assert.deepEqual(rollSmithMaterials({type:'wolf',region:'wasteland',heroLevel:25},seq(0.5,0)),[{definitionId:INGOT_ID,amount:1}]);
+  assert.deepEqual(rollSmithMaterials({type:'wolf',eliteId:'ash-alpha',region:'forest',heroLevel:1},seq(0,0)),[{definitionId:INGOT_ID,amount:1},{definitionId:WHETSTONE_ID,amount:1}]);
+  assert.deepEqual(rollSmithMaterials({type:'wolf',bossId:'forest-dungeon',region:'forest',heroLevel:1},seq(0,.1)),[{definitionId:INGOT_ID,amount:3},{definitionId:WHETSTONE_ID,amount:3}]);
   const w=new World({random:()=>0}),p=newHero('Арена');w.add(p);
   const m=w.mobs.find(mob=>locationAt(mob)==='stadium');assert(m);
   Object.assign(p,{x:m.x,z:m.z});m.contributors.set(p.id,{at:w.t,damage:m.hp||99});w.mobs=w.mobs.filter(mob=>mob.id===m.id);
@@ -53,31 +55,52 @@ test('ordinary forest drops only whetstones; stadium never drops materials',()=>
   assert.equal(w.snapshot(p.id).groundLoot.length,0);
 });
 
+test('heroes 10 levels above a region get no smith materials there',()=>{
+  assert.equal(MATERIAL_OVERLEVEL,10);
+  assert.equal(smithMaterialEligible(10,'forest'),true);
+  assert.equal(smithMaterialEligible(11,'forest'),false);
+  assert.equal(smithMaterialEligible(19,'snow'),true);
+  assert.equal(smithMaterialEligible(20,'snow'),false);
+  assert.equal(smithMaterialEligible(34,'wasteland'),true);
+  assert.equal(smithMaterialEligible(35,'wasteland'),false);
+  assert.deepEqual(rollSmithMaterials({type:'wolf',region:'forest',heroLevel:11},()=>0),[]);
+  assert.deepEqual(rollSmithMaterials({type:'wolf',eliteId:'ash-alpha',region:'forest',heroLevel:48},seq(0,0)),[]);
+  assert.deepEqual(rollSmithMaterials({type:'wolf',region:'wasteland',heroLevel:34},seq(0.5,0)),[{definitionId:INGOT_ID,amount:1}]);
+  assert.deepEqual(rollSmithMaterials({type:'wolf',region:'wasteland',heroLevel:35},seq(0.5,0)),[]);
+  const w=new World({random:()=>0}),p=newHero('Ветеран');p.level=48;w.add(p);
+  const m=w.mobs.find(mob=>locationAt(mob)==='forest'&&!mob.eliteId&&!mob.bossId);assert(m);
+  Object.assign(p,{x:m.x,z:m.z});m.contributors.set(p.id,{at:w.t,damage:m.hp||99});w.mobs=w.mobs.filter(mob=>mob.id===m.id);
+  w.kill(m);
+  const loot=w.snapshot(p.id).groundLoot;
+  assert(loot.some(drop=>drop.kind==='gold'));
+  assert.equal(loot.filter(drop=>drop.kind==='material').length,0);
+});
+
 test('smith opens on arrival; +1…+3 always succeed and spend gold plus a whetstone',()=>{
-  const {w,p}=fixture();const item=p.items.find(owned=>owned.id===p.equipment.weapon);p.gold=200;stones(p,5,0);
-  w.command(p,{type:'enhance',id:item.id});assert.equal(itemEnhance(item),0);assert.equal(p.gold,200);
+  const {w,p}=fixture();const item=p.items.find(owned=>owned.id===p.equipment.weapon);p.gold=200000;stones(p,5,0);
+  w.command(p,{type:'enhance',id:item.id});assert.equal(itemEnhance(item),0);assert.equal(p.gold,200000);
   w.command(p,{type:'interact',npcId:SMITH.id});assert(p.interactionTarget);assert.equal(p.smithActive,false);
   const origin={x:p.x,z:p.z};tick(w,2);assert(distance(p,SMITH)<distance(origin,SMITH));openSmith(w,p);
   assert(w.events.some(e=>e.type==='smithOpen'&&e.owner===p.id));
   w.command(p,{type:'enhance',id:item.id});
-  assert.equal(item.enhance,1);assert.equal(p.gold,180);assert.equal(consumableQuantity(p,WHETSTONE_ID),4);
+  assert.equal(item.enhance,1);assert.equal(p.gold,198000);assert.equal(consumableQuantity(p,WHETSTONE_ID),4);
   w.command(p,{type:'enhance',id:item.id});w.command(p,{type:'enhance',id:item.id});
-  assert.equal(item.enhance,3);assert.equal(p.gold,180-35-55);assert.equal(consumableQuantity(p,WHETSTONE_ID),2);
+  assert.equal(item.enhance,3);assert.equal(p.gold,189000);assert.equal(consumableQuantity(p,WHETSTONE_ID),2);
 });
 
 test('failed +4…+6 spends the stone and resets enhance to +0',()=>{
-  const {w,p}=fixture();const item=p.items.find(owned=>owned.id===p.equipment.weapon);item.enhance=3;p.gold=200;stones(p,3,0);
+  const {w,p}=fixture();const item=p.items.find(owned=>owned.id===p.equipment.weapon);item.enhance=3;p.gold=20000;stones(p,3,0);
   openSmith(w,p);w.random=()=>.9;
   w.command(p,{type:'enhance',id:item.id});
   assert.equal(item.enhance,undefined);assert.equal(itemEnhance(item),0);
-  assert.equal(p.gold,200-90);assert.equal(consumableQuantity(p,WHETSTONE_ID),2);
+  assert.equal(p.gold,20000-9000);assert.equal(consumableQuantity(p,WHETSTONE_ID),2);
   assert(w.events.some(e=>e.type==='notice'&&e.text.includes('сброшена')));
 });
 
 test('+7…+9 consume an ingot; +9 is the cap; stash items cannot be sharpened',()=>{
-  const {w,p}=fixture();const item=p.items.find(owned=>owned.id===p.equipment.weapon);item.enhance=6;p.gold=5000;stones(p,0,3);
+  const {w,p}=fixture();const item=p.items.find(owned=>owned.id===p.equipment.weapon);item.enhance=6;p.gold=200000;stones(p,0,3);
   openSmith(w,p);w.random=()=>0;
-  w.command(p,{type:'enhance',id:item.id});assert.equal(item.enhance,7);assert.equal(consumableQuantity(p,INGOT_ID),2);assert.equal(p.gold,5000-400);
+  w.command(p,{type:'enhance',id:item.id});assert.equal(item.enhance,7);assert.equal(consumableQuantity(p,INGOT_ID),2);assert.equal(p.gold,160000);
   item.enhance=9;const gold=p.gold;w.command(p,{type:'enhance',id:item.id});
   assert.equal(item.enhance,9);assert.equal(p.gold,gold);assert.equal(consumableQuantity(p,INGOT_ID),2);
   const extra=makeLoot('warrior',1,0,'ring');p.items.push(extra);p.stash.push(extra.id);
@@ -99,16 +122,23 @@ test('shop and smith sessions are exclusive; materials cannot be bought or assig
   assert(!shopConsumables().some(definition=>definition.kind==='material'));
 });
 
-test('each enhance level adds 2% of the primary stat; set bonuses stay untouched',()=>{
+test('each enhance level adds 10% of the primary stat in whole points; set bonuses stay untouched',()=>{
+  assert.equal(enhanceStep(3),1);
+  assert.equal(enhanceStep(12),1);
+  assert.equal(enhanceStep(25),3);
   const item=rollEquipment('wanderer-blade','sharp-blade',()=>.5);item.enhance=5;
   const primary=item.rolls[0];
-  assert.equal(enhanceRollBonus(item,primary,0),Math.round(primary.value*.02*5*1000)/1000);
+  assert.equal(enhanceRollBonus(item,primary,0),enhanceStep(primary.value)*5);
   assert.equal(enhanceRollBonus(item,item.rolls[1],1),0);
-  assert.equal(enhancePowerBonus({power:40,enhance:5}),4);
+  assert.equal(enhancePowerBonus({power:40,enhance:5}),20);
+  const preview=enhanceStatPreview(item,6);
+  assert.equal(preview.bonus,enhanceStep(primary.value)*6);
+  assert.equal(preview.shown,primary.value+preview.bonus);
+  assert.equal(Number.isInteger(preview.bonus),true);
   const source={classId:'warrior',level:48,allocatedStats:{strength:10,dexterity:10,vitality:10,energy:10},items:[item],equipment:{weapon:item.id}};
   const plain=characterStats({...source,items:[{...item,enhance:0}]});
   const sharpened=characterStats(source);
-  assert.ok(sharpened.attack>plain.attack);
+  assert.ok(sharpened.attack>=plain.attack+5);
   assert.deepEqual(activeSetBonuses(source),activeSetBonuses({...source,items:[{...item,enhance:0}]}));
   const hero=newHero('Бонус');hero.items[0].enhance=9;
   const withEnhance=stats(hero).attackPower;delete hero.items[0].enhance;
@@ -168,4 +198,15 @@ test('schema 10 stores enhance and keeps the fingerprint when only enhance chang
     store=await openHeroStore({connectionString:db.url});
     assert.equal(await store.schemaVersion(),10);
   }finally{await store?.close();await db.close();}
+});
+
+test('tooltips show integer enhance totals in parentheses; the smith waits for anvil confirm',async()=>{
+  const details=await readFile(new URL('../public/game/item-details.ts',import.meta.url),'utf8');
+  assert.match(details,/\(\+\$\{amount\(bonus\)\}\)/);
+  assert.match(details,/maximumFractionDigits:0/);
+  const ui=await readFile(new URL('../public/game/inventory-interactions.ts',import.meta.url),'utf8');
+  assert.match(ui,/placeSmithItem/);
+  assert.match(ui,/Положите вещь на наковальню/);
+  assert.match(ui,/Заточить до/);
+  assert.doesNotMatch(ui,/ПКМ по вещи — заточить/);
 });

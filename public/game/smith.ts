@@ -4,17 +4,22 @@ import {itemDisplayName} from './equipment-items.js';
 
 export const SMITH=Object.freeze({id:'camp-smith',name:'Кузнец',x:-6.4,z:3.2,range:2.4});
 export const MAX_ENHANCE=9;
-export const ENHANCE_PER_LEVEL=.02;
+export const ENHANCE_PER_LEVEL=.1;
 export const WHETSTONE_ID='whetstone';
 export const INGOT_ID='tempered-ingot';
-export const WHETSTONE_CHANCE=.04;
+export const WHETSTONE_CHANCE=.02;
 export const LATE_INGOT_CHANCE=.004;
-export const ELITE_WHETSTONE_CHANCE=.25;
+export const ELITE_WHETSTONE_CHANCE=.125;
 export const ELITE_INGOT_CHANCE=.50;
 export const GUARD_MATERIAL_CHANCE=.08;
+export const GUARD_WHETSTONE_CHANCE=.04;
 export const BOSS_INGOT_MIN=2;
 export const BOSS_INGOT_EXTRA=.40;
-const ENHANCE_GOLD=Object.freeze([0,20,35,55,90,150,250,400,650,1000]);
+export const MATERIAL_OVERLEVEL=10;
+export const MATERIAL_REGION_LEVEL=Object.freeze({
+  forest:1,snow:10,wasteland:25,swamp:40,mines:55,rift:70,citadel:85
+} satisfies Record<FieldRegionId,number>);
+const ENHANCE_GOLD=Object.freeze([0,2000,3500,5500,9000,15000,25000,40000,65000,100000]);
 const LATE_INGOT_REGIONS=new Set<FieldRegionId>(['wasteland','swamp','mines','rift','citadel']);
 
 export const SMITH_MATERIALS=Object.freeze({
@@ -37,14 +42,24 @@ export function enhanceOffer(item:Pick<Item,'enhance'>){
   const materialId=enhanceMaterial(next);
   return {next,chance:enhanceChance(next),gold:enhanceGold(next),materialId,material:smithMaterial(materialId)!};
 }
-export function enhanceRollBonus(item:Pick<Item,'enhance'>,roll:ItemRoll,index:number){
-  const level=itemEnhance(item);
-  if(index!==0||level<=0)return 0;
-  return Math.round(roll.value*ENHANCE_PER_LEVEL*level*1000)/1000;
+export function enhanceStep(value:number){
+  if(!Number.isFinite(value)||value<=0)return 0;
+  return Math.max(1,Math.round(value*ENHANCE_PER_LEVEL));
 }
-export function enhancePowerBonus(item:Pick<Item,'enhance'|'power'>){
-  const level=itemEnhance(item),power=Number.isFinite(item.power)?item.power:0;
-  return Math.round(power*ENHANCE_PER_LEVEL*level*1000)/1000;
+export function enhanceRollBonus(item:Pick<Item,'enhance'>,roll:ItemRoll,index:number,level=itemEnhance(item)){
+  if(index!==0||level<=0)return 0;
+  return enhanceStep(roll.value)*level;
+}
+export function enhancePowerBonus(item:Pick<Item,'enhance'|'power'>,level=itemEnhance(item)){
+  if(level<=0)return 0;
+  const power=Number.isFinite(item.power)?item.power:0;
+  return enhanceStep(power)*level;
+}
+export function enhanceStatPreview(item:Pick<Item,'enhance'|'power'|'rolls'>,level=itemEnhance(item)){
+  const roll=item.rolls?.[0];
+  const value=roll?roll.value:(Number.isFinite(item.power)?item.power:0);
+  const bonus=roll?enhanceRollBonus(item,roll,0,level):enhancePowerBonus(item,level);
+  return {key:roll?.key,value,bonus,shown:value+bonus};
 }
 
 export interface MaterialDrop {definitionId:typeof WHETSTONE_ID|typeof INGOT_ID;amount:number}
@@ -54,9 +69,15 @@ const unit=(random:()=>number)=>{
 };
 const push=(drops:MaterialDrop[],id:MaterialDrop['definitionId'],amount:number)=>{if(amount>0)drops.push({definitionId:id,amount});};
 
-/** Stadium callers must skip this. Ordinary forest/snow never yield ingots. */
-export function rollSmithMaterials(source:{type:MobType;eliteId?:string;bossId?:string;dungeonId?:string;region:FieldRegionId},random:()=>number):MaterialDrop[]{
+export function smithMaterialEligible(heroLevel:number,region:FieldRegionId){
+  const floor=MATERIAL_REGION_LEVEL[region];
+  return Number.isFinite(heroLevel)&&heroLevel<floor+MATERIAL_OVERLEVEL;
+}
+
+/** Stadium callers must skip this. Ordinary forest/snow never yield ingots. Overleveled heroes get no stones. */
+export function rollSmithMaterials(source:{type:MobType;eliteId?:string;bossId?:string;dungeonId?:string;region:FieldRegionId;heroLevel:number},random:()=>number):MaterialDrop[]{
   const drops:MaterialDrop[]=[];
+  if(!smithMaterialEligible(source.heroLevel,source.region))return drops;
   if(source.bossId){
     push(drops,INGOT_ID,BOSS_INGOT_MIN+(unit(random)<BOSS_INGOT_EXTRA?1:0));
     push(drops,WHETSTONE_ID,3+Math.floor(unit(random)*3));
@@ -69,7 +90,7 @@ export function rollSmithMaterials(source:{type:MobType;eliteId?:string;bossId?:
   }
   if(source.dungeonId){
     if(unit(random)<GUARD_MATERIAL_CHANCE)push(drops,INGOT_ID,1);
-    if(unit(random)<GUARD_MATERIAL_CHANCE)push(drops,WHETSTONE_ID,1);
+    if(unit(random)<GUARD_WHETSTONE_CHANCE)push(drops,WHETSTONE_ID,1);
     return drops;
   }
   if(unit(random)<WHETSTONE_CHANCE)push(drops,WHETSTONE_ID,1);

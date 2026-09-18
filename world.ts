@@ -967,7 +967,7 @@ export class World{
           this.addGroundDrop(p.id,{id:randomUUID(),kind:'item',x,z,item,expiresAt:this.t+LOOT_TTL_MS});
         }
         const region=fieldRegionAt(m);
-        for(const material of rollSmithMaterials({type:m.type,eliteId:m.eliteId,bossId:m.bossId,dungeonId:m.dungeonId,region},this.random)){
+        for(const material of rollSmithMaterials({type:m.type,eliteId:m.eliteId,bossId:m.bossId,dungeonId:m.dungeonId,region,heroLevel:p.level},this.random)){
           this.addGroundDrop(p.id,{id:randomUUID(),kind:'material',x:m.x+.18,z:m.z-.14,definitionId:material.definitionId,amount:material.amount,expiresAt:this.t+LOOT_TTL_MS});
         }
       }

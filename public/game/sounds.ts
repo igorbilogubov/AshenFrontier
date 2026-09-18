@@ -3,25 +3,25 @@ import type {ClassId,HeroAttack,WorldEvent} from '../../shared/types.js';
 export const SOUND_STORAGE_KEY='ashen-sound';
 export const SOUND_BASE='/game/sounds';
 export const SOUND_CUES=Object.freeze({
-  swing:Object.freeze(['swing-1.ogg','swing-2.ogg','swing-3.ogg','whoosh.ogg']),
-  hit:Object.freeze(['hit-1.ogg','hit-2.ogg','hit-3.ogg']),
-  hurt:Object.freeze(['hurt.ogg']),
-  miss:Object.freeze(['miss.ogg']),
-  gold:Object.freeze(['gold-1.ogg','gold-2.ogg']),
-  item:Object.freeze(['item.ogg']),
-  heal:Object.freeze(['heal.ogg','potion.ogg']),
-  level:Object.freeze(['level.ogg']),
-  death:Object.freeze(['death.ogg']),
-  kill:Object.freeze(['kill.ogg']),
-  magic:Object.freeze(['magic.ogg']),
-  portal:Object.freeze(['portal.ogg']),
-  camp:Object.freeze(['camp.ogg']),
-  shop:Object.freeze(['shop.ogg']),
-  smith:Object.freeze(['smith.ogg']),
-  click:Object.freeze(['click.ogg']),
-  error:Object.freeze(['error.ogg']),
-  success:Object.freeze(['success.ogg']),
-  step:Object.freeze(['step-1.ogg','step-2.ogg','step-3.ogg'])
+  swing:Object.freeze(['swing-1.mp3','swing-2.mp3','swing-3.mp3','whoosh.mp3']),
+  hit:Object.freeze(['hit-1.mp3','hit-2.mp3','hit-3.mp3']),
+  hurt:Object.freeze(['hurt.mp3']),
+  miss:Object.freeze(['miss.mp3']),
+  gold:Object.freeze(['gold-1.mp3','gold-2.mp3']),
+  item:Object.freeze(['item.mp3']),
+  heal:Object.freeze(['heal.mp3','potion.mp3']),
+  level:Object.freeze(['level.mp3']),
+  death:Object.freeze(['death.mp3']),
+  kill:Object.freeze(['kill.mp3']),
+  magic:Object.freeze(['magic.mp3']),
+  portal:Object.freeze(['portal.mp3']),
+  camp:Object.freeze(['camp.mp3']),
+  shop:Object.freeze(['shop.mp3']),
+  smith:Object.freeze(['smith.mp3']),
+  click:Object.freeze(['click.mp3']),
+  error:Object.freeze(['error.mp3']),
+  success:Object.freeze(['success.mp3']),
+  step:Object.freeze(['step-1.mp3','step-2.mp3','step-3.mp3'])
 } as const);
 export type SoundCue=keyof typeof SOUND_CUES;
 export const SOUND_FILES=Object.freeze([...new Set(Object.values(SOUND_CUES).flat())]);
@@ -99,9 +99,8 @@ export function createSoundBus(){
     }catch{/* keep going if a clip fails */}finally{pending.delete(file);}
   };
 
-  const play=(cue:SoundCue,scale=1)=>{
-    if(muted||!unlocked)return;
-    const audio=context(),gain=master;if(!audio||!gain||audio.state==='suspended')return;
+  const start=(cue:SoundCue,scale:number)=>{
+    const audio=ctx,gain=master;if(!audio||!gain)return;
     const now=typeof performance==='object'?performance.now():Date.now();
     const wait=THROTTLE[cue]??0;if(wait&&now-(lastAt.get(cue)??0)<wait)return;lastAt.set(cue,now);
     const files=SOUND_CUES[cue],file=files[index++%files.length]!;
@@ -109,6 +108,13 @@ export function createSoundBus(){
     const source=audio.createBufferSource(),voice=audio.createGain();
     source.buffer=buffer;source.playbackRate.value=.94+Math.random()*.12;
     voice.gain.value=VOLUME[cue]*scale;source.connect(voice);voice.connect(gain);source.start();
+  };
+
+  const play=(cue:SoundCue,scale=1)=>{
+    if(muted||!unlocked)return;
+    const audio=context();if(!audio)return;
+    if(audio.state==='suspended'){void audio.resume().then(()=>{if(!muted&&audio.state==='running')start(cue,scale);});return;}
+    start(cue,scale);
   };
 
   const unlock=()=>{
@@ -138,7 +144,7 @@ export function createSoundBus(){
     setMuted(value:boolean){
       muted=value;persistSoundEnabled(!value);
       if(master)master.gain.value=muted?0:.62;
-      if(!muted)unlock();
+      if(!muted){unlock();play('click');}
     },
     muted:()=>muted,
     enabled:()=>!muted

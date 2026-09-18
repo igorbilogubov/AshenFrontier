@@ -2,7 +2,7 @@
 
 ## 18 сентября 2026: звук
 
-Локально. `test/sounds.test.mjs`: 28 OGG на диске, таблица событий, взмах/магия по классу. Кнопка `#sound-toggle` и клавиша M в `index.html`. `npm run check`.
+Локально. Первая выкладка молчала: сервер не отдавал `.ogg` (404) и Safari не декодирует Vorbis. Исправление: MP3 + MIME `audio/mpeg`. `test/sounds.test.mjs` проверяет 28 файлов и запись в `server.ts`. Кнопка `#sound-toggle` и M. `npm run check`.
 
 ## 18 сентября 2026: окна героя
 

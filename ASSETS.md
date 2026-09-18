@@ -2,7 +2,7 @@
 
 ## Звук — 18 сентября 2026
 
-Первый набор эффектов — выбранные OGG из Kenney RPG Audio, Interface Sounds, Impact Sounds и artisticdude RPG Sound Pack, все CC0. В клиент не клались полные архивы. Источники и имена файлов: [art/audio/README.md](art/audio/README.md). Лицензии Kenney рядом. Музыки нет.
+Первый набор эффектов — выбранные клипы из Kenney RPG Audio, Interface Sounds, Impact Sounds и artisticdude RPG Sound Pack, все CC0, в клиенте как MP3. В клиент не клались полные архивы. Источники и имена файлов: [art/audio/README.md](art/audio/README.md). Лицензии Kenney рядом. Музыки нет.
 
 ## Поздние регионы и отдельные комплекты — 16 сентября 2026
 

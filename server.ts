@@ -173,7 +173,7 @@ async function accountHttp(req:http.IncomingMessage,res:http.ServerResponse):Pro
 }
 function errorResponseLimit(res:http.ServerResponse){jsonResponse(res,409,{error:'character_limit',text:`На аккаунте может быть до ${MAX_CHARACTERS} персонажей`});return true;}
 
-const mime: Record<string,string>={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.json':'application/json; charset=utf-8','.glb':'model/gltf-binary'};
+const mime: Record<string,string>={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.json':'application/json; charset=utf-8','.glb':'model/gltf-binary','.mp3':'audio/mpeg','.ogg':'audio/ogg'};
 const server=http.createServer(async(req,res)=>{
   try{
     // The isolated stress controller joins bots through the live tick loop.

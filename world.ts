@@ -655,7 +655,7 @@ export class World{
     if(id==='warrior-shout'||id==='archer-focus'){
       if(this.hasEffect(p,id)){this.removeEffect(p,id);this.emit('skillImpact',{x:p.x,z:p.z,skillId:id,caster:p.id,attackId:a.id,yaw,phase:'end'});return true;}
     }
-    if(['warrior-banner','archer-smoke','mage-mana-source','archer-trap'].includes(id)){
+    if(['archer-smoke','mage-mana-source','archer-trap'].includes(id)){
       const point=id==='archer-trap'?(a.target??{x:p.x+Math.sin(yaw)*2,z:p.z+Math.cos(yaw)*2}):p;
       if(!stand(point.x,point.z,0)||safe(point)||!clearPath(p,point))return true;
       this.skillZones=this.skillZones.filter(z=>z.owner!==p.id||z.skillId!==id);
@@ -698,7 +698,6 @@ export class World{
     for(const z of this.skillZones){
       const p=this.players.get(z.owner);z.remaining-=dt;
       if(!p||!p.connected||p.dead||safe(p)||!sameLocation(p,z)||!p.skillBuild.slots.includes(z.skillId)){z.remaining=0;continue;}
-      if(z.skillId==='warrior-banner'){z.x=p.x;z.z=p.z;}
       if(z.skillId==='archer-trap'){
         const target=this.mobs.find(m=>liveMob(m)&&sameLocation(m,z)&&!safe(m)&&distance(m,z)<=z.radius+mobConfig(m).radius&&clearPath(z,m));
         if(target){this.strikeMob(p,target,z.damage??0,!!z.automatic,z.skillId);this.rootMob(p,target,2);z.remaining=0;this.emit('skillImpact',{x:z.x,z:z.z,skillId:z.skillId,caster:p.id,attackId:z.attackId,yaw:z.yaw,phase:'impact'});}
@@ -930,7 +929,7 @@ export class World{
   damagePlayer(p: Hero,amount: number){
     if(p.dead||safe(p))return;
     this.stopCampReturn(p);
-    const defense=Math.max(this.hasEffect(p,'warrior-guard')?.3:0,this.hasEffect(p,'mage-ward')?.18:0,this.inSkillZone(p,'warrior-banner',p.id)?.2:0);
+    const defense=Math.max(this.hasEffect(p,'warrior-guard')?.3:0,this.hasEffect(p,'mage-ward')?.18:0,this.hasEffect(p,'warrior-banner')?.2:0);
     let damage=Math.max(1,Math.round(amount*(1-stats(p).damageReduction)*(1-defense)*(this.hasEffect(p,'warrior-berserk')?1.2:1)));
     if(this.hasEffect(p,'mage-mana-shield')&&p.mana>0&&(p.shieldBudget??0)>0){const absorbed=Math.min(damage*.35,p.mana,p.shieldBudget!);p.mana-=absorbed;p.shieldBudget!-=absorbed;damage=Math.max(0,damage-Math.floor(absorbed));} 
     p.hp=Math.max(0,p.hp-damage);p.hurt=.35;p.combatUntil=this.t+15000;this.emit('hurt',{x:p.x,z:p.z,amount:damage},p.id);

@@ -138,18 +138,27 @@ test('mana shield absorbs a bounded fraction, competes for mana and disappears o
  f.p.mana=0;const hp2=f.p.hp;f.w.damagePlayer(f.p,80);assert(hp2-f.p.hp>hp-f.p.hp-(hp2-f.p.hp));
  f.w.damagePlayer(f.p,100000);assert.equal(f.p.effects.length,0);assert.equal(f.w.skillZones.length,0);
 });
-test('banner reduces incoming damage and stays on the warrior after they move',()=>{
+test('banner reduces incoming damage as a personal buff that does not drop when standing still',()=>{
  const banner=fixture('warrior',['warrior-banner']),base=fixture('warrior',['warrior-heavy']);
  const reduction=stats(banner.p).damageReduction;
  assert.equal(stats(base.p).damageReduction,reduction);
  const hp=base.p.hp;base.w.damagePlayer(base.p,100);
  assert.equal(hp-base.p.hp,Math.max(1,Math.round(100*(1-reduction))));
- assert(cast(banner,'warrior-banner'));settle(banner);assert.equal(banner.w.skillZones.length,1);assert(banner.w.inSkillZone(banner.p,'warrior-banner',banner.p.id));
+ assert(cast(banner,'warrior-banner'));settle(banner);
+ assert(banner.w.hasEffect(banner.p,'warrior-banner'));
+ assert.equal(banner.w.skillZones.length,0);
  const shielded=banner.p.hp;banner.w.damagePlayer(banner.p,100);
  assert.equal(shielded-banner.p.hp,Math.max(1,Math.round(100*(1-reduction)*.8)));
- banner.p.x+=4;advance(banner.w,.05);assert(banner.w.inSkillZone(banner.p,'warrior-banner',banner.p.id));
- const other=newHero('Другой');banner.w.add(other);Object.assign(other,{x:banner.p.x,z:banner.p.z});assert(!banner.w.inSkillZone(other,'warrior-banner',other.id));
- banner.p.connected=false;advance(banner.w,.1);assert.equal(banner.w.skillZones.length,0);
+ banner.p.x+=4;advance(banner.w,.05);
+ assert(banner.w.hasEffect(banner.p,'warrior-banner'));
+ const still=banner.p.hp;banner.w.damagePlayer(banner.p,100);
+ assert.equal(still-banner.p.hp,Math.max(1,Math.round(100*(1-reduction)*.8)));
+ const rage=fixture('warrior',['warrior-banner','warrior-berserk']);
+ assert(cast(rage,'warrior-berserk'));settle(rage);assert(cast(rage,'warrior-banner'));settle(rage);
+ const mixed=rage.p.hp;rage.w.damagePlayer(rage.p,100);
+ assert.equal(mixed-rage.p.hp,Math.max(1,Math.round(100*(1-stats(rage.p).damageReduction)*.8*1.2)));
+ assert(mixed-rage.p.hp<Math.max(1,Math.round(100*(1-stats(rage.p).damageReduction)*1.2)));
+ banner.p.connected=false;advance(banner.w,.1);assert(!banner.w.hasEffect(banner.p,'warrior-banner'));
 });
 test('mana source has a per-recipient 30-second cap, no multi-source or shield feedback loop',()=>{
  const f=fixture('mage',['mage-mana-source']);f.p.mana=25;assert(cast(f,'mage-mana-source'));settle(f);assert.equal(f.w.skillZones.length,1);

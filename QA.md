@@ -1,5 +1,10 @@
 # Проверка общей 3D-опушки
 
+## 18 сентября 2026: свечение ранней экипировки
+
+Локально. `test/early-equipment-glow.test.mjs`: лесной дозорный +0/+9, снежный цвет, инкрустация на груди, цитадель скрывает early-glow, лучник ranger/sentinel. `npm run check`.
+
+
 ## 18 сентября 2026: нижний HUD
 
 Локально. `#hero-level` стоит в начале полосы опыта, `#hero-name` убран. `.auxiliary-controls` после `</footer>` в `.hero-shortcuts`, над кнопками Герой/Вещи/Навыки. Тест `test/panel-layout-ui.test.mjs`. `npm run check`.

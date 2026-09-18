@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import * as T from '../dist/public/game/vendor/three.module.js';
 import {GLTFLoader} from '../dist/public/game/vendor/GLTFLoader.js';
 import {createAnimatedWarrior} from '../dist/public/game/character.js';
-import {GLOW_COLORS} from '../dist/public/game/late-equipment-visuals.js';
+import {GLOW_COLORS,enhancementGlow} from '../dist/public/game/late-equipment-visuals.js';
 import {REGIONAL_ITEMS} from '../dist/public/game/regional-equipment.js';
 
 async function load(name){
@@ -43,6 +43,18 @@ test('forest and snow gear reuse _Glow/_Metal materials and scale with enhance',
   const chest=inlay.getWorldPosition(new T.Vector3());
   assert.ok(chest.y>1&&chest.y<1.8,`chest glow height ${chest.y}`);
   assert.ok(Math.hypot(chest.x,chest.z)<.55,`chest glow offset ${chest.x},${chest.z}`);
+
+  hero.applyEnhancement({weapon:6,armor:3,helmet:3,boots:3,ring:3,amulet:3});
+  const swordMetal=glowMaterials(hero.model.getObjectByName('Weapon_WatchSword')).filter(material=>material.name.endsWith('_Metal'));
+  const plateMetal=plate.filter(material=>material.name.endsWith('_Metal'));
+  assert.ok(swordMetal.length&&plateMetal.length);
+  assert.notEqual(swordMetal[0],plateMetal[0],'sword paint must not share the plate material');
+  assert.equal(swordMetal[0].emissiveIntensity,enhancementGlow(6).metal);
+  assert.equal(plateMetal[0].emissiveIntensity,enhancementGlow(3).metal);
+  assert.ok(swordMetal[0].emissiveIntensity>plateMetal[0].emissiveIntensity,'a +6 sword must not paint +3 plate');
+  assert.ok(plateMetal[0].emissiveIntensity>0,'+3 plate still has its own metal glow');
+  assert.equal(inlay.material.emissiveIntensity,enhancementGlow(3).intensity);
+  assert.equal(hero.model.getObjectByName('EarlyGlow_weapon_RightHand').visible,false);
 
   hero.equipment('sword','warrior',appearance('warrior','snow'));
   hero.applyEnhancement(6);

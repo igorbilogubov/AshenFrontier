@@ -29,7 +29,35 @@ function glowInfo(appearance:string):GlowInfo|undefined{
   }
 }
 function isLate(region:GearRegion){return (LATE_COLLECTION_REGIONS as readonly string[]).includes(region);}
+function hasGlowMaterial(root:T.Object3D){
+  let found=false;
+  root.traverse(object=>{
+    if(!(object instanceof T.Mesh))return;
+    for(const material of Array.isArray(object.material)?object.material:[object.material])if(material.name.endsWith('_Glow'))found=true;
+  });
+  return found;
+}
+function hasMetalMaterial(root:T.Object3D){
+  let found=false;
+  root.traverse(object=>{
+    if(!(object instanceof T.Mesh))return;
+    for(const material of Array.isArray(object.material)?object.material:[object.material])if(material.name.endsWith('_Metal'))found=true;
+  });
+  return found;
+}
+function ownMaterials(root:T.Object3D){
+  root.traverse(object=>{
+    if(!(object instanceof T.Mesh))return;
+    const list=Array.isArray(object.material)?object.material:[object.material];
+    const next=list.map(material=>{
+      if(!(material instanceof T.MeshStandardMaterial)||material.userData.earlyGlowOwned)return material;
+      const owned=material.clone();owned.userData.earlyGlowOwned=true;return owned;
+    });
+    object.material=Array.isArray(object.material)?next:next[0];
+  });
+}
 function tagEarlyMaterials(root:T.Object3D){
+  ownMaterials(root);
   root.traverse(object=>{
     if(!(object instanceof T.Mesh))return;
     for(const material of Array.isArray(object.material)?object.material:[object.material]){
@@ -41,14 +69,14 @@ function tagEarlyMaterials(root:T.Object3D){
     }
   });
 }
-function hasGlowMaterial(root:T.Object3D){
-  let found=false;
-  root.traverse(object=>{
-    if(!(object instanceof T.Mesh))return;
-    for(const material of Array.isArray(object.material)?object.material:[object.material])if(material.name.endsWith('_Glow'))found=true;
-  });
-  return found;
+export function enhancementGlow(level:number){
+  const enhancement=T.MathUtils.clamp(Math.floor(Number.isFinite(level)?level:0),0,9);
+  const intensity=enhancement===0?.08:enhancement<=3?.2+enhancement*.16:enhancement<=6?.68+(enhancement-3)*.12:.98+(enhancement-6)*.18;
+  const metal=enhancement===0?0:enhancement<=3?.03*enhancement:Math.min(.12,.09+(enhancement-3)*.01);
+  return {enhancement,intensity,metal};
 }
+export type SlotEnhance=Partial<Record<EquipmentSlot,number>>;
+
 /** Attach only our authored slot meshes. All animation uses the existing actor's bones. */
 export function attachLateEquipment(model:T.Object3D,source:T.Object3D){
   const bones=new Map<string,T.Bone>();model.traverse(o=>{if(o instanceof T.Bone)bones.set(cleanBoneName(o.name),o);});
@@ -71,6 +99,7 @@ export function createLateEquipmentVisuals(model:T.Object3D,classId:ClassId){
   if(classId==='warrior')for(const names of Object.values(WARRIOR_FOREST_MESHES))for(const name of names){const part=model.getObjectByName(name);if(part)earlyRoots.push(part);}
   else for(const item of CLASS_ITEMS[classId]){const part=model.getObjectByName(item.appearance);if(part)earlyRoots.push(part);}
   for(const root of earlyRoots)tagEarlyMaterials(root);
+  for(const part of parts.values())ownMaterials(part);
   const bones=new Map<string,T.Bone>();model.traverse(object=>{if(object instanceof T.Bone)bones.set(cleanBoneName(object.name),object);});
   const inlays=new Map<EquipmentSlot,T.Mesh[]>();
   function addInlay(slot:EquipmentSlot,boneName:string,local:readonly [number,number,number]){
@@ -85,7 +114,7 @@ export function createLateEquipmentVisuals(model:T.Object3D,classId:ClassId){
   addInlay('boots','LeftLeg',[2,10,6]);addInlay('boots','RightLeg',[-2,10,6]);
   if(classId==='archer')addInlay('weapon','LeftHand',[0,16,0]);
   else addInlay('weapon','RightHand',[35,7,2]);
-  let enhancement=0,current:ItemAppearance|undefined;
+  let enhancement=0,current:ItemAppearance|undefined,lastLevels:number|SlotEnhance=0;
   function glowColor(appearance:string){
     const info=glowInfo(appearance);if(!info)return;
     return GLOW_COLORS[info.region][classId];
@@ -100,43 +129,51 @@ export function createLateEquipmentVisuals(model:T.Object3D,classId:ClassId){
     const names=classId==='warrior'?(base?WARRIOR_FOREST_MESHES[base]??[]:[]):(base?[base]:[]);
     return names.map(name=>model.getObjectByName(name)).filter((part):part is T.Object3D=>!!part);
   }
-  function paint(part:T.Object3D,color:string,weapon:boolean,intensity:number,metal:number){
+  function paint(part:T.Object3D,color:string,intensity:number,metal:number){
     part.traverse(object=>{
       if(!(object instanceof T.Mesh))return;
       for(const material of Array.isArray(object.material)?object.material:[object.material])if(material instanceof T.MeshStandardMaterial){
         if(material.name.endsWith('_Glow')){material.emissive.set(color);material.emissiveIntensity=intensity;}
-        else if(material.name.endsWith('_Metal')){material.emissive.set(color);material.emissiveIntensity=weapon?metal:metal*.7;}
+        else if(material.name.endsWith('_Metal')){material.emissive.set(color);material.emissiveIntensity=metal;}
       }
     });
   }
-  function applyEnhancement(value:number){
-    enhancement=Number.isFinite(value)?T.MathUtils.clamp(Math.floor(value),0,9):0;
-    const intensity=enhancement===0?.08:enhancement<=3?.12+enhancement*.07:enhancement<=6?.4+(enhancement-3)*.17:.95+(enhancement-6)*.32;
-    const metal=enhancement<4?0:(enhancement-3)*.035;
+  function slotLevel(slot:EquipmentSlot,value:number|SlotEnhance){
+    if(typeof value==='number')return value;
+    return value[slot]??0;
+  }
+  function applyEnhancement(value:number|SlotEnhance=lastLevels){
+    const source=value;
+    enhancement=typeof value==='number'?enhancementGlow(value).enhancement:Math.max(0,...SLOTS.map(slot=>enhancementGlow(slotLevel(slot,value)).enhancement));
+    for(const root of earlyRoots)paint(root,'#000000',0,0);
     for(const [appearance,part] of parts){const variant=regionalAppearance(appearance);if(!variant||!isLate(variant.region))continue;
-      paint(part,LATE_GLOW_COLORS[variant.region as keyof typeof LATE_GLOW_COLORS][classId],appearance.endsWith('-weapon'),intensity,metal);
+      const glow=enhancementGlow(slotLevel(variant.slot,source));
+      paint(part,LATE_GLOW_COLORS[variant.region as keyof typeof LATE_GLOW_COLORS][classId],glow.intensity,glow.metal);
     }
     for(const slot of SLOTS){
       const worn=current?.[slot]??null;
       const info=worn?glowInfo(worn):undefined;
       const early=!!info&&!isLate(info.region);
+      const glow=enhancementGlow(slotLevel(slot,source));
       const color=worn&&early?glowColor(worn)??GLOW_COLORS.forest[classId]:GLOW_COLORS.forest[classId];
-      if(early&&worn)for(const part of earlyParts(slot,worn))paint(part,color,slot==='weapon',intensity,metal);
-      const authored=early&&worn?earlyParts(slot,worn).some(hasGlowMaterial):false;
+      if(early&&worn)for(const part of earlyParts(slot,worn))paint(part,color,glow.intensity,glow.metal);
+      const meshes=early&&worn?earlyParts(slot,worn):[];
+      const authored=meshes.some(hasGlowMaterial)||(slot==='weapon'&&classId==='warrior'&&meshes.some(hasMetalMaterial));
       for(const mesh of inlays.get(slot)??[]){
         mesh.visible=early&&!authored;
-        const glow=mesh.material as T.MeshStandardMaterial;glow.emissive.set(color);glow.emissiveIntensity=intensity;
+        const gem=mesh.material as T.MeshStandardMaterial;gem.emissive.set(color);gem.emissiveIntensity=glow.intensity;
       }
     }
+    lastLevels=typeof source==='number'?source:{...source};
     return enhancement;
   }
   function apply(appearance:ItemAppearance|undefined):ItemAppearance|undefined{
     current=appearance;
     for(const part of parts.values())part.visible=false;
-    if(!appearance){applyEnhancement(enhancement);return appearance;}
+    if(!appearance){applyEnhancement(lastLevels);return appearance;}
     const mapped={...appearance};
     for(const [slot,value] of Object.entries(appearance)){const part=value?parts.get(value):undefined;if(part){part.visible=true;mapped[slot as keyof ItemAppearance]=null;}}
-    applyEnhancement(enhancement);return mapped;
+    applyEnhancement(lastLevels);return mapped;
   }
   return {apply,applyEnhancement,get parts(){return parts;}};
 }

@@ -48,7 +48,7 @@ import type {Point,PublicPlayer,PublicMob,WeaponId} from '../../shared/types.js'
 type Warrior=Awaited<ReturnType<typeof loadWarrior>>;
 type MobModel=ReturnType<typeof createMob>;
 type RemoteWarrior=Warrior & {label:HTMLDivElement};
-type VisualHero=Pick<PublicPlayer,'id'|'x'|'z'|'yaw'|'gait'|'runBlend'|'moveBlend'|'dead'|'weapon'|'classId'|'hurt'|'attack'|'appearance'|'enhance'>;
+type VisualHero=Pick<PublicPlayer,'id'|'x'|'z'|'yaw'|'gait'|'runBlend'|'moveBlend'|'dead'|'weapon'|'classId'|'hurt'|'attack'|'appearance'|'enhance'|'enhances'>;
 interface FloatingNumber {element:HTMLSpanElement;x:number;z:number;y:number;life:number}
 interface Particle {mesh:T.Mesh<T.IcosahedronGeometry,T.MeshBasicMaterial>;v:T.Vector3;life:number}
 interface HeldMouse {x:number;y:number;active:boolean;point:T.Vector3|null;attacking:boolean;casting:boolean;pointerId:number|null;}

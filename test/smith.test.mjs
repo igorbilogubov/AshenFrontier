@@ -243,3 +243,19 @@ test('tooltips show total stats with enhance bonus in parentheses; the smith wai
   assert.match(ui,/Заточить до/);
   assert.doesNotMatch(ui,/ПКМ по вещи — заточить/);
 });
+
+test('snapshot glow is per equipped slot so a +6 weapon does not stand in for +3 plate',()=>{
+  const {w,p}=fixture();
+  const weapon=p.items.find(owned=>owned.id===p.equipment.weapon);
+  const armor=p.items.find(owned=>owned.id===p.equipment.armor);
+  assert(weapon&&armor);
+  weapon.enhance=6;armor.enhance=3;
+  const snap=w.snapshot(p.id);
+  assert.equal(snap.self.enhance,6);
+  assert.equal(snap.self.enhances.weapon,6);
+  assert.equal(snap.self.enhances.armor,3);
+  assert.equal(snap.self.enhances.helmet,undefined);
+  const me=snap.players.find(player=>player.id===p.id);
+  assert.equal(me.enhances.weapon,6);
+  assert.equal(me.enhances.armor,3);
+});

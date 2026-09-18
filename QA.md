@@ -1,5 +1,9 @@
 # Проверка общей 3D-опушки
 
+## 18 сентября 2026: окна героя
+
+Локально. В `index.html` характеристики делятся на `character-col-stats` / `character-col-derived`; кикеры, `class-role`, подпись снаряжения и подсказка рюкзака скрыты. Тест `test/panel-layout-ui.test.mjs`.
+
 ## 17 сентября 2026: синий дроп с обычных мобов
 
 Локально. `gearRarity` для волка: 3% / 1% / 0,1%. Тесты `loot-rarity-v2`, `ground-loot`, `possibleLoot` на цели.

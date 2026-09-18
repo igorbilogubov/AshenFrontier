@@ -5,7 +5,7 @@ export function bindPanelLayout(){
   const measure=()=>{
     scheduled=0;
     const top=Math.min(...[footer,shortcuts].filter((node):node is HTMLElement=>!!node).map(node=>node.getBoundingClientRect().top));
-    const clearance=Math.max(0,Math.ceil(innerHeight-top))+12;
+    const clearance=Math.max(0,Math.ceil(innerHeight-top))+8;
     if(Number.isFinite(clearance)&&clearance!==last){document.documentElement.style.setProperty('--hud-clearance',`${clearance}px`);last=clearance;}
   };
   const schedule=()=>{if(!scheduled)scheduled=requestAnimationFrame(measure);};

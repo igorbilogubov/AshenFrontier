@@ -112,28 +112,34 @@
   </section>
   <details id="account-menu" class="account-menu" hidden><summary>Аккаунт</summary><div><button id="account-characters" type="button">Выбор персонажа</button><button id="game-logout" type="button">Выйти из аккаунта</button><p id="account-menu-error" role="alert"></p></div></details>
   <aside id="character-panel" class="rpg-panel character-panel" hidden aria-labelledby="character-title">
-    <div class="panel-title"><div><p class="eyebrow">КНИГА ГЕРОЯ</p><h2 id="character-title">Характеристики</h2></div><button id="character-close" class="panel-close" type="button" aria-label="Закрыть характеристики">×</button></div>
+    <div class="panel-title"><div><h2 id="character-title">Характеристики</h2></div><button id="character-close" class="panel-close" type="button" aria-label="Закрыть характеристики">×</button></div>
     <nav class="panel-tabs" aria-label="Окна героя"><button type="button" data-panel="character" aria-current="page">Характеристики <kbd>C</kbd></button><button type="button" data-panel="inventory">Снаряжение <kbd>I</kbd></button></nav>
     <div class="panel-body">
       <div class="character-identity"><div id="class-emblem" class="class-emblem" aria-hidden="true"></div><div><h3 id="character-name">Странник</h3><p id="character-class">Воин</p></div><div class="level-seal"><b id="character-level">1</b><span>УРОВЕНЬ</span></div></div>
-      <div class="experience-heading"><span id="character-xp">0 / 100 опыта</span><span id="level-reward">+5 очков за уровень</span></div><div class="experience-track"><i id="character-xp-fill"></i></div>
-      <p id="class-role" class="class-role"></p>
-      <div class="section-heading"><h3>Основные статы</h3><span class="points-counter">Свободно <b id="stat-points">0</b></span></div>
-      <div id="stat-rows" class="stat-rows"></div>
-      <div class="section-heading derived-heading"><h3>Боевые показатели</h3><span id="preview-label">С учётом вещей</span></div>
-      <dl id="derived-stats" class="derived-stats"></dl>
-      <p class="stat-footnote">Защита снижает входящий урон. Шанс попадания действует для ударов и заклинаний.</p>
+      <div class="experience-heading"><span id="character-xp">0 / 100 опыта</span><span id="level-reward" hidden>+5 очков за уровень</span></div><div class="experience-track"><i id="character-xp-fill"></i></div>
+      <p id="class-role" class="class-role" hidden></p>
+      <div class="character-columns">
+        <section class="character-col-stats">
+          <div class="section-heading"><h3>Основные статы</h3><span class="points-counter">Свободно <b id="stat-points">0</b></span></div>
+          <div id="stat-rows" class="stat-rows"></div>
+        </section>
+        <section class="character-col-derived">
+          <div class="section-heading derived-heading"><h3>Боевые показатели</h3><span id="preview-label">С учётом вещей</span></div>
+          <dl id="derived-stats" class="derived-stats"></dl>
+        </section>
+      </div>
+      <p class="stat-footnote" hidden>Защита снижает входящий урон. Шанс попадания действует для ударов и заклинаний.</p>
       <details class="camp-services"><summary>Подготовка героя</summary><button id="reset-stats" class="subtle-button" type="button">Сбросить статы бесплатно</button><small>На время альфы · в безопасной зоне, вне боя</small><div id="reset-confirm" hidden><p>Вернуть все вложенные очки? Уровень и вещи сохранятся.</p><div class="inline-actions"><button id="reset-confirm-yes" type="button">Вернуть очки</button><button id="reset-confirm-no" type="button">Отмена</button></div></div></details>
     </div>
     <div class="panel-bottom"><p id="stat-status" role="status" aria-live="polite">Распределяйте очки в безопасной зоне, вне боя.</p><div class="allocation-actions"><button id="stat-cancel" class="subtle-button" type="button" disabled>Отмена</button><button id="stat-apply" class="primary-button" type="button" disabled>Применить</button></div></div>
   </aside>
   <aside id="inventory-panel" class="rpg-panel inventory-panel" hidden aria-labelledby="inventory-title">
-    <div class="panel-title"><div><p class="eyebrow">СНАРЯЖЕНИЕ ПУТНИКА</p><h2 id="inventory-title">Снаряжение</h2></div><button id="inventory-close" class="panel-close" type="button" aria-label="Закрыть снаряжение">×</button></div>
+    <div class="panel-title"><div><h2 id="inventory-title">Снаряжение</h2></div><button id="inventory-close" class="panel-close" type="button" aria-label="Закрыть снаряжение">×</button></div>
     <nav class="panel-tabs" aria-label="Окна героя"><button type="button" data-panel="character">Характеристики <kbd>C</kbd></button><button type="button" data-panel="inventory" aria-current="page">Снаряжение <kbd>I</kbd></button></nav>
     <div class="panel-body">
-      <p id="hero-details" class="equipment-caption"></p><div id="equipment-slots" class="equipment-grid"><div id="equipment-figure" class="equipment-figure" aria-hidden="true"></div></div>
+      <p id="hero-details" class="equipment-caption" hidden></p><div id="equipment-slots" class="equipment-grid"><div id="equipment-figure" class="equipment-figure" aria-hidden="true"></div></div>
       <div class="section-heading"><h3>Рюкзак</h3><span id="bag-count">0 / 16</span></div><div id="bag-items" class="bag-grid" role="group" aria-label="Предметы в рюкзаке"></div>
-      <p class="bag-hint" id="inventory-hint">Наведите для описания · ПКМ — надеть / снять · перетащите в слот</p>
+      <p class="bag-hint" id="inventory-hint" hidden>Наведите для описания · ПКМ — надеть / снять · перетащите в слот</p>
       <button id="claim-items" class="subtle-button" type="button" hidden>Забрать ожидающие вещи</button>
     </div><div class="panel-bottom inventory-bottom"><span id="inventory-gold">0 золота</span><a class="workshop-link" href="/game/equipment-preview.html" target="_blank" rel="noopener">Примерка классов ↗</a><span id="inventory-status">Снаряжение меняется в безопасной зоне</span></div>
   </aside>

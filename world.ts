@@ -698,6 +698,7 @@ export class World{
     for(const z of this.skillZones){
       const p=this.players.get(z.owner);z.remaining-=dt;
       if(!p||!p.connected||p.dead||safe(p)||!sameLocation(p,z)||!p.skillBuild.slots.includes(z.skillId)){z.remaining=0;continue;}
+      if(z.skillId==='warrior-banner'){z.x=p.x;z.z=p.z;}
       if(z.skillId==='archer-trap'){
         const target=this.mobs.find(m=>liveMob(m)&&sameLocation(m,z)&&!safe(m)&&distance(m,z)<=z.radius+mobConfig(m).radius&&clearPath(z,m));
         if(target){this.strikeMob(p,target,z.damage??0,!!z.automatic,z.skillId);this.rootMob(p,target,2);z.remaining=0;this.emit('skillImpact',{x:z.x,z:z.z,skillId:z.skillId,caster:p.id,attackId:z.attackId,yaw:z.yaw,phase:'impact'});}

@@ -15,7 +15,7 @@ import {BOUNDS,CAMP,SPAWNS,mobConfig,WEAPONS,AFK_SPOTS,afkSpotAt,withinSpot,safe
 import {angleDelta,turnTowards,inStrike} from './public/game/motion.js';
 import {SKILLS,skillsForClass,legacySkillId} from './public/game/skills.js';
 import {LOOT_TTL_MS,MAX_GROUND_DROPS_PER_HERO,PICKUP_RANGE,AFK_PICKUP_RANGE,gearRarity,bossItemCount} from './public/game/loot-rules.js';
-import {portalById,ALL_PASSAGES} from './public/game/stadium.js';
+import {portalById,ALL_PASSAGES,stadiumMobXp} from './public/game/stadium.js';
 import {locationAt as pointLocation,fieldRegionAt} from './public/game/world-layout.js';
 import {SHOP,shopPrice,sellPrice,consumableSellPrice} from './public/game/shop.js';
 import {SMITH,MAX_ENHANCE,enhanceChance,enhanceGold,enhanceMaterial,itemEnhance,itemTitle,rollSmithMaterials,smithMaterial} from './public/game/smith.js';
@@ -949,7 +949,7 @@ export class World{
     // Recent nearby contributors receive personal rewards. A final hit cannot steal the kill.
     for(const [id,contribution] of m.contributors){
       const p=this.players.get(id);if(!p||p.dead||this.t-contribution.at>20000||!sameLocation(p,m)||distance(p,m)>12||contribution.damage<cfg.hp*.05)continue;
-      const automatic=contribution.automatic===true,earnedXp=p.level>=MAX_LEVEL?0:mobExperience(p.level,cfg.level,cfg.xp);
+      const automatic=contribution.automatic===true,reward=locationAt(m)==='stadium'?stadiumMobXp(cfg.xp):cfg.xp,earnedXp=p.level>=MAX_LEVEL?0:mobExperience(p.level,cfg.level,reward);
       p.kills++;if(!automatic&&locationAt(m)==='forest')p.questKills++;p.xp+=earnedXp;noteAfkXp(p,this.t,earnedXp);if(!automatic&&m.id===6&&locationAt(m)==='forest')p.boss=true;
       while(p.level<MAX_LEVEL&&p.xp>=stats(p).xpNeeded){p.xp-=stats(p).xpNeeded;p.level++;p.statRevision++;this.emit('level',{level:p.level,points:5},p.id);}
       if(p.level>=MAX_LEVEL)p.xp=0;

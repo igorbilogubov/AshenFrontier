@@ -22,6 +22,9 @@ export const STADIUM_PEN_SIZE=STADIUM_PEN_HOME+STADIUM_PEN_EXTRA;
 export const STADIUM_EXTRA_SPAWN_BASE=1017;
 export const STADIUM_BOUNDS=Object.freeze({minX:133,maxX:205,minZ:-149,maxZ:23});
 export const STADIUM_HUB=Object.freeze({x:160,z:15,r:6.2});
+/** Stadium has no loot, so ordinary pens pay more XP than the field copy of the same mob. */
+export const STADIUM_XP_SCALE=1.5;
+export const stadiumMobXp=(xp:number)=>xp*STADIUM_XP_SCALE;
 const ROMAN=['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII','XIII','XIV','XV','XVI','XVII','XVIII','XIX','XX','XXI','XXII','XXIII','XXIV','XXV','XXVI','XXVII','XXVIII'] as const;
 export type StadiumRank=typeof ROMAN[number];
 const ALPHA_MOBS=Object.freeze(['alpha','alpha','wolf','wolf','wolf','wolf','wolf','wolf','wolf','wolf'] as const satisfies readonly MobType[]);

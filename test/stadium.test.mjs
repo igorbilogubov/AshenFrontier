@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {World,newHero,persistentHero,safeHero,stats} from '../dist/world.js';
-import {STADIUM_BOUNDS,STADIUM_PENS,STADIUM_HUB,STADIUM_SPAWNS,STADIUM_EXTRA_SPAWNS,STADIUM_PEN_WALLS,STADIUM_EXPANSION_SPAWN_BASE,STADIUM_EXTRA_SPAWN_BASE,STADIUM_ROWS,STADIUM_COLS,PORTALS} from '../dist/public/game/stadium.js';
+import {STADIUM_BOUNDS,STADIUM_PENS,STADIUM_HUB,STADIUM_SPAWNS,STADIUM_EXTRA_SPAWNS,STADIUM_PEN_WALLS,STADIUM_EXPANSION_SPAWN_BASE,STADIUM_EXTRA_SPAWN_BASE,STADIUM_ROWS,STADIUM_COLS,PORTALS,STADIUM_XP_SCALE} from '../dist/public/game/stadium.js';
 import {BOUNDS,AFK_SPOTS,SPAWNS,MOB_TYPES,stand,safe,clearPath,translate,distance,withinSpot} from '../dist/public/game/location.js';
 import {locationAt,boundsForPosition} from '../dist/public/game/world-layout.js';
 const step=(world,n=1)=>{for(let i=0;i<n;i++)world.tick(.05);};
@@ -120,6 +120,20 @@ test('manual and automatic Stadium kills preserve the forest quest and drop neit
     assert.equal(world.groundLoot.filter(drop=>drop.owner===p.id).length,0);
     Object.assign(p,{x:25,z:-1.2});assert(world.hurtMob(p,world.mobs[6],1e8,automatic));assert.equal(p.boss,!automatic);assert.equal(p.questKills,automatic?4:5);
   }
+});
+
+test('stadium kills grant 1.5 times field XP and still drop nothing',()=>{
+  const world=new World({random:()=>0}),p=newHero('Опыт');world.add(p);
+  const forest=world.mobs.find(m=>m.type==='wolf'&&locationAt(m)==='forest'&&!m.eliteId);
+  const arena=world.mobs.find(m=>m.type==='wolf'&&locationAt(m)==='stadium');
+  assert(forest&&arena);
+  Object.assign(p,{x:forest.x,z:forest.z});assert(world.hurtMob(p,forest,1e8));
+  const fieldXp=p.xp;assert(fieldXp>0);p.xp=0;p.kills=0;
+  Object.assign(p,{x:arena.x,z:arena.z});assert(world.hurtMob(p,arena,1e8));
+  assert.equal(p.xp,Math.round(fieldXp*STADIUM_XP_SCALE));
+  assert.equal(world.groundLoot.filter(drop=>drop.owner===p.id&&locationAt(drop)==='stadium').length,0);
+  p.level=100;p.xp=12;Object.assign(p,{x:arena.x,z:arena.z});const other=world.mobs.find(m=>m.type==='wolf'&&locationAt(m)==='stadium'&&m.state!=='dead');
+  assert(other);assert(world.hurtMob(p,other,1e8));assert.equal(p.xp,0);
 });
 
 test('portal clears delayed areas and projectiles from its owner before the new region is published',()=>{

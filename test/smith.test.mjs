@@ -53,12 +53,16 @@ test('enhance chances, materials and gold follow the locked table',()=>{
 });
 
 test('ordinary forest drops only whetstones; stadium never drops materials',()=>{
-  assert.equal(WHETSTONE_CHANCE,.02);assert.equal(ELITE_WHETSTONE_CHANCE,.125);
+  assert.equal(WHETSTONE_CHANCE,.02);assert.equal(ELITE_WHETSTONE_CHANCE,.06);
   assert.deepEqual(rollSmithMaterials({type:'wolf',region:'forest',heroLevel:1},()=>0),[{definitionId:WHETSTONE_ID,amount:1}]);
   assert.deepEqual(rollSmithMaterials({type:'wolf',region:'forest',heroLevel:1},()=>.5),[]);
   assert.deepEqual(rollSmithMaterials({type:'wolf',region:'wasteland',heroLevel:25},seq(0.5,0)),[{definitionId:INGOT_ID,amount:1}]);
   assert.deepEqual(rollSmithMaterials({type:'wolf',eliteId:'ash-alpha',region:'forest',heroLevel:1},seq(0,0)),[{definitionId:INGOT_ID,amount:1},{definitionId:WHETSTONE_ID,amount:1}]);
-  assert.deepEqual(rollSmithMaterials({type:'wolf',bossId:'forest-dungeon',region:'forest',heroLevel:1},seq(0,.1)),[{definitionId:INGOT_ID,amount:3},{definitionId:WHETSTONE_ID,amount:3}]);
+  assert.deepEqual(rollSmithMaterials({type:'wolf',eliteId:'ash-alpha',region:'forest',heroLevel:1},seq(.5,.5)),[]);
+  assert.deepEqual(rollSmithMaterials({type:'wolf',bossId:'forest-dungeon',region:'forest',heroLevel:1},seq(0,.1)),[{definitionId:INGOT_ID,amount:1},{definitionId:WHETSTONE_ID,amount:1}]);
+  assert.deepEqual(rollSmithMaterials({type:'wolf',bossId:'forest-dungeon',region:'forest',heroLevel:1},seq(.5,.5)),[]);
+  assert.deepEqual(rollSmithMaterials({type:'wolf',eliteId:'guard-forest',dungeonId:'forest-dungeon',region:'forest',heroLevel:1},()=>0),[{definitionId:INGOT_ID,amount:1},{definitionId:WHETSTONE_ID,amount:1}]);
+  assert.deepEqual(rollSmithMaterials({type:'wolf',eliteId:'guard-forest',dungeonId:'forest-dungeon',region:'forest',heroLevel:1},()=>.5),[]);
   const w=new World({random:()=>0}),p=newHero('Арена');w.add(p);
   const m=w.mobs.find(mob=>locationAt(mob)==='stadium');assert(m);
   Object.assign(p,{x:m.x,z:m.z});m.contributors.set(p.id,{at:w.t,damage:m.hp||99});w.mobs=w.mobs.filter(mob=>mob.id===m.id);

@@ -9,12 +9,12 @@ export const WHETSTONE_ID='whetstone';
 export const INGOT_ID='tempered-ingot';
 export const WHETSTONE_CHANCE=.02;
 export const LATE_INGOT_CHANCE=.004;
-export const ELITE_WHETSTONE_CHANCE=.125;
-export const ELITE_INGOT_CHANCE=.50;
-export const GUARD_MATERIAL_CHANCE=.08;
-export const GUARD_WHETSTONE_CHANCE=.04;
-export const BOSS_INGOT_MIN=2;
-export const BOSS_INGOT_EXTRA=.40;
+export const ELITE_WHETSTONE_CHANCE=.06;
+export const ELITE_INGOT_CHANCE=.04;
+export const GUARD_INGOT_CHANCE=.03;
+export const GUARD_WHETSTONE_CHANCE=.02;
+export const BOSS_INGOT_CHANCE=.35;
+export const BOSS_WHETSTONE_CHANCE=.40;
 export const MATERIAL_LINGER=5;
 export const MATERIAL_REGION_LEVEL=Object.freeze({
   forest:1,snow:10,wasteland:25,swamp:40,mines:55,rift:70,citadel:85
@@ -84,18 +84,18 @@ export function rollSmithMaterials(source:{type:MobType;eliteId?:string;bossId?:
   const drops:MaterialDrop[]=[];
   if(!smithMaterialEligible(source.heroLevel,source.region))return drops;
   if(source.bossId){
-    push(drops,INGOT_ID,BOSS_INGOT_MIN+(unit(random)<BOSS_INGOT_EXTRA?1:0));
-    push(drops,WHETSTONE_ID,3+Math.floor(unit(random)*3));
+    if(unit(random)<BOSS_INGOT_CHANCE)push(drops,INGOT_ID,1);
+    if(unit(random)<BOSS_WHETSTONE_CHANCE)push(drops,WHETSTONE_ID,1);
+    return drops;
+  }
+  if(source.dungeonId){
+    if(unit(random)<GUARD_INGOT_CHANCE)push(drops,INGOT_ID,1);
+    if(unit(random)<GUARD_WHETSTONE_CHANCE)push(drops,WHETSTONE_ID,1);
     return drops;
   }
   if(source.eliteId){
     if(unit(random)<ELITE_INGOT_CHANCE)push(drops,INGOT_ID,1);
     if(unit(random)<ELITE_WHETSTONE_CHANCE)push(drops,WHETSTONE_ID,1);
-    return drops;
-  }
-  if(source.dungeonId){
-    if(unit(random)<GUARD_MATERIAL_CHANCE)push(drops,INGOT_ID,1);
-    if(unit(random)<GUARD_WHETSTONE_CHANCE)push(drops,WHETSTONE_ID,1);
     return drops;
   }
   if(unit(random)<WHETSTONE_CHANCE)push(drops,WHETSTONE_ID,1);

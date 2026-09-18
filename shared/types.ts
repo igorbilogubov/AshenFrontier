@@ -93,7 +93,7 @@ export interface EventPayloads {
 export type WorldEvent = { [K in keyof EventPayloads]: { type: K; owner?: string } & EventPayloads[K] }[keyof EventPayloads];
 export type GameEvent = WorldEvent;
 export interface WorldSnapshot { dungeon?:DungeonProgress; t: number; players: PublicPlayer[]; onlinePlayers:OnlinePlayer[]; mobs: PublicMob[]; projectiles: PublicProjectile[]; groundLoot:GroundDrop[]; skillZones?:SkillZone[]; self: SelfSnapshot | null; events: WorldEvent[] }
-export interface ChatEntry { name: string; text: string; t: number }
+export interface ChatEntry { name: string; text: string; t: number; id?: string }
 export type ClientCommand =
   | {type:'buildApply';revision:number;build:SkillBuild} | {type:'buildSavePreset';index:0|1|2} | {type:'buildLoadPreset';revision:number;index:0|1|2} | {type:'skillStop'}
   | ({ type: 'input' } & HeroInput) | { type: 'attack'; yaw: number; special?: boolean; targetId?:number;approach?:boolean } | { type: 'skill'; skillId: SkillId; yaw: number; targetId?:number; target?:Point } | { type: 'afk'; enabled: boolean } | {type:'afkPreferences';preferences:AfkPreferences}

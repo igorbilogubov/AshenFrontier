@@ -300,7 +300,7 @@ wss.on('connection',(ws,req)=>{
       if(entry.auth.expiresAt<=now||entry.ws!==ws){release(ws);reject('auth_required','Войдите в аккаунт через Google');return;}
       if(msg.type==='chat'&&typeof msg.text==='string'&&now-lastChat>1000){
         const text=msg.text.replace(/[\p{C}]/gu,'').trim().slice(0,180);
-        if(text){lastChat=now;const message={name:entry.p.name,text,t:now};chat.push(message);if(chat.length>40)chat.shift();for(const client of connections.keys())send(client,{type:'chat',entry:message});}return;
+        if(text){lastChat=now;const message={name:entry.p.name,text,t:now,id:entry.p.id};chat.push(message);if(chat.length>40)chat.shift();for(const client of connections.keys())send(client,{type:'chat',entry:message});}return;
       }
       if(msg.type==='ping'){send(ws,{type:'pong',t:msg.t});return;}
       const queued=commands.get(ws)??{move:null,actions:[]};

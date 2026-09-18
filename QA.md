@@ -1,5 +1,10 @@
 # Проверка общей 3D-опушки
 
+## 18 сентября 2026: чат звук и пузырь
+
+`test/chat-speech.test.mjs`: история `replace` не объявляется, speaker id/name, 5 с / высота 3.15. `test/sounds.test.mjs`: 29 клипов, есть `chat.mp3`. Сервер кладёт `id` героя в пакет. `npm run check`.
+
+
 ## 18 сентября 2026: Enter в чат при открытых панелях
 
 `test/panel-layout-ui.test.mjs`: обработчик Enter больше не требует `!isPanelOpen()`. Поля INPUT/SELECT/TEXTAREA по-прежнему перехватывают клавишу раньше. `npm run check`.

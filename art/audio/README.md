@@ -14,6 +14,7 @@
 | `heal.mp3` | Kenney Interface Sounds | `glass_004` |
 | `potion.mp3` | artisticdude RPG Sound Pack | `inventory/bottle.wav` |
 | `level.mp3`, `click.mp3`, `error.mp3`, `success.mp3`, `shop.mp3` | Kenney Interface Sounds | `confirmation_*`, `click_002`, `error_003`, `open_001` |
+| `chat.mp3` | сгенерированный короткий двухтон | уведомление чата, 0,18 с |
 | `portal.mp3`, `camp.mp3`, `smith.mp3` | Kenney RPG Audio | `doorOpen_1`, `metalPot1`, `metalClick` |
 | `step-1/2/3.mp3` | Kenney Impact Sounds | `footstep_grass_000…002` |
 | `magic.mp3` | artisticdude RPG Sound Pack | `battle/magic1.wav`, обрезка 1,15 с |

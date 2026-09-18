@@ -17,7 +17,7 @@ test('every catalogued clip exists as a compact mp3 in the public tree',async()=
     const size=(await stat(path.join(folder,file))).size;
     assert(size>700&&size<40000,`${file} ${size}`);
   }
-  assert.equal(SOUND_FILES.length,28);
+  assert.equal(SOUND_FILES.length,29);
 });
 
 test('world events pick a cue; unknown notices stay silent',()=>{

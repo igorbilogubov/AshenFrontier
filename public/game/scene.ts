@@ -30,6 +30,7 @@ import {CAMERA,WEAPONS,mobConfig,safe,afkSpotAt} from './location.js';
 
 import {NetworkGame} from './network.js';
 import {bindInterface} from './interface.js';
+import {SPEECH_HEIGHT,SPEECH_MS,speakerOf} from './chat-speech.js';
 import {bindOnlineRoster} from './online-roster-ui.js';
 import {bindPanelLayout} from './panel-layout.js';
 import {bindResponsiveChat} from './responsive-chat.js';
@@ -45,7 +46,7 @@ import {bindTravelPanel,createTravelPortals} from './travel-ui.js';
 import {MouseWalk} from './mouse-walk.js';
 import {createSoundBus} from './sounds.js';
 import {element as $,errorMessage} from './ui-types.js';
-import type {Point,PublicPlayer,PublicMob,WeaponId} from '../../shared/types.js';
+import type {Point,PublicPlayer,PublicMob,WeaponId,ChatEntry} from '../../shared/types.js';
 type Warrior=Awaited<ReturnType<typeof loadWarrior>>;
 type MobModel=ReturnType<typeof createMob>;
 type RemoteWarrior=Warrior & {label:HTMLDivElement};
@@ -67,6 +68,7 @@ let mobAssets:MobAssets,stadium:ReturnType<typeof createStadiumEnvironment>;
 let travelPanel:ReturnType<typeof bindTravelPanel>,travelWorld:ReturnType<typeof createTravelPortals>;
 let targetZoom=1,interfaceUI:ReturnType<typeof bindInterface>,onlineRoster:ReturnType<typeof bindOnlineRoster>;
 const remoteModels=new Map<string,RemoteWarrior>(),loadingPlayers=new Set<string>(),visualHeroes=new Map<string,VisualHero>(),visualMobs=new Map<number,PublicMob>(),shots=new Map<string,T.Group>();
+const speeches=new Map<string,{el:HTMLDivElement;until:number}>();
 const ZOOM={min:.7,max:1.9,sensitivity:.0015};
 const keys=new Set<string>(),models=new Map<number,MobModel>(),particles:Particle[]=[],floats:FloatingNumber[]=[];
 const SKILL_DIGITS=['Digit1','Digit2','Digit3','Digit4','Digit5'] as const;
@@ -348,6 +350,26 @@ function renderPlayers(dt:number){
   }
   for(const [id,model] of remoteModels)if(!present.has(id)){model.root.removeFromParent();model.label.remove();model.mixer.stopAllAction();model.disposeExtras();const skeletons=new Set<T.Skeleton>();model.model.traverse(o=>{if(o instanceof T.SkinnedMesh)skeletons.add(o.skeleton);if(o instanceof T.Mesh)for(const m of Array.isArray(o.material)?o.material:[o.material])m.dispose();});for(const skeleton of skeletons)skeleton.dispose();remoteModels.delete(id);visualHeroes.delete(id);}
 }
+function hearChat(entry:ChatEntry){
+  sound.play('chat');
+  const id=speakerOf(entry,game.player,game.players);if(!id)return;
+  let row=speeches.get(id);
+  if(!row){const el=document.createElement('div');el.className='speech-bubble';$('world-ui').append(el);row={el,until:0};speeches.set(id,row);}
+  row.el.textContent=entry.text;row.until=performance.now()+SPEECH_MS;
+}
+function renderSpeech(){
+  const now=performance.now();
+  for(const [id,row] of speeches){
+    if(now>=row.until||benchmark?.variant==='no-labels'){row.el.remove();speeches.delete(id);continue;}
+    const actor=visualHeroes.get(id)||(id===game.id?game.player:game.players.find(player=>player.id===id));
+    if(!actor){row.el.hidden=true;continue;}
+    const projected=new T.Vector3(actor.x,SPEECH_HEIGHT,actor.z).project(camera);
+    const visible=Math.abs(projected.x)<=1.2&&Math.abs(projected.y)<=1.2;
+    row.el.hidden=!visible;if(!visible)continue;
+    row.el.style.opacity=String(Math.min(1,(row.until-now)/400));
+    row.el.style.transform=`translate(${(projected.x*.5+.5)*width}px,${(-projected.y*.5+.5)*height}px) translate(-50%,-100%)`;
+  }
+}
 function renderShots(){
   const ids=new Set(game.projectiles.map(p=>p.id));
   for(const [id,model] of shots)if(!ids.has(id)){disposeSkillProjectile(model);shots.delete(id);}
@@ -378,7 +400,7 @@ function render(dt:number){
   const region=locationAt(hero);document.body.classList.toggle('snow-region',region==='snow');document.body.classList.toggle('wasteland-region',region==='wasteland');forestRegion.visible=region==='forest';stadiumRegion.visible=region==='stadium';
   world.marker.visible=false;if(forestRegion.visible)world.animate(time);if(stadiumRegion.visible)stadium.animate(time);snow.animate(time,hero,region==='snow');wasteland.animate(time,hero,region==='wasteland');lateWorld.updateRegion(region);lateWorld.update(dt);dungeonWorld.update(region,time,game.dungeon?.guardsRemaining??0);bossEffects.sync(game.mobs);travelWorld?.update(region,time);
   const sky=dungeonAt(hero)?'#1e252b':lateRegionAt(hero)?'#455052':region==='snow'?'#859eac':region==='wasteland'?'#9a775e':'#485b58';(scene.background as T.Color).set(sky);if(scene.fog instanceof T.FogExp2){scene.fog.color.set(sky);scene.fog.density=region==='snow'?.009:region==='wasteland'?.012:.014;}sun.intensity=dungeonAt(hero)?1.0:2.8;sun.color.set(region==='snow'?'#e2f0ff':region==='wasteland'?'#ffe0b0':'#ffe4bc');
-  world.campHouse.update(game.player);renderPlayers(dt);renderShots();skillEffects?.update(dt);skillEffects?.slowMobs(game.mobs);persistentSkillEffects?.sync(game.players,game.mobs,game.skillZones,time);
+  world.campHouse.update(game.player);renderPlayers(dt);renderSpeech();renderShots();skillEffects?.update(dt);skillEffects?.slowMobs(game.mobs);persistentSkillEffects?.sync(game.players,game.mobs,game.skillZones,time);
   const presentMobIds=new Set(game.mobs.map(mob=>mob.id));
   for(const [id,model] of models)if(!presentMobIds.has(id)){model.root.visible=false;visualMobs.delete(id);}
   for(const mob of game.mobs){
@@ -429,7 +451,7 @@ async function start(){
     }
     const pmrem=new T.PMREMGenerator(renderer);scene.environment=pmrem.fromScene(lightRoom,.08).texture;scene.environmentIntensity=.38;pmrem.dispose();for(const p of lightPanels){p.geometry.dispose();p.material.dispose();}
 
-    forestRegion=new T.Scene();stadiumRegion=new T.Scene();scene.add(forestRegion,stadiumRegion);world=createEnvironment(forestRegion);stadium=createStadiumEnvironment(stadiumRegion,forestRegion);snow=createSnowEnvironment(scene);wasteland=createWastelandEnvironment(scene);lateWorld=createLateWorldEnvironment(scene);dungeonWorld=createDungeonEnvironment(scene);bossEffects=createBossEffects(scene);updateTarget=bindTargetPresentation(scene);skillEffects=createSkillEffects(scene);persistentSkillEffects=createPersistentSkillEffects(scene,skillOriginFor);game=new NetworkGame();interfaceUI=bindInterface(game,toast,clearInput);onlineRoster=bindOnlineRoster(game);afkSettings=bindAfkSettings(game,toast);skillbook=bindSkillbook(game,toast);bindResponsiveChat();travelPanel=bindTravelPanel(game);travelWorld=createTravelPortals(scene);
+    forestRegion=new T.Scene();stadiumRegion=new T.Scene();scene.add(forestRegion,stadiumRegion);world=createEnvironment(forestRegion);stadium=createStadiumEnvironment(stadiumRegion,forestRegion);snow=createSnowEnvironment(scene);wasteland=createWastelandEnvironment(scene);lateWorld=createLateWorldEnvironment(scene);dungeonWorld=createDungeonEnvironment(scene);bossEffects=createBossEffects(scene);updateTarget=bindTargetPresentation(scene);skillEffects=createSkillEffects(scene);persistentSkillEffects=createPersistentSkillEffects(scene,skillOriginFor);game=new NetworkGame();interfaceUI=bindInterface(game,toast,clearInput,hearChat);onlineRoster=bindOnlineRoster(game);afkSettings=bindAfkSettings(game,toast);skillbook=bindSkillbook(game,toast);bindResponsiveChat();travelPanel=bindTravelPanel(game);travelWorld=createTravelPortals(scene);
     $('load-progress').textContent='Загружаем персонажа и обитателей леса…';
     mobAssets=await loadMobAssets();
     $('load-progress').textContent='Подключаем героя к общему миру…';const stressMode=await stressEnabled();if(stressMode){const response=await fetch('/api/stress-session',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});if(!response.ok)throw new Error('Не удалось открыть изолированную FPS-сессию');const data=await response.json() as {character:{id:string}};await game.connect({heroId:data.character.id});}else await interfaceUI.join();

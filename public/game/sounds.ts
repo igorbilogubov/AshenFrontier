@@ -19,6 +19,7 @@ export const SOUND_CUES=Object.freeze({
   shop:Object.freeze(['shop.mp3']),
   smith:Object.freeze(['smith.mp3']),
   click:Object.freeze(['click.mp3']),
+  chat:Object.freeze(['chat.mp3']),
   error:Object.freeze(['error.mp3']),
   success:Object.freeze(['success.mp3']),
   step:Object.freeze(['step-1.mp3','step-2.mp3','step-3.mp3'])
@@ -28,9 +29,9 @@ export const SOUND_FILES=Object.freeze([...new Set(Object.values(SOUND_CUES).fla
 
 const VOLUME:Record<SoundCue,number>={
   swing:.55,hit:.5,hurt:.62,miss:.28,gold:.5,item:.45,heal:.5,level:.7,death:.7,kill:.42,
-  magic:.5,portal:.55,camp:.4,shop:.4,smith:.45,click:.28,error:.5,success:.55,step:.18
+  magic:.5,portal:.55,camp:.4,shop:.4,smith:.45,click:.28,chat:.48,error:.5,success:.55,step:.18
 };
-const THROTTLE:Partial<Record<SoundCue,number>>={hit:70,hurt:90,swing:90,magic:110,step:240,gold:80,item:80,kill:120};
+const THROTTLE:Partial<Record<SoundCue,number>>={hit:70,hurt:90,swing:90,magic:110,step:240,gold:80,item:80,kill:120,chat:180};
 
 export function soundEnabled(){
   try{return localStorage.getItem(SOUND_STORAGE_KEY)!=='off';}catch{return true;}

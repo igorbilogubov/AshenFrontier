@@ -7,12 +7,13 @@ import {CLASSES,EQUIPMENT_SLOTS,BAG_SLOT_PRICE,MAX_BAG_CAPACITY,itemBonus,STAT_K
 import {backpackUsage,consumableDefinition} from './consumables.js';
 import {consumableArtwork,consumableTier} from './consumable-ui.js';
 import {itemTitle} from './smith.js';
+import {liveChatEntries} from './chat-speech.js';
 import {safe} from './location.js';
 import {itemIcon,itemArtwork,itemArtKey,heroSilhouette} from './item-icons.js';
 import {element as $} from './ui-types.js';
 import {MAX_LEVEL} from './progression-curve.js';
 import type {NetworkGame} from './network.js';
-import type {Attributes,ClassId,EquipmentSlot,StatKey,WorldEvent,Item,WeaponId} from '../../shared/types.js';
+import type {Attributes,ClassId,EquipmentSlot,StatKey,WorldEvent,Item,WeaponId,ChatEntry} from '../../shared/types.js';
 type PanelName='character'|'inventory';
 type StatNodes={row:HTMLDivElement;description:HTMLElement;number:HTMLSpanElement;gain:HTMLElement;value:HTMLDivElement;minus:HTMLButtonElement;plus:HTMLButtonElement};
 type DerivedStat='attack'|'armor'|'hitChance'|'damageReduction'|'maxHp'|'hpRegen'|'maxMana'|'manaRegen'|'attackSpeed';
@@ -29,7 +30,7 @@ const format=(value:number)=>displayNumber.format(value);
 const percent=(value:number)=>`${format(Math.round(value*1000)/10)}%`;
 const clampRatio=(value:number,max:number)=>Math.max(0,Math.min(1,max?value/max:1));
 
-export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clearInput:()=>void){
+export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clearInput:()=>void,onLiveChat:(entry:ChatEntry)=>void=()=>{}){
   let inventoryKey='',statsKey='',draft=emptyDraft(),draftOwner='',pending:{revision:number;classId:ClassId;sentAt:number}|null=null,statusMessage='',lastPanel:PanelName='character';
   const compact=matchMedia('(max-width: 900px)'),panels={character:$('character-panel'),inventory:$('inventory-panel')};
   const statNodes=new Map<StatKey,StatNodes>(),derivedNodes=new Map<DerivedStat,DerivedNodes>(),slotNodes=new Map<EquipmentSlot,SlotNodes>(),bagNodes:BagNodes[]=[];
@@ -125,6 +126,7 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
     if(replace)$('chat-lines').replaceChildren();
     for(const entry of entries){const row=document.createElement('p'),name=document.createElement('b');name.textContent=entry.name+': ';row.append(name,document.createTextNode(entry.text));$('chat-lines').append(row);}
     while($('chat-lines').children.length>40)$('chat-lines').firstChild?.remove();$('chat-lines').scrollTop=$('chat-lines').scrollHeight;
+    for(const entry of liveChatEntries(entries,replace))onLiveChat(entry);
   };
   $('chat-form').onsubmit=e=>{e.preventDefault();const text=$('chat-input').value.trim();if(text&&game.connected){game.send({type:'chat',text});$('chat-input').value='';$('scene').focus();}};
   $('chat-input').onfocus=clearInput;

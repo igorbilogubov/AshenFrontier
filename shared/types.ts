@@ -112,7 +112,8 @@ export type ClientMessage = ClientCommand | { type: 'join'; protocol: 3; heroId:
 export type ServerMessage =
   | { type: 'welcome'; protocol: 3; id: string; chat: ChatEntry[] }
   | ({ type: 'state'; save: { at: number; ok: boolean } } & WorldSnapshot)
-  | { type: 'chat'; entry: ChatEntry } | { type: 'error'; code: string; text: string } | { type: 'pong'; t: unknown };
+  | { type: 'chat'; entry: ChatEntry } | { type: 'error'; code: string; text: string } | { type: 'pong'; t: unknown }
+  | { type: 'reload'; reason: 'restart' };
 export type JsonValue = null | boolean | number | string | JsonValue[] | JsonObject;
 export interface JsonObject { [key: string]: JsonValue }
 export function isRecord(value: unknown): value is Record<string, unknown> { return value !== null && typeof value === 'object' && !Array.isArray(value); }

@@ -1,5 +1,6 @@
 import {defaultAfkPreferences} from './afk-preferences.js';
 import {defaultSkillBuild} from './skill-builds.js';
+import {clearReloadResume,readReloadResume,reloadPage,shouldResumeAfk,storeReloadResume,waitUntilHealthy} from './client-reload.js';
 import {moveHero,stand} from './location.js';
 import {sameLocation} from './world-layout.js';
 import {characterStats,DEFAULT_BAG_CAPACITY,DEFAULT_STASH_CAPACITY} from '../rules.js';
@@ -19,6 +20,9 @@ function initialPlayer():ClientPlayer {
     skillBuild:defaultSkillBuild('warrior',1),buildRevision:0,skillPresets:[null,null,null],
     potionCooldown:0,manaPotionCooldown:0,specialCooldown:0,combatUntil:0,attackSerial:0,running:false,questKills:0,boss:false,questClaimed:false,ack:0,afkXpMinute:0};
 }
+function sessionStore(){
+  try{return sessionStorage;}catch{return undefined;}
+}
 
 
 export class NetworkGame{
@@ -31,7 +35,7 @@ export class NetworkGame{
   onChat:(entries:ChatEntry[],replace?:boolean)=>void;
   socket:WebSocket|undefined;
   options:ConnectionOptions={heroId:''};
-  id='';fatal=false;
+  id='';fatal=false;reloading=false;consumedReload=false;
   save:SaveState|undefined;
   groundLoot:GroundDrop[]=[];
   skillZones:SkillZone[]=[];
@@ -40,6 +44,7 @@ export class NetworkGame{
   firstState:Promise<void>|undefined;
   resolveJoin:(()=>void)|null=null;
   rejectJoin:((reason:Error)=>void)|null=null;
+  reloadPage=reloadPage;
   constructor(){
     this.player=initialPlayer();
     this.mobs=[];this.players=[];this.onlinePlayers=[];this.projectiles=[];this.loot=[];this.events=[];this.pending=[];this.connected=false;this.seq=0;this.accumulator=0;this.stand=stand;this.receivedAt=0;this.lastAttack=0;this.retryDelay=600;this.closed=false;
@@ -48,7 +53,23 @@ export class NetworkGame{
   send(message:ClientMessage){if(this.socket?.readyState===WebSocket.OPEN)this.socket.send(JSON.stringify(message));}
   connect(options:ConnectionOptions){
     this.options={heroId:options.heroId};
-    this.closed=false;this.fatal=false;this.firstState=new Promise<void>((resolve,reject)=>{this.resolveJoin=resolve;this.rejectJoin=reject;});this.open();return this.firstState;
+    this.closed=false;this.fatal=false;this.consumedReload=false;this.firstState=new Promise<void>((resolve,reject)=>{this.resolveJoin=resolve;this.rejectJoin=reject;});this.open();return this.firstState;
+  }
+  beginReload(){
+    if(this.reloading||this.closed)return;
+    this.reloading=true;this.fatal=true;this.connected=false;clearTimeout(this.retryTimer);
+    const storage=sessionStore();
+    if(storage)storeReloadResume(this.options.heroId||this.id,!!this.player.afk,storage);
+    this.onStatus('connecting','Мир обновляется. Перезапускаем клиент…');
+    void waitUntilHealthy(fetch).finally(()=>this.reloadPage());
+  }
+  resumeAfkAfterReload(){
+    if(this.consumedReload)return;
+    this.consumedReload=true;
+    const storage=sessionStore();if(!storage)return;
+    const resume=readReloadResume(storage);
+    clearReloadResume(storage);
+    if(shouldResumeAfk(resume,this.options.heroId||this.id))this.setAfk(true);
   }
   open(){
     clearTimeout(this.retryTimer);this.connected=false;this.onlinePlayers=[];this.pending=[];this.seq=0;
@@ -67,6 +88,7 @@ export class NetworkGame{
         if(!raw||typeof raw!=='object'||!('type' in raw)||typeof raw.type!=='string')return;
         m=raw as ServerMessage;
       } catch {socket.close(1002,'Invalid server message');return;}
+      if(m.type==='reload'||(m.type==='error'&&m.code==='restart')){this.beginReload();return;}
       if(m.type==='welcome'){
         welcomed=true;this.id=m.id;this.onChat(m.chat,true);return;
       }
@@ -85,13 +107,15 @@ export class NetworkGame{
         this.player=next;this.mobs=m.mobs;this.players=m.players;this.onlinePlayers=m.onlinePlayers??[];this.projectiles=m.projectiles;this.save=m.save;
         this.groundLoot=m.groundLoot||[];this.skillZones=m.skillZones||[];this.dungeon=m.dungeon;
         this.events.push(...m.events);this.onStatus('online',m.save.ok?'В общем мире':'Ошибка сохранения — не закрывайте игру');
+        this.resumeAfkAfterReload();
         this.resolveJoin?.();this.resolveJoin=null;this.rejectJoin=null;return;
       }
       if(m.type==='chat')this.onChat([m.entry]);
     };
-    socket.onclose=()=>{
+    socket.onclose=event=>{
       clearTimeout(deadline);if(this.socket!==socket)return;this.connected=false;this.onlinePlayers=[];this.pending=[];
-      if(this.closed||this.fatal)return;
+      if(this.reloading||this.closed||this.fatal)return;
+      if(event.code===1012){this.beginReload();return;}
       this.onStatus('connecting','Связь потеряна. Возвращаемся тем же героем…');
       this.retryTimer=setTimeout(()=>this.open(),this.retryDelay);this.retryDelay=Math.min(4000,this.retryDelay*1.7);
     };
@@ -99,6 +123,7 @@ export class NetworkGame{
   }
   disconnect(){
     this.stopInput();this.closed=true;this.connected=false;this.onlinePlayers=[];this.pending=[];clearTimeout(this.retryTimer);
+    const storage=sessionStore();if(storage&&!this.reloading)clearReloadResume(storage);
     this.socket?.close(1000,'Character selection');this.socket=undefined;
     this.rejectJoin?.(new ConnectionError('cancelled','Подключение отменено'));this.rejectJoin=null;this.resolveJoin=null;
   }

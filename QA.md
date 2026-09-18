@@ -1,5 +1,11 @@
 # Проверка общей 3D-опушки
 
+## 18 сентября 2026: перезапуск клиента после выкладки
+
+`test/client-reload.test.mjs`: резюме AFK только для того же heroId, TTL 120 с, опрос `/health`. `test/client-reload-network.test.mjs`: SIGTERM шлёт `reload` + `error restart` и close 1012; после рестарта процесса AFK из сохранения не поднимается, повторная команда `afk` снова включает охоту. `npm run check`.
+
+
+
 ## 18 сентября 2026: контурный ореол заточки
 
 `test/early-equipment-glow.test.mjs`: ткань Armor_Body не меняет emissive/metalness/цвет после +9; ореол `EnhanceRim_*` аддитивный, `toneMapped=false`; +6 меч шире и ярче +3 доспеха (`expand`/`fill`/`power`). Вставок `EarlyGlow_` нет. `test/late-equipment-art.test.mjs`: clamp 0…9 через интенсивность ореола. `npm run check`.

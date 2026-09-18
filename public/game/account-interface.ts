@@ -1,4 +1,5 @@
 import {ConnectionError,type NetworkGame} from './network.js';
+import {readReloadResume} from './client-reload.js';
 import {itemIcon} from './item-icons.js';
 import {errorMessage} from './ui-types.js';
 import type {ClassId} from '../../shared/types.js';
@@ -94,15 +95,17 @@ export function bindAccountInterface(game:NetworkGame,clearInput:()=>void){
     }catch(failure){error.textContent=errorMessage(failure);if(failure instanceof ConnectionError&&failure.code==='auth_required')await refresh(errorMessage(failure));}
     finally{setBusy(false);}
   };
-  play.onclick=async()=>{
-    if(busy||!selected)return;setBusy(true);error.textContent='';status.textContent='Подключаемся к миру…';
+  async function enterHero(heroId:string,label:string){
+    selected=heroId;setBusy(true);error.textContent='';status.textContent=label;
     try{
-      await game.connect({heroId:selected});entered=true;panel.hidden=true;node('account-menu').hidden=false;resolveEntry?.();resolveEntry=null;
+      await game.connect({heroId});entered=true;panel.hidden=true;node('account-menu').hidden=false;resolveEntry?.();resolveEntry=null;return true;
     }catch(failure){
       game.disconnect();status.textContent='Выберите героя';error.textContent=errorMessage(failure);
       if(failure instanceof ConnectionError&&failure.code==='auth_required')await refresh(errorMessage(failure));
+      return false;
     }finally{setBusy(false);}
-  };
+  }
+  play.onclick=async()=>{if(!busy&&selected)await enterHero(selected,'Подключаемся к миру…');};
   game.onTerminal=(_code,message)=>{
     if(!entered)return;
     clearInput();saveNotice(message);game.disconnect();location.reload();
@@ -117,7 +120,12 @@ export function bindAccountInterface(game:NetworkGame,clearInput:()=>void){
     const message=savedNotice()||(oauthError?'Вход через Google не завершён. Попробуйте снова.':'');
     if(oauthError){params.delete('auth_error');history.replaceState(null,'',`${location.pathname}${params.size?'?'+params.toString():''}${location.hash}`);}
     const entry=new Promise<void>(resolve=>{resolveEntry=resolve;});
-    await refresh(message);return entry;
+    await refresh(message);
+    try{
+      const resume=readReloadResume(sessionStorage);
+      if(resume&&state?.characters.some(hero=>hero.id===resume.heroId))await enterHero(resume.heroId,'Восстанавливаем героя после обновления мира…');
+    }catch{/* Private mode may block sessionStorage; the player can still choose a hero. */}
+    return entry;
   }
   return {join};
 }

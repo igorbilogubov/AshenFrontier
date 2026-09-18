@@ -356,6 +356,11 @@ server.listen(port,host,()=>{
 async function shutdown(){
   if(shuttingDown)return;shuttingDown=true;stress?.close();clearInterval(tick);clearInterval(heartbeat);
   if(retryTimer){clearTimeout(retryTimer);retryTimer=null;}
+  for(const ws of wss.clients){
+    send(ws,{type:'reload',reason:'restart'});
+    send(ws,{type:'error',code:'restart',text:'Мир обновляется. Перезапускаем клиент…'});
+  }
+  await new Promise<void>(resolve=>setTimeout(resolve,200));
   for(const ws of wss.clients)ws.close(1012,'Server restarting');
   previewServer?.close();server.close();wss.close();
   const deadline=Date.now()+8000;

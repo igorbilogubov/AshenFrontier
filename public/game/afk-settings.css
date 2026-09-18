@@ -1,13 +1,10 @@
 #afk-settings-toggle {
   pointer-events: auto;
-  border: 1px solid #af9a6659;
-  background: #14251fdd;
-  color: #e0c58f;
-  border-radius: 3px;
-  padding: 2px 7px;
+  min-width: 36px;
+  min-height: 36px;
+  padding: 4px 8px;
   font-size: 15px;
   line-height: 1;
-  min-height: 23px;
 }
 
 #afk-settings-toggle:hover,
@@ -26,7 +23,7 @@
 .afk-settings-panel {
   position: fixed;
   right: 18px;
-  bottom: 196px;
+  bottom: 248px;
   z-index: 35;
   width: min(365px, calc(100vw - 36px));
   max-height: min(68dvh, 590px);

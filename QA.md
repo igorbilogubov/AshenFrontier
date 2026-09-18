@@ -1,5 +1,9 @@
 # Проверка общей 3D-опушки
 
+## 18 сентября 2026: нижний HUD
+
+Локально. `#hero-level` стоит в начале полосы опыта, `#hero-name` убран. `.auxiliary-controls` после `</footer>` в `.hero-shortcuts`, над кнопками Герой/Вещи/Навыки. Тест `test/panel-layout-ui.test.mjs`. `npm run check`.
+
 ## 18 сентября 2026: звук
 
 Локально. Первая выкладка молчала: сервер не отдавал `.ogg` (404) и Safari не декодирует Vorbis. Исправление: MP3 + MIME `audio/mpeg`. `test/sounds.test.mjs` проверяет 28 файлов и запись в `server.ts`. Кнопка `#sound-toggle` и M. `npm run check`.

@@ -200,7 +200,7 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
   function update(){
     const p=game.player,c=CLASSES[p.classId];if(!c)return;
     const maxed=p.level>=MAX_LEVEL;
-    write($('hero-name'),`${p.name} · ${c.name} ${p.level}`);write($('hud-xp-text'),maxed?'Макс. уровень':`${p.xp} / ${p.xpNeeded} XP`);
+    write($('hero-level'),String(p.level));$('hero-level').setAttribute('aria-label',`Уровень ${p.level}`);write($('hud-xp-text'),maxed?'Макс. уровень':`${p.xp} / ${p.xpNeeded} XP`);
     $('hud-experience').setAttribute('aria-valuemax',String(maxed?1:p.xpNeeded));$('hud-experience').setAttribute('aria-valuenow',String(maxed?1:p.xp));
     write($('mana-text'),`${Math.floor(p.mana||0)} / ${p.maxMana||0}`);$('mana-fill').style.height=`${clampRatio(p.mana,p.maxMana)*100}%`;
     $('mana-orb').setAttribute('aria-valuemax',String(p.maxMana||0));$('mana-orb').setAttribute('aria-valuenow',String(Math.floor(p.mana||0)));$('hud-xp-fill').style.transform=`scaleX(${maxed?1:clampRatio(p.xp,p.xpNeeded)})`;

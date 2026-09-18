@@ -26,3 +26,19 @@ test('equipment window drops the kicker, caption and bag hint',()=>{
   assert.match(inventory,/id="hero-details"[^>]*\bhidden\b/);
   assert.match(inventory,/id="inventory-hint"[^>]*\bhidden\b/);
 });
+
+test('hud keeps level on the XP row and combat buttons beside the menu', async ()=>{
+  assert.match(html,/class="hud-progress"/);
+  assert.match(html,/id="hero-level"/);
+  assert.doesNotMatch(html,/id="hero-name"/);
+  assert.match(html,/class="hero-shortcuts"/);
+  assert.match(html,/class="auxiliary-controls"/);
+  assert.ok(html.indexOf('class="auxiliary-controls"')>html.indexOf('</footer>'));
+  assert.match(html,/class="hero-shortcut-buttons"/);
+  const hud=await readFile(new URL('../public/game/hud.css',import.meta.url),'utf8');
+  assert.match(hud,/\.hud-progress\{display:grid/);
+  const chrome=await readFile(new URL('../public/game/inventory-interactions.css',import.meta.url),'utf8');
+  assert.match(chrome,/\.hero-shortcuts\{position:fixed;right:22px;bottom:23px;z-index:20;display:flex;flex-direction:column;align-items:flex-end/);
+  const gameplay=await readFile(new URL('../public/game/gameplay-hud.css',import.meta.url),'utf8');
+  assert.match(gameplay,/\.auxiliary-controls button,\.auxiliary-controls #afk-xp-rate,\.auxiliary-controls #reset,\.auxiliary-controls #movement/);
+});

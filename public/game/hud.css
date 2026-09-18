@@ -10,16 +10,10 @@
   gap:14px;
 }
 .hud-core{min-width:0;display:flex;flex-direction:column;gap:5px}
-.hud-core .hero-status{
-  width:100%;max-width:none;min-width:0;gap:12px;
-  padding:6px 10px;border-radius:3px;border-bottom:0;
-  background:linear-gradient(90deg,#14211ddd,#1c2922f0,#14211ddd);
-}
-#hero-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;font-weight:500;color:#d8d5bc}
-.hud-core .resources{font-size:10px;min-width:0;flex-shrink:0;text-align:right}
-.hud-core #movement{min-width:58px;padding:3px 7px}
-.hud-core .dock{width:100%;max-width:none;flex-wrap:wrap;justify-content:center;gap:6px;padding:9px 8px;border-radius:3px;border-color:#ac925650;background:linear-gradient(#28352beb,#111e19f5);box-shadow:inset 0 1px #e7c68c12,0 8px 20px #040d0b66}
-.hud-core .hud-experience{position:relative;width:100%;max-width:none;height:22px;margin-top:1px;background:#14221de8;border:1px solid #aa8956;overflow:hidden}.hud-core .hud-experience i{background:linear-gradient(90deg,#b88b44,#e4bd70);transform-origin:left}.hud-core #hud-xp-text{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:600 10px system-ui;color:#fff0d0;text-shadow:0 1px 3px #000,0 0 6px #000;font-variant-numeric:tabular-nums}
+.hud-progress{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:stretch;gap:6px;width:100%}
+#hero-level{display:flex;align-items:center;justify-content:center;min-width:36px;padding:0 8px;border:1px solid #aa8956;background:#14221de8;color:#fff0d0;font:700 12px/1 Georgia,serif;font-variant-numeric:tabular-nums}
+.hud-core .dock{width:100%;max-width:none;border-radius:3px;border-color:#ac925650;background:linear-gradient(#28352beb,#111e19f5);box-shadow:inset 0 1px #e7c68c12,0 8px 20px #040d0b66}
+.hud-core .hud-experience{position:relative;width:100%;max-width:none;height:22px;margin:0;background:#14221de8;border:1px solid #aa8956;overflow:hidden}.hud-core .hud-experience i{background:linear-gradient(90deg,#b88b44,#e4bd70);transform-origin:left}.hud-core #hud-xp-text{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:600 10px system-ui;color:#fff0d0;text-shadow:0 1px 3px #000,0 0 6px #000;font-variant-numeric:tabular-nums}
 .resource-orb{position:relative;width:var(--orb-size);height:var(--orb-size);align-self:end;pointer-events:auto;user-select:none}
 .orb-frame{
   position:absolute;inset:0;border-radius:50%;padding:9px;
@@ -42,7 +36,7 @@
 @media(max-width:1000px){.combat-hud{--orb-size:106px;gap:10px}.hud-core .dock{gap:4px;padding:7px 6px}}
 @media(max-width:850px){
   .combat-hud{--orb-size:94px;gap:8px}
-  .hud-core .hero-status{padding:5px 7px;gap:8px}
+  #hero-level{min-width:30px;padding:0 6px;font-size:11px}
   .hud-core #attack,.hud-core #potion{padding:6px 7px;font-size:10px}
   .hud-core .weapon{width:38px}
   .hud-core .attack-icon,.hud-core #potion>span:first-child{font-size:21px}
@@ -52,10 +46,8 @@
   footer{left:10px;right:10px}
   .combat-hud{--orb-size:76px;gap:6px}
   .orb-frame{padding:7px}
-  .hud-core .hero-status{flex-wrap:wrap;gap:3px 6px;padding:5px 7px}
-  #hero-name{flex-basis:100%;font-size:9px}
-  .hud-core .resources{flex:1;font-size:9px;text-align:left}
-  .hud-core #movement{min-width:48px;font-size:9px;padding:3px}
+  .hud-progress{gap:4px}
+  #hero-level{min-width:28px;padding:0 5px;font-size:10px}
   .hud-core .dock{gap:4px;padding:7px 5px}
   .orb-label{font-size:6px;letter-spacing:.3px}
   #hp-text,#mana-text{font-size:10px}
@@ -70,12 +62,10 @@
   .hud-core #attack,.hud-core #potion{padding:5px;font-size:9px}
   .hud-core .attack-icon,.hud-core #potion>span:first-child{display:none}
 }
-@media(max-height:590px) and (min-width:601px){.combat-hud{--orb-size:88px}.hud-core .hero-status{padding:3px 7px}.hud-core .dock{padding:5px}}
+@media(max-height:590px) and (min-width:601px){.combat-hud{--orb-size:88px}#hero-level{min-width:30px}.hud-core .dock{padding:5px}}
 @media(prefers-reduced-motion:reduce){.orb-liquid{transition:none}}
 /* Skill sockets show their own server cooldown and mana price. */
 .hud-core .skill-button{position:relative;isolation:isolate;width:88px;max-width:88px!important;height:62px!important;padding:5px 4px!important;border:1px solid #ad96555e;background:linear-gradient(145deg,#354438,#16251f);border-radius:3px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;overflow:hidden}
 .skill-button::after{content:'';position:absolute;inset:0 0 auto;height:var(--cooldown,0%);background:#060c13bb;z-index:-1;border-bottom:1px solid #c4a87040;transition:height .1s linear}.skill-button kbd{position:absolute;left:5px;top:2px;font:9px system-ui;color:#ccb782}.skill-sigil{font:19px/1 Georgia;color:#e2c997;text-shadow:0 0 10px #d3a45355}.skill-name{font-size:9px;line-height:1.15;max-width:100%;text-align:center}.skill-meta{font-size:8px;color:#a9b49b}.skill-button[data-skill^='mage']{border-color:#909bb577;background:linear-gradient(145deg,#2e3a4a,#172628)}.skill-button[data-skill^='mage'] .skill-sigil{color:#a7d8ef}.skill-button[data-skill^='archer'] .skill-sigil{color:#bad697}.skill-button:disabled{opacity:.64}.skill-button:hover:enabled{border-color:#e2c997}
 @media(max-width:680px){.hud-core .skill-button{width:72px;max-width:72px!important;height:55px!important}.skill-name{font-size:8px}}
-#afk-toggle{pointer-events:auto;border:1px solid #7b96704d;border-radius:3px;background:#182921;color:#bbc9a8;padding:3px 7px;font-size:9px;display:flex;align-items:center;gap:7px;max-width:150px;line-height:1.25}#afk-toggle kbd{color:#c6b478;font:8px system-ui}#afk-toggle[aria-pressed='true']{border-color:#d3b16a;background:#68593444;color:#e9d4a1}#afk-toggle:disabled{opacity:.45}
-#afk-xp-rate{pointer-events:none;min-width:0;padding:3px 7px;border:1px solid #d3b16a66;border-radius:3px;background:#68593444;color:#f1dfa0;font:600 9px/1.25 system-ui,sans-serif;font-variant-numeric:tabular-nums;white-space:nowrap}
-@media(max-width:680px){#afk-toggle{font-size:8px;max-width:95px;padding:3px}#afk-xp-rate{font-size:8px;padding:3px 5px}}
+

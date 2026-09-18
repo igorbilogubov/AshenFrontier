@@ -35,7 +35,7 @@ const elementTags = {
   'equipment-figure': 'div',
   'equipment-slots': 'div',
   'hero-details': 'p',
-  'hero-name': 'b',
+  'hero-level': 'b',
   'hp-fill': 'i',
   'hp-orb': 'div',
   'hp-text': 'span',

@@ -19,30 +19,6 @@ const WARRIOR_FOREST_MESHES:Record<string,readonly string[]>={
   'wanderer-boots':['Traveller_Boots'],'watch-boots':['Boots'],
   'copper-ring':['Copper_Ring'],'ember-amulet':['Ember_Amulet']
 };
-const RIM_VERTEX=`varying vec3 vViewDir;varying vec3 vNormalView;
-uniform float uExpand;
-#include <common>
-#include <batching_pars_vertex>
-#include <skinning_pars_vertex>
-void main(){
-  #include <batching_vertex>
-  #include <skinbase_vertex>
-  #include <beginnormal_vertex>
-  #include <skinnormal_vertex>
-  #include <defaultnormal_vertex>
-  vNormalView=normalize(transformedNormal);
-  #include <begin_vertex>
-  #include <skinning_vertex>
-  transformed+=normalize(objectNormal)*uExpand;
-  #include <project_vertex>
-  vViewDir=normalize(-mvPosition.xyz);
-}`;
-const RIM_FRAGMENT=`uniform vec3 uColor;uniform float uIntensity;uniform float uPower;
-varying vec3 vViewDir;varying vec3 vNormalView;
-void main(){
-  float rim=pow(1.0-abs(dot(normalize(vNormalView),normalize(vViewDir))),uPower);
-  gl_FragColor=vec4(uColor*(0.35+0.65*rim)*uIntensity,rim);
-}`;
 type GlowInfo={region:GearRegion;classId:ClassId;slot:EquipmentSlot};
 function glowInfo(appearance:string):GlowInfo|undefined{
   const regional=regionalAppearance(appearance);
@@ -52,29 +28,16 @@ function glowInfo(appearance:string):GlowInfo|undefined{
     if(item)return {region:'forest',classId,slot:item.slot};
   }
 }
-function isLate(region:GearRegion){return (LATE_COLLECTION_REGIONS as readonly string[]).includes(region);}
-function createRimMaterial(){
-  return new T.ShaderMaterial({
-    name:'EnhanceRim',
-    uniforms:{uColor:{value:new T.Color('#e6c56d')},uIntensity:{value:0},uPower:{value:2.8},uExpand:{value:0}},
-    vertexShader:RIM_VERTEX,
-    fragmentShader:RIM_FRAGMENT,
-    transparent:true,
-    blending:T.AdditiveBlending,
-    depthWrite:false,
-    toneMapped:false,
-    fog:false,
-    lights:false,
-    side:T.BackSide
-  });
-}
+type ClothOriginal={color:T.Color;emissive:T.Color;emissiveIntensity:number;roughness:number};
 export function enhancementGlow(level:number){
   const enhancement=T.MathUtils.clamp(Math.floor(Number.isFinite(level)?level:0),0,9);
-  if(!enhancement)return {enhancement:0,intensity:0,power:3.2,expand:0};
-  const intensity=.28+enhancement*.14;
-  const power=3.1-enhancement*.12;
-  const expand=.006+enhancement*.003;
-  return {enhancement,intensity,power,expand};
+  if(!enhancement)return {enhancement:0,paint:0,emissive:0,sheen:0};
+  return {
+    enhancement,
+    paint:.14+enhancement*.075,
+    emissive:.06+enhancement*.045,
+    sheen:.04+enhancement*.03
+  };
 }
 export type SlotEnhance=Partial<Record<EquipmentSlot,number>>;
 
@@ -95,21 +58,16 @@ export function attachLateEquipment(model:T.Object3D,source:T.Object3D){
 function sourceMeshes(root:T.Object3D,skip:Set<T.Object3D>){
   const list:T.Mesh[]=[];
   root.traverse(object=>{
-    if(!(object instanceof T.Mesh)||object.name.startsWith('EnhanceRim'))return;
+    if(!(object instanceof T.Mesh))return;
     if(object!==root&&skip.has(object))return;
     list.push(object);
   });
   return list;
 }
-function attachRim(source:T.Mesh,material:T.ShaderMaterial,slot:EquipmentSlot){
-  const rim=source instanceof T.SkinnedMesh?new T.SkinnedMesh(source.geometry,material):new T.Mesh(source.geometry,material);
-  rim.name=`EnhanceRim_${slot}`;
-  rim.frustumCulled=false;rim.castShadow=false;rim.receiveShadow=false;rim.renderOrder=3;rim.visible=false;
-  if(rim instanceof T.SkinnedMesh&&source instanceof T.SkinnedMesh)rim.bind(source.skeleton,source.bindMatrix);
-  source.add(rim);
-  return rim;
+function clothOf(mesh:T.Mesh){
+  return (Array.isArray(mesh.material)?mesh.material:[mesh.material]).filter((material):material is T.MeshStandardMaterial=>material instanceof T.MeshStandardMaterial);
 }
-/** Per-instance visibility and rim overlays; never mutates cloth/metal materials. */
+/** Per-instance visibility; paints each worn slot brighter with enhancement, like MU Online. */
 export function createLateEquipmentVisuals(model:T.Object3D,classId:ClassId){
   const parts=new Map<string,T.Object3D>();
   for(const region of LATE_COLLECTION_REGIONS){const prefix=REGIONAL_COLLECTIONS[region][classId][0];for(const slot of SLOTS){const name=`${prefix}-${slot}`,part=model.getObjectByName(name);if(part){parts.set(name,part);part.visible=false;}}}
@@ -117,20 +75,21 @@ export function createLateEquipmentVisuals(model:T.Object3D,classId:ClassId){
   if(classId==='warrior')for(const names of Object.values(WARRIOR_FOREST_MESHES))for(const name of names){const part=model.getObjectByName(name);if(part)earlyRoots.push(part);}
   else for(const item of CLASS_ITEMS[classId]){const part=model.getObjectByName(item.appearance);if(part)earlyRoots.push(part);}
   const skip=new Set<T.Object3D>([...earlyRoots,...parts.values()]);
-  const rimMaterials=new Map<EquipmentSlot,T.ShaderMaterial>();
-  const rims:T.Mesh[]=[];
-  function rimMaterial(slot:EquipmentSlot){
-    let material=rimMaterials.get(slot);if(material)return material;
-    material=createRimMaterial();rimMaterials.set(slot,material);return material;
+  const originals=new WeakMap<T.MeshStandardMaterial,ClothOriginal>();
+  const slotCloth=new Map<EquipmentSlot,T.MeshStandardMaterial[]>();
+  function remember(slot:EquipmentSlot,material:T.MeshStandardMaterial){
+    if(!originals.has(material))originals.set(material,{color:material.color.clone(),emissive:material.emissive.clone(),emissiveIntensity:material.emissiveIntensity,roughness:material.roughness});
+    const list=slotCloth.get(slot)??[];
+    if(!list.includes(material))list.push(material);
+    slotCloth.set(slot,list);
   }
-  function addRims(root:T.Object3D,slot:EquipmentSlot){
-    const material=rimMaterial(slot);
-    for(const mesh of sourceMeshes(root,skip))rims.push(attachRim(mesh,material,slot));
+  function addCloth(root:T.Object3D,slot:EquipmentSlot){
+    for(const mesh of sourceMeshes(root,skip))for(const material of clothOf(mesh))remember(slot,material);
   }
-  for(const [appearance,part] of parts){const info=glowInfo(appearance);if(info)addRims(part,info.slot);}
+  for(const [appearance,part] of parts){const info=glowInfo(appearance);if(info)addCloth(part,info.slot);}
   for(const root of earlyRoots){
     const info=glowInfo(root.name)||[...Object.entries(WARRIOR_FOREST_MESHES)].flatMap(([appearance,names])=>names.includes(root.name)?[glowInfo(appearance)]:[]).find(Boolean);
-    if(info)addRims(root,info.slot);
+    if(info)addCloth(root,info.slot);
   }
   let enhancement=0,current:ItemAppearance|undefined,lastLevels:number|SlotEnhance=0;
   function glowColor(appearance:string){
@@ -144,18 +103,19 @@ export function createLateEquipmentVisuals(model:T.Object3D,classId:ClassId){
   function applyEnhancement(value:number|SlotEnhance=lastLevels){
     const source=value;
     enhancement=typeof value==='number'?enhancementGlow(value).enhancement:Math.max(0,...SLOTS.map(slot=>enhancementGlow(slotLevel(slot,value)).enhancement));
+    const tint=new T.Color();
     for(const slot of SLOTS){
       const worn=current?.[slot]??null;
       const glow=enhancementGlow(slotLevel(slot,source));
-      const color=worn?glowColor(worn)??GLOW_COLORS.forest[classId]:GLOW_COLORS.forest[classId];
-      const material=rimMaterials.get(slot);
-      if(material){
-        material.uniforms.uColor.value.set(color);
-        material.uniforms.uIntensity.value=glow.intensity;
-        material.uniforms.uPower.value=glow.power;
-        material.uniforms.uExpand.value=glow.expand;
+      const paint=worn?glowColor(worn)??GLOW_COLORS.forest[classId]:GLOW_COLORS.forest[classId];
+      tint.set(paint);
+      for(const material of slotCloth.get(slot)??[]){
+        const original=originals.get(material);if(!original)continue;
+        material.color.copy(original.color).lerp(tint,glow.paint);
+        material.emissive.copy(original.emissive).lerp(tint,glow.paint);
+        material.emissiveIntensity=original.emissiveIntensity+glow.emissive;
+        material.roughness=Math.max(.12,original.roughness-glow.sheen);
       }
-      for(const rim of rims)if(rim.name===`EnhanceRim_${slot}`)rim.visible=glow.enhancement>0;
     }
     lastLevels=typeof source==='number'?source:{...source};
     return enhancement;
@@ -169,9 +129,12 @@ export function createLateEquipmentVisuals(model:T.Object3D,classId:ClassId){
     applyEnhancement(lastLevels);return mapped;
   }
   function dispose(){
-    for(const rim of rims)rim.removeFromParent();
-    for(const material of rimMaterials.values())material.dispose();
-    rims.length=0;rimMaterials.clear();
+    for(const list of slotCloth.values())for(const material of list){
+      const original=originals.get(material);if(!original)continue;
+      material.color.copy(original.color);material.emissive.copy(original.emissive);
+      material.emissiveIntensity=original.emissiveIntensity;material.roughness=original.roughness;
+    }
+    slotCloth.clear();
   }
   return {apply,applyEnhancement,dispose,get parts(){return parts;}};
 }

@@ -44,3 +44,9 @@ test('hud keeps level on the XP row and combat buttons beside the menu', async (
   const gameplay=await readFile(new URL('../public/game/gameplay-hud.css',import.meta.url),'utf8');
   assert.match(gameplay,/\.auxiliary-controls button,\.auxiliary-controls #afk-xp-rate,\.auxiliary-controls #reset,\.auxiliary-controls #movement/);
 });
+
+test('Enter focuses world chat while character windows stay open', async ()=>{
+  const source=await readFile(new URL('../public/game/interface.ts',import.meta.url),'utf8');
+  assert.match(source,/if\(event\.code==='Enter'\)\{event\.preventDefault\(\);\$\('chat-input'\)\.focus\(\);\}/);
+  assert.doesNotMatch(source,/Enter'&&!isPanelOpen/);
+});

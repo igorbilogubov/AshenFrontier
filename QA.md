@@ -1,5 +1,10 @@
 # Проверка общей 3D-опушки
 
+## 18 сентября 2026: Enter в чат при открытых панелях
+
+`test/panel-layout-ui.test.mjs`: обработчик Enter больше не требует `!isPanelOpen()`. Поля INPUT/SELECT/TEXTAREA по-прежнему перехватывают клавишу раньше. `npm run check`.
+
+
 ## 18 сентября 2026: HUD FPS / ОЗУ / ЦП / GPU
 
 Локально. `test/performance.test.mjs`: строка `60 FPS · 48 МБ` и `ЦП 50% · GPU 18 / 140к`; без heap ОЗУ пропускается, перегруз кадра >100%. `npm run check`.

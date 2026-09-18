@@ -134,7 +134,7 @@ export function bindInterface(game:NetworkGame,toast:(message:string)=>void,clea
     if(['INPUT','SELECT','TEXTAREA'].includes((document.activeElement?.tagName||'')))return;
     if(event.code==='KeyI'){event.preventDefault();togglePanel('inventory');}
     if(event.code==='KeyC'){event.preventDefault();togglePanel('character');}
-    if(event.code==='Enter'&&!isPanelOpen()&&(document.activeElement?.tagName||'')!=='BUTTON'){event.preventDefault();$('chat-input').focus();}
+    if(event.code==='Enter'){event.preventDefault();$('chat-input').focus();}
   });
   const accounts=bindAccountInterface(game,clearInput);
   const join=accounts.join;

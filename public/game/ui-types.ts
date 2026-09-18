@@ -82,6 +82,7 @@ const elementTags = {
   'reset': 'button',
   'camp-return-label': 'span',
   'loot-labels-toggle': 'button',
+  'sound-toggle': 'button',
   'reset-confirm': 'div',
   'reset-confirm-no': 'button',
   'reset-confirm-yes': 'button',

@@ -42,6 +42,7 @@ import {classFor} from '../rules.js';
 import {Benchmark,stressEnabled} from './benchmark.js';
 import {bindTravelPanel,createTravelPortals} from './travel-ui.js';
 import {MouseWalk} from './mouse-walk.js';
+import {createSoundBus} from './sounds.js';
 import {element as $,errorMessage} from './ui-types.js';
 import type {Point,PublicPlayer,PublicMob,WeaponId} from '../../shared/types.js';
 type Warrior=Awaited<ReturnType<typeof loadWarrior>>;
@@ -71,6 +72,7 @@ let heldHudSkill:number|null=null,channelSlot:number|null=null,lastChannelPulse=
 const raycaster=new T.Raycaster(),ndc=new T.Vector2(),groundPlane=new T.Plane(new T.Vector3(0,1,0),0),cameraTarget=new T.Vector3(.5,.3,2),skillOrigin=new T.Vector3();
 const mouse:HeldMouse={x:0,y:0,active:false,point:null,attacking:false,casting:false,pointerId:null,};
 const mouseWalk=new MouseWalk();
+const sound=createSoundBus();
 // Five metres cover the full animated actor and its shadow beyond the viewport.
 // Keep pose bookkeeping current, but sample/draw only groups near the camera.
 const actorFrustum=new T.Frustum(),actorProjection=new T.Matrix4(),actorBounds=new T.Sphere(new T.Vector3(),5);
@@ -93,7 +95,15 @@ function updateLootLabels(){
   $('loot-labels-toggle').title=`${lootLabelsVisible?'Скрыть':'Показать'} названия добычи · Z`;
 }
 function toggleLootLabels(){lootLabelsVisible=!lootLabelsVisible;updateLootLabels();try{localStorage.setItem('ashen-loot-labels',lootLabelsVisible?'visible':'hidden');}catch{}}
-updateLootLabels();bindPanelLayout();
+function updateSoundToggle(){
+  $('sound-toggle').setAttribute('aria-pressed',String(sound.enabled()));
+  $('sound-toggle').title=`${sound.enabled()?'Выключить':'Включить'} звук · M`;
+}
+function toggleSound(){sound.setMuted(sound.enabled());updateSoundToggle();}
+updateLootLabels();updateSoundToggle();bindPanelLayout();
+const unlockSound=()=>sound.unlock();
+addEventListener('pointerdown',unlockSound);
+addEventListener('keydown',unlockSound);
 const lootGeometry=new T.IcosahedronGeometry(.11,0),lootMaterial=new T.MeshStandardMaterial({color:'#e5b258',emissive:'#8a5a1e',emissiveIntensity:.3,metalness:.65,roughness:.35});
 
 function toast(message:string){$('notice').textContent=message;$('notice').classList.add('visible');clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>$('notice').classList.remove('visible'),2400);}
@@ -200,6 +210,7 @@ function processEvents(){
   let gainedLevel=null;
   for(const event of game.events.splice(0)){
     interfaceUI.onEvent?.(event);afkSettings?.onEvent(event);skillbook?.onEvent(event);travelPanel?.onEvent(event);
+    sound.handleEvent(event,!!game.player.afk);
     if(event.type==='skillImpact'&&event.phase!=='end')skillEffects?.impact(event);
     if(event.type==='notice')toast(event.text);
     if(event.type==='item')toast(`Получено: ${event.name}${event.pending?' · ожидает в рюкзаке':''}`);
@@ -225,7 +236,7 @@ function tick(dt:number){
   processEvents();
   if(!game.connected){releaseMovement();processEvents();return;}
   const hero=game.player;
-  if(hero.afk){game.update(dt,{x:0,z:0,aim:null});processEvents();return;}
+  if(hero.afk){game.update(dt,{x:0,z:0,aim:null});processEvents();sound.pulse(hero);return;}
   let input:{x:number;z:number;aim:number|null}={x:0,z:0,aim:null};
   const keyboardSkill=['Digit1','Digit2','Digit3','Digit4'].findIndex(code=>keys.has(code)),heldSkill=keyboardSkill>=0?keyboardSkill:mouse.casting?4:heldHudSkill;
   if(heldSkill!==null&&heldSkill>=0&&!safe(hero)){input.x=input.z=0;castSkill(heldSkill,true);}
@@ -238,6 +249,7 @@ function tick(dt:number){
   game.update(dt,input);
   if(pendingWeapon&&!hero.attack)chooseWeapon(pendingWeapon);
   processEvents();
+  sound.pulse(hero);
 }
 function drawMap(){
   map.setTransform(2,0,0,2,0,0);
@@ -461,6 +473,7 @@ addEventListener('keydown',event=>{
   const skillIndex=['Digit1','Digit2','Digit3','Digit4'].indexOf(event.code);if(skillIndex>=0)castSkill(skillIndex,true);
   if(event.code==='KeyQ'){event.preventDefault();drink('q');}if(event.code==='KeyW'){event.preventDefault();drink('w');}
   if(event.code==='KeyZ'){event.preventDefault();toggleLootLabels();}
+  if(event.code==='KeyM'){event.preventDefault();toggleSound();}
   if(event.code==='KeyF')toggleAfk();if(event.code==='Escape'&&!interfaceUI?.isPanelOpen()){cancelAfk();clearInput();}
 });
 addEventListener('keyup',event=>{keys.delete(event.code);const slot=['Digit1','Digit2','Digit3','Digit4'].indexOf(event.code);if(slot>=0&&channelSlot===slot)stopChannel();});addEventListener('blur',clearInput);document.addEventListener('visibilitychange',()=>{paused=document.hidden;if(paused)clearInput();last=0;accumulator=0;});addEventListener('resize',fitCamera);
@@ -473,6 +486,7 @@ for(const [index,id] of ['special','skill-secondary','skill-tertiary','skill-qua
 }
 $('afk-toggle').addEventListener('click',()=>{toggleAfk();canvas.focus({preventScroll:true});});
 $('loot-labels-toggle').addEventListener('click',()=>{toggleLootLabels();canvas.focus({preventScroll:true});});
+$('sound-toggle').addEventListener('click',()=>{toggleSound();canvas.focus({preventScroll:true});});
 $('movement').addEventListener('click',()=>{toggleRun();canvas.focus({preventScroll:true});});
 function drink(slot:'q'|'w'){if(!$(slot==='q'?'potion':'mana-potion').classList.contains('quick-unavailable'))game.useConsumable(slot);}
 $('attack').addEventListener('click',()=>{attackAt();canvas.focus({preventScroll:true});});$('potion').addEventListener('click',()=>{drink('q');canvas.focus({preventScroll:true});});$('mana-potion').addEventListener('click',()=>{drink('w');canvas.focus({preventScroll:true});});$('reset').addEventListener('click',()=>{returnToCamp();canvas.focus({preventScroll:true});});$('retry').addEventListener('click',()=>location.reload());

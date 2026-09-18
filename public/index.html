@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="/game/travel-ui.css">
 </head>
 <body>
-  <canvas id="scene" tabindex="0" aria-label="Пепельная опушка. Камера с постоянным углом, колёсико мыши — приближение и отдаление. Клик ЛКМ по земле — идти в точку, удержание ЛКМ — идти за курсором, ЛКМ по врагу — подойти и атаковать. Shift + ЛКМ — атака на месте. R — ходьба и бег, пробел — подобрать ближайшую добычу, 1, 2, 3, 4 и ПКМ — навыки, Q/W — назначенные зелья из рюкзака, F — автоохота с текущего места, K — книга навыков, Z — названия добычи."></canvas>
+  <canvas id="scene" tabindex="0" aria-label="Пепельная опушка. Камера с постоянным углом, колёсико мыши — приближение и отдаление. Клик ЛКМ по земле — идти в точку, удержание ЛКМ — идти за курсором, ЛКМ по врагу — подойти и атаковать. Shift + ЛКМ — атака на месте. R — ходьба и бег, пробел — подобрать ближайшую добычу, 1, 2, 3, 4 и ПКМ — навыки, Q/W — назначенные зелья из рюкзака, F — автоохота с текущего места, K — книга навыков, Z — названия добычи, M — звук."></canvas>
   <div id="world-ui" aria-hidden="true"></div>
   <div id="hurt-vignette" aria-hidden="true"></div>
   <header>
@@ -59,7 +59,7 @@
         <div class="orb-frame"><div class="orb-glass"><i id="hp-fill" class="orb-liquid"></i></div><div class="orb-readout"><span class="orb-label">Здоровье</span><span id="hp-text">100 / 100</span></div></div>
       </div>
       <div class="hud-core">
-        <div class="auxiliary-controls"><button id="afk-toggle" type="button" aria-pressed="false" disabled><span id="afk-status">Автоохота</span><kbd>F</kbd></button><span id="afk-xp-rate" hidden>0 XP/мин</span><button id="movement" type="button" aria-pressed="false"><span id="movement-label">Ходьба</span><kbd>R</kbd></button><button id="reset" type="button" title="Вернуться в город к костру за 5 секунд вне боя"><span id="camp-return-label">В город · 5 с</span></button><button id="loot-labels-toggle" type="button" aria-pressed="true" title="Показать или скрыть названия добычи · Z"><span>Добыча</span><kbd>Z</kbd></button></div>
+        <div class="auxiliary-controls"><button id="afk-toggle" type="button" aria-pressed="false" disabled><span id="afk-status">Автоохота</span><kbd>F</kbd></button><span id="afk-xp-rate" hidden>0 XP/мин</span><button id="movement" type="button" aria-pressed="false"><span id="movement-label">Ходьба</span><kbd>R</kbd></button><button id="reset" type="button" title="Вернуться в город к костру за 5 секунд вне боя"><span id="camp-return-label">В город · 5 с</span></button><button id="loot-labels-toggle" type="button" aria-pressed="true" title="Показать или скрыть названия добычи · Z"><span>Добыча</span><kbd>Z</kbd></button><button id="sound-toggle" type="button" aria-pressed="true" title="Звук · M"><span>Звук</span><kbd>M</kbd></button></div>
         <div class="hero-status"><b id="hero-name">Воин</b></div>
         <div id="hud-experience" class="hud-experience" role="progressbar" aria-label="Опыт до следующего уровня" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="hud-xp-fill"></i><span id="hud-xp-text">0 / 100 XP</span></div>
         <div class="dock" role="group" aria-label="Атака, пять навыков и два зелья">

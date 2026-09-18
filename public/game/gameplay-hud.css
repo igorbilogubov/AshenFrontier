@@ -5,11 +5,13 @@
 .map-legend span{display:inline-flex;gap:4px;align-items:center;white-space:nowrap}
 .map-legend b{font-size:13px}
 .auxiliary-controls{gap:6px;flex-wrap:wrap}
-.auxiliary-controls #reset,.auxiliary-controls #loot-labels-toggle{position:relative;min-height:26px;max-width:none;padding:4px 8px;border:1px solid #baa47155;border-radius:3px;background:#142720e8;color:#e0d8bd;font:10px/1.3 system-ui;cursor:pointer}
+.auxiliary-controls #reset,.auxiliary-controls #loot-labels-toggle,.auxiliary-controls #sound-toggle{position:relative;min-height:26px;max-width:none;padding:4px 8px;border:1px solid #baa47155;border-radius:3px;background:#142720e8;color:#e0d8bd;font:10px/1.3 system-ui;cursor:pointer}
 .auxiliary-controls #reset:disabled{opacity:.5;cursor:default}
 .auxiliary-controls #reset.returning{border-color:#ebc88b;background:linear-gradient(90deg,#77633688 var(--return-progress),#142720e8 var(--return-progress));color:#fff0cc}
 .auxiliary-controls #loot-labels-toggle[aria-pressed='false']{color:#97a299;border-color:#637567}
 .auxiliary-controls #loot-labels-toggle[aria-pressed='true']{border-color:#c5b17c;color:#f0ddb4}
+.auxiliary-controls #sound-toggle[aria-pressed='false']{color:#97a299;border-color:#637567}
+.auxiliary-controls #sound-toggle[aria-pressed='true']{border-color:#c5b17c;color:#f0ddb4}
 body.loot-labels-hidden .ground-loot-label{display:none!important}
 .hud-core .dock .quick-consumable::after{content:'';position:absolute;inset:0 0 auto;height:var(--potion-cooldown,0%);background:#02090bc4;border-bottom:1px solid #dfcf9980;pointer-events:none;z-index:2;transition:height .1s linear}
 .hud-core .dock .quick-consumable:not(.quick-cooling)::after{display:none}
@@ -22,12 +24,12 @@ body.loot-labels-hidden .ground-loot-label{display:none!important}
 .hud-core .dock .quick-consumable.quick-refreshed{animation:potion-ready .7s ease-out}
 @keyframes potion-ready{0%{box-shadow:0 0 0 2px #fff4cb,0 0 24px 7px #f3d784bb;filter:brightness(1.7)}100%{box-shadow:0 0 8px #eccb6526;filter:brightness(1)}}
 @media(max-width:1000px){.map-panel{width:260px}}
-@media(max-width:680px){.map-panel{width:190px;padding:6px}.map-legend{font-size:8px;gap:3px 7px}.map-legend b{font-size:10px}.auxiliary-controls{gap:3px}.auxiliary-controls #reset,.auxiliary-controls #loot-labels-toggle{font-size:9px;padding:3px 5px}}
+@media(max-width:680px){.map-panel{width:190px;padding:6px}.map-legend{font-size:8px;gap:3px 7px}.map-legend b{font-size:10px}.auxiliary-controls{gap:3px}.auxiliary-controls #reset,.auxiliary-controls #loot-labels-toggle,.auxiliary-controls #sound-toggle{font-size:9px;padding:3px 5px}}
 @media(max-width:420px){.map-panel{width:160px}.map-legend{font-size:7px;gap:2px 5px}}
 @media(max-height:590px) and (min-width:681px){.map-panel{width:230px}}
 @media(prefers-reduced-motion:reduce){.hud-core .dock .quick-consumable.quick-refreshed{animation:none}.hud-core .dock .quick-consumable::after{transition:none}}
 
-.auxiliary-controls #loot-labels-toggle{display:inline-flex;align-items:center;gap:5px}
+.auxiliary-controls #loot-labels-toggle,.auxiliary-controls #sound-toggle{display:inline-flex;align-items:center;gap:5px}
 header #connection{pointer-events:auto}
 
-.auxiliary-controls #reset,.auxiliary-controls #loot-labels-toggle{pointer-events:auto}
+.auxiliary-controls #reset,.auxiliary-controls #loot-labels-toggle,.auxiliary-controls #sound-toggle{pointer-events:auto}

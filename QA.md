@@ -1,5 +1,9 @@
 # Проверка общей 3D-опушки
 
+## 18 сентября 2026: звук
+
+Локально. `test/sounds.test.mjs`: 28 OGG на диске, таблица событий, взмах/магия по классу. Кнопка `#sound-toggle` и клавиша M в `index.html`. `npm run check`.
+
 ## 18 сентября 2026: окна героя
 
 Локально. В `index.html` характеристики делятся на `character-col-stats` / `character-col-derived`; кикеры, `class-role`, подпись снаряжения и подсказка рюкзака скрыты. Тест `test/panel-layout-ui.test.mjs`.

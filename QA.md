@@ -7,7 +7,7 @@
 
 ## 18 сентября 2026: нижний HUD
 
-Локально. `#hero-level` стоит в начале полосы опыта, `#hero-name` убран. `.auxiliary-controls` после `</footer>` в `.hero-shortcuts`, над кнопками Герой/Вещи/Навыки. Тест `test/panel-layout-ui.test.mjs`. `npm run check`.
+Локально. `#hero-level` стоит в начале полосы опыта, `#hero-name` убран. `.auxiliary-controls` после `</footer>` в `.hero-shortcuts`, над кнопками Герой/Вещи/Навыки. Правый блок прижат к низу (`bottom:23px`), без подъёма на 174px. Тест `test/panel-layout-ui.test.mjs`. `npm run check`.
 
 ## 18 сентября 2026: звук
 

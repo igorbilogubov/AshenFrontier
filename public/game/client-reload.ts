@@ -46,12 +46,22 @@ export function isSuccessorHealth(health:HealthSnapshot|null,previousBootId?:str
   return sawDown;
 }
 
+export async function assetsReady(fetchImpl:typeof fetch){
+  try{
+    const [css,js]=await Promise.all([
+      fetchImpl('/game/scene.css',{cache:'no-store'}),
+      fetchImpl('/game/scene.js',{cache:'no-store'})
+    ]);
+    return !!css?.ok&&!!js?.ok;
+  }catch{return false;}
+}
+
 export async function waitUntilHealthy(fetchImpl:typeof fetch,timeoutMs=90_000,now=()=>Date.now(),previousBootId?:string){
   const deadline=now()+timeoutMs;
   while(now()<deadline){
     const health=await readHealth(fetchImpl);
     const down=!health||!health.ok||!!health.restarting;
-    if(!down&&(!previousBootId||health.bootId!==previousBootId))return true;
+    if(!down&&(!previousBootId||health.bootId!==previousBootId)&&await assetsReady(fetchImpl))return true;
     await new Promise(resolve=>setTimeout(resolve,400));
   }
   return false;

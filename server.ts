@@ -208,7 +208,8 @@ const server=http.createServer(async(req,res)=>{
     const filename=path.resolve(assetRoot,'.'+pathname);
     if(!filename.startsWith(assetRoot+path.sep)||!Object.hasOwn(mime,extension)){res.writeHead(404);res.end();return;}
     const data=await fs.readFile(filename);
-    res.writeHead(200,{'Content-Type':mime[path.extname(filename)],'Content-Length':data.length,'Cache-Control':'no-cache','X-Content-Type-Options':'nosniff','Referrer-Policy':'same-origin','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob:; connect-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"});
+    const cache=extension==='.html'?'no-store':'no-cache';
+    res.writeHead(200,{'Content-Type':mime[path.extname(filename)],'Content-Length':data.length,'Cache-Control':cache,'X-Content-Type-Options':'nosniff','Referrer-Policy':'same-origin','Content-Security-Policy':"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob:; connect-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"});
     res.end(req.method==='HEAD'?undefined:data);
   }catch(e){res.writeHead(errorCode(e)==='ENOENT'||errorCode(e)==='EISDIR'?404:400);res.end('Not found');}
 });

@@ -41,7 +41,8 @@ test('healthy poll waits until /health reports ok',async()=>{
 
 test('restart wait ignores the dying process even if it still says ok',async()=>{
   const replies=[{ok:true,bootId:'old'},{ok:false,restarting:true,bootId:'old'},{ok:true,bootId:'new'}];
-  const fetchImpl=async()=>{
+  const fetchImpl=async(url)=>{
+    if(!String(url).includes('/health'))return {ok:true,json:async()=>({})};
     const body=replies.shift()??{ok:true,bootId:'new'};
     return {ok:!!body.ok,json:async()=>body};
   };
@@ -49,6 +50,21 @@ test('restart wait ignores the dying process even if it still says ok',async()=>
   assert.equal(isSuccessorHealth({ok:true,bootId:'new'},'old'),true);
   let now=0;
   assert.equal(await waitUntilHealthy(fetchImpl,5_000,()=>now+=200,'old'),true);
+});
+
+test('restart wait also requires CSS and client JS before reloading',async()=>{
+  let cssOk=false;
+  const fetchImpl=async(url)=>{
+    const path=String(url);
+    if(path.includes('/health'))return {ok:true,json:async()=>({ok:true,bootId:'new'})};
+    if(path.includes('scene.css'))return {ok:cssOk,json:async()=>({})};
+    if(path.includes('scene.js'))return {ok:true,json:async()=>({})};
+    return {ok:false,json:async()=>({})};
+  };
+  let now=0;
+  const pending=waitUntilHealthy(fetchImpl,5_000,()=>now+=200,'old');
+  setTimeout(()=>{cssOk=true;},500);
+  assert.equal(await pending,true);
 });
 
 test('account screen auto-enters the resumed hero after a world restart',async()=>{
@@ -62,5 +78,12 @@ test('account screen auto-enters the resumed hero after a world restart',async()
   assert.match(network,/previous=this\.bootId/);
   const server=await readFile(new URL('../server.ts',import.meta.url),'utf8');
   assert.match(server,/restarting:true/);
+  assert.match(server,/script-src 'self' 'unsafe-inline'/);
+  assert.match(server,/extension==='\.html'\?'no-store'/);
   assert.doesNotMatch(server,/code:'restart'/);
+  const html=await readFile(new URL('../public/index.html',import.meta.url),'utf8');
+  assert.match(html,/ashen-boot-retry/);
+  assert.match(html,/cssReady/);
+  const scene=await readFile(new URL('../public/game/scene.ts',import.meta.url),'utf8');
+  assert.match(scene,/ashenBooted:true/);
 });

@@ -2,7 +2,7 @@
 
 ## 18 сентября 2026: перезапуск клиента после выкладки
 
-`test/client-reload.test.mjs`: резюме AFK только для того же heroId, TTL 120 с, опрос `/health` не принимает тот же `bootId`. `test/client-reload-network.test.mjs`: SIGTERM шлёт `reload` и close 1012, без `error restart`. После рестарта процесса AFK из сохранения не поднимается. `npm run check`.
+`test/client-reload.test.mjs`: резюме AFK только для того же heroId, TTL 120 с, опрос `/health` не принимает тот же `bootId` и не перезагружает без CSS/JS. В `index.html` есть `ashen-boot-retry`. `test/client-reload-network.test.mjs`: SIGTERM шлёт `reload` и close 1012, без `error restart`. `npm run check`.
 
 
 

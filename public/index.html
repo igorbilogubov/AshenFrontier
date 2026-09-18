@@ -20,6 +20,39 @@
   <link rel="stylesheet" href="game/online-roster.css">
   <link rel="stylesheet" href="game/panel-layout.css">
   <link rel="stylesheet" href="/game/travel-ui.css">
+  <script>
+    (function(){
+      var key='ashen-boot-retry',failed=false;
+      function booted(){return !!window.ashenBooted;}
+      function cssReady(){
+        try{
+          for(var i=0;i<document.styleSheets.length;i++){
+            var href=document.styleSheets[i].href||'';
+            if(href.indexOf('scene.css')!==-1)return document.styleSheets[i].cssRules.length>0;
+          }
+        }catch(e){}
+        return false;
+      }
+      function retry(){
+        if(booted()){try{sessionStorage.removeItem(key);}catch(e){}return;}
+        fetch('/health',{cache:'no-store'}).then(function(r){return r.json();}).then(function(body){
+          if(!(body&&body.ok)){setTimeout(retry,700);return;}
+          if(booted())return;
+          if(!cssReady()||failed){
+            var n=0;try{n=Number(sessionStorage.getItem(key)||0);}catch(e){}
+            if(n>=12)return;
+            try{sessionStorage.setItem(key,String(n+1));}catch(e){}
+            location.reload();
+          }
+        }).catch(function(){setTimeout(retry,700);});
+      }
+      window.addEventListener('error',function(event){
+        var target=event.target;
+        if(target&&(target.tagName==='LINK'||target.tagName==='SCRIPT')){failed=true;retry();}
+      },true);
+      setTimeout(function(){if(!cssReady())retry();},1500);
+    })();
+  </script>
 </head>
 <body>
   <canvas id="scene" tabindex="0" aria-label="Пепельная опушка. Камера с постоянным углом, колёсико мыши — приближение и отдаление. Клик ЛКМ по земле — идти в точку, удержание ЛКМ — идти за курсором, ЛКМ по врагу — подойти и атаковать. Shift + ЛКМ — атака на месте. R — ходьба и бег, пробел — подобрать ближайшую добычу, 1, 2, 3, 4, 5 и ПКМ — навыки, Q/W — назначенные зелья из рюкзака, F — автоохота с текущего места, K — книга навыков, Z — названия добычи, M — звук."></canvas>

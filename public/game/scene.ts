@@ -57,6 +57,8 @@ interface HeldMouse {x:number;y:number;active:boolean;point:T.Vector3|null;attac
 
 let benchmark:Benchmark|undefined,skillEffects:ReturnType<typeof createSkillEffects>|undefined,persistentSkillEffects:ReturnType<typeof createPersistentSkillEffects>|undefined,worldInteractions:Awaited<ReturnType<typeof createWorldInteractions>>|undefined;
 const canvas=$('scene');
+Object.assign(window,{ashenBooted:true});
+try{sessionStorage.removeItem('ashen-boot-retry');}catch{/* Private mode. */}
 let renderer:T.WebGLRenderer,scene:T.Scene,camera:T.OrthographicCamera,sun:T.DirectionalLight,world:ReturnType<typeof createEnvironment>,warrior:Warrior,game:NetworkGame,ready=false,last=0,time=0,accumulator=0;
 let afkSettings:ReturnType<typeof bindAfkSettings>|undefined,skillbook:ReturnType<typeof bindSkillbook>|undefined;
 let selectedEntity:{kind:'vendor'|'smith'|'player';id:string}|null=null,updateTarget:ReturnType<typeof bindTargetPresentation>|undefined;

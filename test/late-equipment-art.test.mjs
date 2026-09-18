@@ -28,11 +28,13 @@ test('late sets have different geometry silhouettes and glow is per instance, cl
  const material=[];hero.model.traverse(o=>{if(o instanceof T.Mesh)for(const m of Array.isArray(o.material)?o.material:[o.material])if(m.name==='dreadsovereign_Glow')material.push(m);});assert.ok(material.length);
  hero.equipment('sword','warrior',appearance('warrior','citadel'));
  const armor=hero.model.getObjectByName('dreadsovereign-armor');
- const cloth=[];armor.traverse(o=>{if(o instanceof T.Mesh)for(const m of Array.isArray(o.material)?o.material:[o.material])if(m instanceof T.MeshStandardMaterial)cloth.push(m);});
- const before=cloth.map(m=>m.emissiveIntensity);
+ const cloth=[];armor.traverse(o=>{if(o instanceof T.Mesh&&!String(o.name).startsWith('EnhanceTint'))for(const m of Array.isArray(o.material)?o.material:[o.material])if(m instanceof T.MeshStandardMaterial)cloth.push(m);});
+ const before=cloth.map(m=>[m.emissiveIntensity,m.color.getHex()]);
  assert.equal(hero.applyEnhancement(99),9);
- assert.ok(cloth.every((m,i)=>m.emissiveIntensity>before[i]));
- assert.equal(hero.applyEnhancement(-1),0);assert.ok(cloth.every((m,i)=>m.emissiveIntensity===before[i]));assert.equal(hero.applyEnhancement(NaN),0);
+ const citadelTints=[];hero.model.traverse(o=>{if(o.name==='EnhanceTint_armor')citadelTints.push(o);});
+ assert.ok(citadelTints.length);assert.ok(citadelTints[0].material.uniforms.uIntensity.value>0.2);assert.ok(citadelTints[0].material.uniforms.uIntensity.value<0.35);
+ assert.deepEqual(cloth.map(m=>[m.emissiveIntensity,m.color.getHex()]),before);
+ assert.equal(hero.applyEnhancement(-1),0);assert.equal(citadelTints[0].material.uniforms.uIntensity.value,0);assert.equal(hero.applyEnhancement(NaN),0);
  const worn=hero.model.getObjectByName('dreadsovereign-armor');assert.equal(worn.visible,true);hero.equipment('sword','warrior',{});assert.equal(worn.visible,false);
  let lights=0;hero.model.traverse(o=>{if(o instanceof T.Light)lights++;});assert.equal(lights,0);hero.disposeExtras();
 });

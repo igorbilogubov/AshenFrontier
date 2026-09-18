@@ -8,7 +8,7 @@
 
 ## 18 сентября 2026: контурный ореол заточки
 
-`test/early-equipment-glow.test.mjs`: +0 возвращает исходный цвет ткани; +9 красит доспех; +7 меч светится сильнее +3 брони; снежный и цитадельский цвета разные. Вставок `EarlyGlow_` и `EnhanceRim_` нет. `test/late-equipment-art.test.mjs`: clamp 0…9 через краску слота. `npm run check`.
+`test/early-equipment-glow.test.mjs`: ткань Armor_Body не меняет цвет/emissive/metalness после +9; `EnhanceTint_*` с лицевой стороны, intensity брони +9 < 0.35, меч сильнее брони. `test/late-equipment-art.test.mjs`: clamp 0…9. `npm run check`.
 
 
 ## 18 сентября 2026: чат звук и пузырь

@@ -28,17 +28,49 @@ function glowInfo(appearance:string):GlowInfo|undefined{
     if(item)return {region:'forest',classId,slot:item.slot};
   }
 }
-type ClothOriginal={color:T.Color;emissive:T.Color;emissiveIntensity:number;roughness:number};
+const TINT_VERTEX=`varying vec3 vViewDir;varying vec3 vNormalView;
+#include <common>
+#include <batching_pars_vertex>
+#include <skinning_pars_vertex>
+void main(){
+  #include <batching_vertex>
+  #include <skinbase_vertex>
+  #include <beginnormal_vertex>
+  #include <skinnormal_vertex>
+  #include <defaultnormal_vertex>
+  vNormalView=normalize(transformedNormal);
+  #include <begin_vertex>
+  #include <skinning_vertex>
+  #include <project_vertex>
+  vViewDir=normalize(-mvPosition.xyz);
+}`;
+const TINT_FRAGMENT=`uniform vec3 uColor;uniform float uIntensity;
+varying vec3 vViewDir;varying vec3 vNormalView;
+void main(){
+  float facing=max(dot(normalize(vNormalView),normalize(vViewDir)),0.0);
+  gl_FragColor=vec4(uColor*uIntensity*(0.18+0.82*facing),1.0);
+}`;
+function createTintMaterial(){
+  return new T.ShaderMaterial({
+    name:'EnhanceTint',
+    uniforms:{uColor:{value:new T.Color('#e6c56d')},uIntensity:{value:0}},
+    vertexShader:TINT_VERTEX,
+    fragmentShader:TINT_FRAGMENT,
+    transparent:true,
+    blending:T.AdditiveBlending,
+    depthWrite:false,
+    depthTest:true,
+    toneMapped:false,
+    fog:false,
+    lights:false,
+    side:T.FrontSide
+  });
+}
 export function enhancementGlow(level:number,slot?:EquipmentSlot){
   const enhancement=T.MathUtils.clamp(Math.floor(Number.isFinite(level)?level:0),0,9);
-  if(!enhancement)return {enhancement:0,paint:0,emissive:0,sheen:0};
+  if(!enhancement)return {enhancement:0,intensity:0};
   const weapon=slot==='weapon';
-  return {
-    enhancement,
-    paint:weapon?.04+enhancement*.028:.02+enhancement*.016,
-    emissive:weapon?.025+enhancement*.02:.01+enhancement*.01,
-    sheen:.008+enhancement*.006
-  };
+  return {enhancement,intensity:weapon?.1+enhancement*.04:.05+enhancement*.022};
 }
 export type SlotEnhance=Partial<Record<EquipmentSlot,number>>;
 
@@ -59,16 +91,21 @@ export function attachLateEquipment(model:T.Object3D,source:T.Object3D){
 function sourceMeshes(root:T.Object3D,skip:Set<T.Object3D>){
   const list:T.Mesh[]=[];
   root.traverse(object=>{
-    if(!(object instanceof T.Mesh))return;
+    if(!(object instanceof T.Mesh)||object.name.startsWith('EnhanceTint'))return;
     if(object!==root&&skip.has(object))return;
     list.push(object);
   });
   return list;
 }
-function clothOf(mesh:T.Mesh){
-  return (Array.isArray(mesh.material)?mesh.material:[mesh.material]).filter((material):material is T.MeshStandardMaterial=>material instanceof T.MeshStandardMaterial);
+function attachTint(source:T.Mesh,material:T.ShaderMaterial,slot:EquipmentSlot){
+  const tint=source instanceof T.SkinnedMesh?new T.SkinnedMesh(source.geometry,material):new T.Mesh(source.geometry,material);
+  tint.name=`EnhanceTint_${slot}`;
+  tint.frustumCulled=false;tint.castShadow=false;tint.receiveShadow=false;tint.renderOrder=2;tint.visible=false;
+  if(tint instanceof T.SkinnedMesh&&source instanceof T.SkinnedMesh)tint.bind(source.skeleton,source.bindMatrix);
+  source.add(tint);
+  return tint;
 }
-/** Per-instance visibility; paints each worn slot brighter with enhancement, like MU Online. */
+/** Per-instance visibility; additive tint sits on the mesh without touching cloth albedo. */
 export function createLateEquipmentVisuals(model:T.Object3D,classId:ClassId){
   const parts=new Map<string,T.Object3D>();
   for(const region of LATE_COLLECTION_REGIONS){const prefix=REGIONAL_COLLECTIONS[region][classId][0];for(const slot of SLOTS){const name=`${prefix}-${slot}`,part=model.getObjectByName(name);if(part){parts.set(name,part);part.visible=false;}}}
@@ -76,21 +113,20 @@ export function createLateEquipmentVisuals(model:T.Object3D,classId:ClassId){
   if(classId==='warrior')for(const names of Object.values(WARRIOR_FOREST_MESHES))for(const name of names){const part=model.getObjectByName(name);if(part)earlyRoots.push(part);}
   else for(const item of CLASS_ITEMS[classId]){const part=model.getObjectByName(item.appearance);if(part)earlyRoots.push(part);}
   const skip=new Set<T.Object3D>([...earlyRoots,...parts.values()]);
-  const originals=new WeakMap<T.MeshStandardMaterial,ClothOriginal>();
-  const slotCloth=new Map<EquipmentSlot,T.MeshStandardMaterial[]>();
-  function remember(slot:EquipmentSlot,material:T.MeshStandardMaterial){
-    if(!originals.has(material))originals.set(material,{color:material.color.clone(),emissive:material.emissive.clone(),emissiveIntensity:material.emissiveIntensity,roughness:material.roughness});
-    const list=slotCloth.get(slot)??[];
-    if(!list.includes(material))list.push(material);
-    slotCloth.set(slot,list);
+  const tintMaterials=new Map<EquipmentSlot,T.ShaderMaterial>();
+  const tints:T.Mesh[]=[];
+  function tintMaterial(slot:EquipmentSlot){
+    let material=tintMaterials.get(slot);if(material)return material;
+    material=createTintMaterial();tintMaterials.set(slot,material);return material;
   }
-  function addCloth(root:T.Object3D,slot:EquipmentSlot){
-    for(const mesh of sourceMeshes(root,skip))for(const material of clothOf(mesh))remember(slot,material);
+  function addTints(root:T.Object3D,slot:EquipmentSlot){
+    const material=tintMaterial(slot);
+    for(const mesh of sourceMeshes(root,skip))tints.push(attachTint(mesh,material,slot));
   }
-  for(const [appearance,part] of parts){const info=glowInfo(appearance);if(info)addCloth(part,info.slot);}
+  for(const [appearance,part] of parts){const info=glowInfo(appearance);if(info)addTints(part,info.slot);}
   for(const root of earlyRoots){
     const info=glowInfo(root.name)||[...Object.entries(WARRIOR_FOREST_MESHES)].flatMap(([appearance,names])=>names.includes(root.name)?[glowInfo(appearance)]:[]).find(Boolean);
-    if(info)addCloth(root,info.slot);
+    if(info)addTints(root,info.slot);
   }
   let enhancement=0,current:ItemAppearance|undefined,lastLevels:number|SlotEnhance=0;
   function glowColor(appearance:string){
@@ -104,21 +140,16 @@ export function createLateEquipmentVisuals(model:T.Object3D,classId:ClassId){
   function applyEnhancement(value:number|SlotEnhance=lastLevels){
     const source=value;
     enhancement=typeof value==='number'?enhancementGlow(value).enhancement:Math.max(0,...SLOTS.map(slot=>enhancementGlow(slotLevel(slot,value),slot).enhancement));
-    const tint=new T.Color(),overlay=new T.Color();
     for(const slot of SLOTS){
       const worn=current?.[slot]??null;
       const glow=enhancementGlow(slotLevel(slot,source),slot);
-      const paint=worn?glowColor(worn)??GLOW_COLORS.forest[classId]:GLOW_COLORS.forest[classId];
-      tint.set(paint);
-      for(const material of slotCloth.get(slot)??[]){
-        const original=originals.get(material);if(!original)continue;
-        overlay.copy(original.color).multiply(tint);
-        material.color.copy(original.color).lerp(overlay,glow.paint);
-        material.emissive.copy(original.emissive);
-        material.emissiveIntensity=original.emissiveIntensity+glow.emissive;
-        if(glow.emissive)material.emissive.lerp(tint,Math.min(.85,glow.paint+.35));
-        material.roughness=Math.max(.28,original.roughness-glow.sheen);
+      const color=worn?glowColor(worn)??GLOW_COLORS.forest[classId]:GLOW_COLORS.forest[classId];
+      const material=tintMaterials.get(slot);
+      if(material){
+        material.uniforms.uColor.value.set(color);
+        material.uniforms.uIntensity.value=glow.intensity;
       }
+      for(const tint of tints)if(tint.name===`EnhanceTint_${slot}`)tint.visible=glow.enhancement>0;
     }
     lastLevels=typeof source==='number'?source:{...source};
     return enhancement;
@@ -132,12 +163,9 @@ export function createLateEquipmentVisuals(model:T.Object3D,classId:ClassId){
     applyEnhancement(lastLevels);return mapped;
   }
   function dispose(){
-    for(const list of slotCloth.values())for(const material of list){
-      const original=originals.get(material);if(!original)continue;
-      material.color.copy(original.color);material.emissive.copy(original.emissive);
-      material.emissiveIntensity=original.emissiveIntensity;material.roughness=original.roughness;
-    }
-    slotCloth.clear();
+    for(const tint of tints)tint.removeFromParent();
+    for(const material of tintMaterials.values())material.dispose();
+    tints.length=0;tintMaterials.clear();
   }
   return {apply,applyEnhancement,dispose,get parts(){return parts;}};
 }

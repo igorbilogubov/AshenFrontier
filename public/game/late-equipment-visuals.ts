@@ -33,17 +33,15 @@ void main(){
   vNormalView=normalize(transformedNormal);
   #include <begin_vertex>
   #include <skinning_vertex>
-  transformed+=objectNormal*uExpand;
+  transformed+=normalize(objectNormal)*uExpand;
   #include <project_vertex>
   vViewDir=normalize(-mvPosition.xyz);
 }`;
-const RIM_FRAGMENT=`uniform vec3 uColor;uniform float uIntensity;uniform float uPower;uniform float uFill;
+const RIM_FRAGMENT=`uniform vec3 uColor;uniform float uIntensity;uniform float uPower;
 varying vec3 vViewDir;varying vec3 vNormalView;
 void main(){
-  float ndv=abs(dot(normalize(vNormalView),normalize(vViewDir)));
-  float rim=pow(1.0-ndv,uPower);
-  float glow=rim*uIntensity+uFill*(1.0-ndv);
-  gl_FragColor=vec4(uColor*glow,clamp(rim+uFill,0.0,1.0));
+  float rim=pow(1.0-abs(dot(normalize(vNormalView),normalize(vViewDir))),uPower);
+  gl_FragColor=vec4(uColor*(0.35+0.65*rim)*uIntensity,rim);
 }`;
 type GlowInfo={region:GearRegion;classId:ClassId;slot:EquipmentSlot};
 function glowInfo(appearance:string):GlowInfo|undefined{
@@ -58,7 +56,7 @@ function isLate(region:GearRegion){return (LATE_COLLECTION_REGIONS as readonly s
 function createRimMaterial(){
   return new T.ShaderMaterial({
     name:'EnhanceRim',
-    uniforms:{uColor:{value:new T.Color('#e6c56d')},uIntensity:{value:0},uPower:{value:4.5},uFill:{value:0},uExpand:{value:0}},
+    uniforms:{uColor:{value:new T.Color('#e6c56d')},uIntensity:{value:0},uPower:{value:2.8},uExpand:{value:0}},
     vertexShader:RIM_VERTEX,
     fragmentShader:RIM_FRAGMENT,
     transparent:true,
@@ -67,17 +65,16 @@ function createRimMaterial(){
     toneMapped:false,
     fog:false,
     lights:false,
-    side:T.FrontSide
+    side:T.BackSide
   });
 }
 export function enhancementGlow(level:number){
   const enhancement=T.MathUtils.clamp(Math.floor(Number.isFinite(level)?level:0),0,9);
-  if(!enhancement)return {enhancement:0,intensity:0,power:4.5,fill:0,expand:0};
-  const intensity=enhancement<=3?.22+enhancement*.12:.58+(enhancement-3)*.42;
-  const power=4.8-enhancement*.34;
-  const fill=enhancement<=3?0:(enhancement-3)*.09;
-  const expand=enhancement<=3?.18*enhancement:.54+(enhancement-3)*.62;
-  return {enhancement,intensity,power,fill,expand};
+  if(!enhancement)return {enhancement:0,intensity:0,power:3.2,expand:0};
+  const intensity=.28+enhancement*.14;
+  const power=3.1-enhancement*.12;
+  const expand=.006+enhancement*.003;
+  return {enhancement,intensity,power,expand};
 }
 export type SlotEnhance=Partial<Record<EquipmentSlot,number>>;
 
@@ -156,7 +153,6 @@ export function createLateEquipmentVisuals(model:T.Object3D,classId:ClassId){
         material.uniforms.uColor.value.set(color);
         material.uniforms.uIntensity.value=glow.intensity;
         material.uniforms.uPower.value=glow.power;
-        material.uniforms.uFill.value=glow.fill;
         material.uniforms.uExpand.value=glow.expand;
       }
       for(const rim of rims)if(rim.name===`EnhanceRim_${slot}`)rim.visible=glow.enhancement>0;

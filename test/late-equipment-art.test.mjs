@@ -28,7 +28,8 @@ test('late sets have different geometry silhouettes and glow is per instance, cl
  const material=[];hero.model.traverse(o=>{if(o instanceof T.Mesh)for(const m of Array.isArray(o.material)?o.material:[o.material])if(m.name==='dreadsovereign_Glow')material.push(m);});assert.ok(material.length);
  assert.equal(hero.applyEnhancement(99),9);
  const citadelRims=[];hero.model.traverse(o=>{if(o.name==='EnhanceRim_armor')citadelRims.push(o);});
- assert.ok(citadelRims.length);assert.ok(citadelRims[0].material.uniforms.uIntensity.value>2);
+ assert.ok(citadelRims.length);assert.ok(citadelRims[0].material.uniforms.uIntensity.value>1.4);
+ assert.ok(citadelRims[0].material.uniforms.uExpand.value<0.05);
  assert.equal(hero.applyEnhancement(-1),0);assert.equal(citadelRims[0].material.uniforms.uIntensity.value,0);assert.equal(hero.applyEnhancement(NaN),0);
  hero.equipment('sword','warrior',appearance('warrior','citadel'));const worn=hero.model.getObjectByName('dreadsovereign-armor');assert.equal(worn.visible,true);hero.equipment('sword','warrior',{});assert.equal(worn.visible,false);
  let lights=0;hero.model.traverse(o=>{if(o instanceof T.Light)lights++;});assert.equal(lights,0);hero.disposeExtras();

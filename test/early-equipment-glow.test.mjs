@@ -53,13 +53,13 @@ test('enhancement uses a per-slot rim and leaves cloth materials alone',async()=
   assert.notEqual(swordRim.material,plateRim.material);
   assert.equal(swordRim.material.uniforms.uIntensity.value,enhancementGlow(6).intensity);
   assert.equal(plateRim.material.uniforms.uIntensity.value,enhancementGlow(3).intensity);
-  assert.ok(swordRim.material.uniforms.uIntensity.value>plateRim.material.uniforms.uIntensity.value*2);
-  assert.ok(swordRim.material.uniforms.uExpand.value>plateRim.material.uniforms.uExpand.value*2);
+  assert.ok(swordRim.material.uniforms.uIntensity.value>plateRim.material.uniforms.uIntensity.value);
+  assert.ok(swordRim.material.uniforms.uExpand.value>plateRim.material.uniforms.uExpand.value);
   assert.ok(swordRim.material.uniforms.uPower.value<plateRim.material.uniforms.uPower.value);
-  assert.equal(plateRim.material.uniforms.uFill.value,0);
-  assert.ok(swordRim.material.uniforms.uFill.value>0);
-  assert.ok(enhancementGlow(7).expand>enhancementGlow(3).expand*3);
-  assert.ok(enhancementGlow(7).intensity>enhancementGlow(3).intensity*3);
+  assert.equal(swordRim.material.side,T.BackSide);
+  assert.ok(enhancementGlow(7).expand<0.05);
+  assert.ok(enhancementGlow(9).expand<0.05);
+  assert.ok(!('uFill' in plateRim.material.uniforms));
 
   hero.equipment('sword','warrior',appearance('warrior','snow'));
   hero.applyEnhancement(6);

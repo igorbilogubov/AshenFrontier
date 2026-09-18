@@ -2,7 +2,7 @@
 
 ## 18 сентября 2026: контурный ореол заточки
 
-`test/early-equipment-glow.test.mjs`: ткань Armor_Body не меняет emissive/metalness/цвет после +9; ореол `EnhanceRim_*` аддитивный, `toneMapped=false`; +6 меч ярче +3 доспеха. Вставок `EarlyGlow_` нет. `test/late-equipment-art.test.mjs`: clamp 0…9 через интенсивность ореола. `npm run check`.
+`test/early-equipment-glow.test.mjs`: ткань Armor_Body не меняет emissive/metalness/цвет после +9; ореол `EnhanceRim_*` аддитивный, `toneMapped=false`; +6 меч шире и ярче +3 доспеха (`expand`/`fill`/`power`). Вставок `EarlyGlow_` нет. `test/late-equipment-art.test.mjs`: clamp 0…9 через интенсивность ореола. `npm run check`.
 
 
 ## 18 сентября 2026: чат звук и пузырь

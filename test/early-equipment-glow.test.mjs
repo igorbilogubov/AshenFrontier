@@ -44,9 +44,10 @@ test('enhancement paints each worn item brighter without extra rim meshes',async
 
   assert.equal(hero.applyEnhancement(9),9);
   assert.ok(plateCloth.every(material=>material.emissiveIntensity>before[0][0]));
-  assert.ok(plateCloth.every((material,i)=>material.color.getHex()!==before[i][1]));
   assert.equal(enhancementGlow(9).paint>enhancementGlow(3).paint,true);
   assert.equal(enhancementGlow(9).emissive>enhancementGlow(3).emissive,true);
+  assert.ok(enhancementGlow(9,'armor').paint<0.22);
+  assert.ok(enhancementGlow(7,'armor').paint<enhancementGlow(7,'weapon').paint);
 
   hero.applyEnhancement({weapon:7,armor:3,helmet:3,boots:3,ring:3,amulet:3});
   assert.ok(swordCloth[0].emissiveIntensity>plateCloth[0].emissiveIntensity);

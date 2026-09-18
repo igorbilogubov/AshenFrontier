@@ -29,14 +29,15 @@ function glowInfo(appearance:string):GlowInfo|undefined{
   }
 }
 type ClothOriginal={color:T.Color;emissive:T.Color;emissiveIntensity:number;roughness:number};
-export function enhancementGlow(level:number){
+export function enhancementGlow(level:number,slot?:EquipmentSlot){
   const enhancement=T.MathUtils.clamp(Math.floor(Number.isFinite(level)?level:0),0,9);
   if(!enhancement)return {enhancement:0,paint:0,emissive:0,sheen:0};
+  const weapon=slot==='weapon';
   return {
     enhancement,
-    paint:.14+enhancement*.075,
-    emissive:.06+enhancement*.045,
-    sheen:.04+enhancement*.03
+    paint:weapon?.04+enhancement*.028:.02+enhancement*.016,
+    emissive:weapon?.025+enhancement*.02:.01+enhancement*.01,
+    sheen:.008+enhancement*.006
   };
 }
 export type SlotEnhance=Partial<Record<EquipmentSlot,number>>;
@@ -102,19 +103,21 @@ export function createLateEquipmentVisuals(model:T.Object3D,classId:ClassId){
   }
   function applyEnhancement(value:number|SlotEnhance=lastLevels){
     const source=value;
-    enhancement=typeof value==='number'?enhancementGlow(value).enhancement:Math.max(0,...SLOTS.map(slot=>enhancementGlow(slotLevel(slot,value)).enhancement));
-    const tint=new T.Color();
+    enhancement=typeof value==='number'?enhancementGlow(value).enhancement:Math.max(0,...SLOTS.map(slot=>enhancementGlow(slotLevel(slot,value),slot).enhancement));
+    const tint=new T.Color(),overlay=new T.Color();
     for(const slot of SLOTS){
       const worn=current?.[slot]??null;
-      const glow=enhancementGlow(slotLevel(slot,source));
+      const glow=enhancementGlow(slotLevel(slot,source),slot);
       const paint=worn?glowColor(worn)??GLOW_COLORS.forest[classId]:GLOW_COLORS.forest[classId];
       tint.set(paint);
       for(const material of slotCloth.get(slot)??[]){
         const original=originals.get(material);if(!original)continue;
-        material.color.copy(original.color).lerp(tint,glow.paint);
-        material.emissive.copy(original.emissive).lerp(tint,glow.paint);
+        overlay.copy(original.color).multiply(tint);
+        material.color.copy(original.color).lerp(overlay,glow.paint);
+        material.emissive.copy(original.emissive);
         material.emissiveIntensity=original.emissiveIntensity+glow.emissive;
-        material.roughness=Math.max(.12,original.roughness-glow.sheen);
+        if(glow.emissive)material.emissive.lerp(tint,Math.min(.85,glow.paint+.35));
+        material.roughness=Math.max(.28,original.roughness-glow.sheen);
       }
     }
     lastLevels=typeof source==='number'?source:{...source};

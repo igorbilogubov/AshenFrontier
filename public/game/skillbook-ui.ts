@@ -1,12 +1,12 @@
 import {actionIcon} from './action-icons.js';
 import type {NetworkGame} from './network.js';
 import {SKILLS,skillsForClass,type SkillDefinition} from './skills.js';
-import {TALENTS,defaultSkillBuild,effectiveSkill,parseSkillBuild,talentBranches,talentPoints,talentSpent,type TalentDefinition} from './skill-builds.js';
+import {TALENTS,defaultSkillBuild,effectiveSkill,parseSkillBuild,talentBranches,talentPoints,talentSpent,SKILL_SLOT_KEYS,type TalentDefinition} from './skill-builds.js';
 import type {ClassId,SkillBuild,SkillId,WorldEvent} from '../../shared/types.js';
 
 type PendingBuild={kind:'apply'|'save'|'load';sentAt:number;build?:SkillBuild;index?:0|1|2};
 type Page='skills'|'talents';
-const slots=['1','2','3','4','ПКМ'] as const;
+const slots=SKILL_SLOT_KEYS;
 const presetNames=['Охота','Босс','PvP'] as const;
 const kindLabels:Record<SkillDefinition['kind'],string>={attack:'Атака',mobility:'Движение',defense:'Защита',support:'Поддержка',control:'Контроль',channel:'Канал'};
 const clone=(build:SkillBuild):SkillBuild=>({slots:[...build.slots],talents:{...build.talents}});
@@ -93,7 +93,7 @@ export function bindSkillbook(game:NetworkGame,toast:(message:string)=>void){
       const name=document.createElement('h4');name.textContent=base.name;const description=document.createElement('p');description.textContent=base.description;const meta=document.createElement('div');meta.className='skill-card-meta';meta.innerHTML=`<span>${fixed(skill.manaCost)} MP</span><span>${skill.cooldown?fixed(skill.cooldown)+' с':'без КД'}</span>`;card.append(head,name,description,meta);
       if(equipped){const mark=document.createElement('span');mark.className='skill-equipped-mark';mark.textContent=slots[draft.slots.indexOf(base.id)];card.append(mark);}
       if(locked){const lock=document.createElement('span');lock.className='skill-card-lock';lock.textContent=`Откроется на уровне ${base.unlockLevel}`;card.append(lock);}
-      card.onclick=()=>{if(locked){setStatus(`«${base.name}» откроется на ${base.unlockLevel} уровне.`,true);render();return;}selectedSkill=selectedSkill===base.id?null:base.id;setStatus(selectedSkill?`Выбран «${base.name}». Нажмите нужный слот 1–4 или ПКМ.`:'Выбор навыка снят.');renderKey='';render();};
+      card.onclick=()=>{if(locked){setStatus(`«${base.name}» откроется на ${base.unlockLevel} уровне.`,true);render();return;}selectedSkill=selectedSkill===base.id?null:base.id;setStatus(selectedSkill?`Выбран «${base.name}». Нажмите нужный слот 1–5 или ПКМ.`:'Выбор навыка снят.');renderKey='';render();};
       card.addEventListener('dragstart',event=>{if(!locked)event.dataTransfer?.setData('text/skill-id',base.id);});bindTooltip(card,()=>skill,locked?`Требуется ${base.unlockLevel} уровень.`:'');catalog.append(card);
     }
   }

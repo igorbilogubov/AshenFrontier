@@ -93,6 +93,7 @@ const elementTags = {
   'skill-secondary': 'button',
   'skill-tertiary': 'button',
   'skill-quaternary': 'button',
+  'skill-quinary': 'button',
   'skill-mouse': 'button',
   'afk-toggle': 'button',
   'afk-status': 'span',

@@ -11,7 +11,7 @@ function fixture(classId,id,count,manaMode,withTalents=false){
  // A seeded roll sequence reproduces hit/miss variation without guaranteeing hits.
  let seed=619;const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
  const w=new World({random}),p=newHero('Баланс',classId);w.add(p);Object.assign(p,{level,x:10,z:1.8,yaw:east,targetYaw:east,allocatedStats:allocations[classId]});
- p.items=regionalEquipment(classId,'wasteland',1).map(def=>rollEquipment(def.id,def.id,()=>.5));p.equipment=Object.fromEntries(p.items.map(i=>[i.slot,i.id]));p.skillBuild={slots:[id,null,null,null],talents:withTalents?talents[classId]:{}};p.hp=stats(p).maxHp;p.mana=stats(p).maxMana;
+ p.items=regionalEquipment(classId,'wasteland',1).map(def=>rollEquipment(def.id,def.id,()=>.5));p.equipment=Object.fromEntries(p.items.map(i=>[i.slot,i.id]));p.skillBuild={slots:[id,null,null,null,null,null],talents:withTalents?talents[classId]:{}};p.hp=stats(p).maxHp;p.mana=stats(p).maxMana;
  const coords=count===1?[[1.6,0]]:[[1.3,-.55],[1.3,.55],[2.3,-.55],[2.3,.55]];w.mobs=w.mobs.slice(0,count);w.mobs.forEach((m,i)=>Object.assign(m,{type:'wolf',eliteId:undefined,x:p.x+coords[i][0],z:p.z+coords[i][1],homeX:p.x+coords[i][0],homeZ:p.z+coords[i][1],hp:1000000,state:'recover',timer:100000,target:p.id}));
  return {w,p,count,manaMode};
 }

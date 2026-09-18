@@ -23,7 +23,7 @@ test('all twenty-seven new actions have a distinct authored HUD silhouette',()=>
 });
 
 test('client-side build validation exposes the same locked-level, budget and keystone rules shown in the UI',()=>{
-  const level10={slots:['warrior-cleave','warrior-whirlwind','warrior-thrust','warrior-charge'],talents:{}};assert.deepEqual(parseSkillBuild(level10,'warrior',10),{...level10,slots:[...level10.slots,null]});
+  const level10={slots:['warrior-cleave','warrior-whirlwind','warrior-thrust','warrior-charge'],talents:{}};assert.deepEqual(parseSkillBuild(level10,'warrior',10),{...level10,slots:[...level10.slots,null,null]});
   assert.equal(parseSkillBuild({...level10,slots:['warrior-cleave','warrior-cleave',null,null,null]},'warrior',10),null,'duplicate skill');
   assert.equal(parseSkillBuild({...level10,slots:['warrior-banner',null,null,null,null]},'warrior',10),null,'locked skill');
   const duelist=TALENTS.filter(talent=>talent.classId==='warrior'&&talent.branch==='duelist'),minors=duelist.filter(talent=>!talent.keystone),keystone=duelist.find(talent=>talent.keystone);
@@ -34,6 +34,7 @@ test('client-side build validation exposes the same locked-level, budget and key
 
 test('production page includes an accessible non-HUD-shifting skillbook surface',async()=>{
   const html=await readFile(new URL('../public/index.html',import.meta.url),'utf8');
-  for(const id of ['skillbook-toggle','skillbook-panel','skillbook-skills','skillbook-slots','skillbook-catalog','skillbook-talents','talent-branches','skillbook-apply','skillbook-status'])assert.match(html,new RegExp(`id="${id}"`));
+  for(const id of ['skillbook-toggle','skillbook-panel','skillbook-skills','skillbook-slots','skillbook-catalog','skillbook-talents','talent-branches','skillbook-apply','skillbook-status','skill-quinary'])assert.match(html,new RegExp(`id="${id}"`));
+  assert.match(html,/1–5 и ПКМ/);
   assert.match(html,/game\/skillbook\.css/);assert.match(html,/aria-controls="skillbook-panel"/);assert.match(html,/Навыки и таланты · K/);
 });

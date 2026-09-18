@@ -158,6 +158,8 @@ export function persistentHero(p: Hero): PersistentHero{
   p.potions=consumableKindQuantity(p,'hp');p.manaPotions=consumableKindQuantity(p,'mana');
   p.consumableOverflow=Math.min(p.consumableOverflow,Math.max(0,backpackUsage(p)-p.bagCapacity));
   p.bag=normalizeBag(p,p.bag);
+  p.skillBuild=parseSkillBuild(p.skillBuild,p.classId,p.level)??defaultSkillBuild(p.classId,p.level);
+  p.skillPresets=[0,1,2].map(index=>p.skillPresets[index]?parseSkillBuild(p.skillPresets[index],p.classId,p.level):null) as Hero['skillPresets'];
   const fields=['schemaVersion','id','name','classId','level','xp','gold','kills','items','pendingItems','stash','equipment','consumableInventory','quickSlots','consumableOverflow','bagCapacity','stashCapacity','bag','allocatedStats','statRevision','x','z','yaw','weapon','hp','mana','potions','potionCooldown','manaPotions','manaPotionCooldown','specialCooldown','skillCooldowns','dead','combatUntil','attack','attackSerial','running','questKills','boss','questClaimed','afkPreferences','skillBuild','buildRevision','skillPresets'] as const;
   return structuredClone(Object.fromEntries(fields.map(k=>[k,p[k]]))) as unknown as PersistentHero;
 }

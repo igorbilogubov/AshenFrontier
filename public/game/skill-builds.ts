@@ -31,15 +31,25 @@ export const TALENTS:readonly TalentDefinition[]=Object.entries(BRANCHES).flatMa
  ...nodes[branch.id].map(([name,description,effect,amount],i)=>({id:`${classId}-${branch.id}-${i+1}`,classId:classId as ClassId,branch:branch.id,name,description,effect,amount,maxRank:2 as const,keystone:false})),
  {id:`${classId}-${branch.id}-mastery`,classId:classId as ClassId,branch:branch.id,name:keystones[branch.id][0],description:keystones[branch.id][1],effect:branch.id,amount:1,maxRank:1 as const,keystone:true}
 ]));
+export const SKILL_SLOT_COUNT=6;
+export const RMB_SKILL_SLOT=5;
+export const SKILL_SLOT_KEYS=['1','2','3','4','5','ПКМ'] as const;
 export const talentPoints=(level:number)=>Math.max(0,Math.min(20,1+Math.floor((level-10)/4)));
 export const talentSpent=(build:SkillBuild)=>Object.values(build.talents).reduce((sum,n)=>sum+n,0);
+function normalizeSlots(slots:unknown[]):unknown[]|null{
+ if(slots.length===6)return slots;
+ if(slots.length===5)return [...slots.slice(0,4),null,slots[4]];
+ if(slots.length===4)return [...slots,null,null];
+ return null;
+}
 export function defaultSkillBuild(classId:ClassId,level:number):SkillBuild{
- const unlocked=skillsForClass(classId).filter(s=>s.unlockLevel<=level).slice(0,5).map(s=>s.id);
- return {slots:[unlocked[0]??null,unlocked[1]??null,unlocked[2]??null,unlocked[3]??null,unlocked[4]??null],talents:{}};
+ const unlocked=skillsForClass(classId).filter(s=>s.unlockLevel<=level).slice(0,SKILL_SLOT_COUNT).map(s=>s.id);
+ return {slots:Array.from({length:SKILL_SLOT_COUNT},(_,i)=>unlocked[i]??null) as SkillLoadout,talents:{}};
 }
 export function parseSkillBuild(raw:unknown,classId:ClassId,level:number):SkillBuild|null{
- if(!isRecord(raw)||Object.keys(raw).some(k=>!['slots','talents'].includes(k))||!Array.isArray(raw.slots)||![4,5].includes(raw.slots.length)||!isRecord(raw.talents))return null;
- const slots=raw.slots.length===4?[...raw.slots,null]:raw.slots,ids=slots.filter(x=>x!==null);
+ if(!isRecord(raw)||Object.keys(raw).some(k=>!['slots','talents'].includes(k))||!Array.isArray(raw.slots)||!isRecord(raw.talents))return null;
+ const slots=normalizeSlots(raw.slots);if(!slots)return null;
+ const ids=slots.filter(x=>x!==null);
  if(new Set(ids).size!==ids.length||ids.some(id=>typeof id!=='string'||!Object.hasOwn(SKILLS,id)||SKILLS[id as SkillId].classId!==classId||SKILLS[id as SkillId].unlockLevel>level))return null;
  const talents:Record<string,number>={};let spent=0,keystones=0;
  for(const [id,rank] of Object.entries(raw.talents)){

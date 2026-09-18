@@ -9,7 +9,7 @@ const east=Math.PI/2;
 const advance=(w,seconds)=>{for(let i=0;i<Math.round(seconds*20);i++)w.tick(.05,w.t+50);};
 function fixture(classId,ids){
  const w=new World({random:()=>0}),p=newHero('Сборка',classId);Object.assign(p,{level:86,x:8,z:1.8,yaw:east,targetYaw:east});
- p.skillBuild={slots:[...ids,...Array(5-ids.length).fill(null)],talents:{}};p.mana=stats(p).maxMana;p.hp=stats(p).maxHp;w.add(p);
+ p.skillBuild={slots:[...ids,...Array(6-ids.length).fill(null)],talents:{}};p.mana=stats(p).maxMana;p.hp=stats(p).maxHp;w.add(p);
  w.mobs=w.mobs.slice(0,3);w.mobs.forEach((m,i)=>Object.assign(m,{x:9.4+i*.4,z:1.8,homeX:9.4+i*.4,homeZ:1.8,hp:10000,state:'recover',timer:1000,target:p.id}));
  return {w,p,m:w.mobs[0]};
 }
@@ -42,13 +42,13 @@ test('server enforces equipped skills and level gate even for forged payloads',(
 });
 test('combat build apply cancels actions and buffs, retains cooldowns, saves/loads presets with revision guard',()=>{
  const f=fixture('warrior',['warrior-guard','warrior-heavy']);assert(cast(f,'warrior-guard'));settle(f);assert(f.p.effects.length);const cd=f.p.skillCooldowns['warrior-guard'];
- const build={slots:['warrior-cleave',null,null,null,null],talents:{}};
+ const build={slots:['warrior-cleave',null,null,null,null,null],talents:{}};
  f.w.command(f.p,{type:'buildApply',revision:0,build});assert.equal(f.p.buildRevision,1);assert.equal(f.p.effects.length,0);assert.equal(f.p.skillCooldowns['warrior-guard'],cd);
- const campBuild={slots:['warrior-heavy',null,null,null,null],talents:{}};
+ const campBuild={slots:['warrior-heavy',null,null,null,null,null],talents:{}};
  Object.assign(f.p,CAMP_SPAWN);f.w.startAfk(f.p);f.w.command(f.p,{type:'buildApply',revision:1,build:campBuild});
  assert.equal(f.p.buildRevision,2);assert.equal(f.p.afk,null);
  f.w.command(f.p,{type:'buildSavePreset',index:0});assert.deepEqual(f.p.skillPresets[0],campBuild);
- f.w.command(f.p,{type:'buildApply',revision:0,build:{slots:[null,null,null,null,null],talents:{}}});
+ f.w.command(f.p,{type:'buildApply',revision:0,build:{slots:[null,null,null,null,null,null],talents:{}}});
  assert.deepEqual(f.p.skillBuild,campBuild);
  f.w.command(f.p,{type:'buildApply',revision:2,build});
  f.w.command(f.p,{type:'buildLoadPreset',revision:3,index:0});assert.deepEqual(f.p.skillBuild,campBuild);assert.equal(f.p.buildRevision,4);

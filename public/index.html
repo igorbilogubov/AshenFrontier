@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="/game/travel-ui.css">
 </head>
 <body>
-  <canvas id="scene" tabindex="0" aria-label="Пепельная опушка. Камера с постоянным углом, колёсико мыши — приближение и отдаление. Клик ЛКМ по земле — идти в точку, удержание ЛКМ — идти за курсором, ЛКМ по врагу — подойти и атаковать. Shift + ЛКМ — атака на месте. R — ходьба и бег, пробел — подобрать ближайшую добычу, 1, 2, 3, 4 и ПКМ — навыки, Q/W — назначенные зелья из рюкзака, F — автоохота с текущего места, K — книга навыков, Z — названия добычи, M — звук."></canvas>
+  <canvas id="scene" tabindex="0" aria-label="Пепельная опушка. Камера с постоянным углом, колёсико мыши — приближение и отдаление. Клик ЛКМ по земле — идти в точку, удержание ЛКМ — идти за курсором, ЛКМ по врагу — подойти и атаковать. Shift + ЛКМ — атака на месте. R — ходьба и бег, пробел — подобрать ближайшую добычу, 1, 2, 3, 4, 5 и ПКМ — навыки, Q/W — назначенные зелья из рюкзака, F — автоохота с текущего места, K — книга навыков, Z — названия добычи, M — звук."></canvas>
   <div id="world-ui" aria-hidden="true"></div>
   <div id="hurt-vignette" aria-hidden="true"></div>
   <header>
@@ -63,12 +63,13 @@
           <b id="hero-level">1</b>
           <div id="hud-experience" class="hud-experience" role="progressbar" aria-label="Опыт до следующего уровня" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="hud-xp-fill"></i><span id="hud-xp-text">0 / 100 XP</span></div>
         </div>
-        <div class="dock" role="group" aria-label="Атака, пять навыков и два зелья">
+        <div class="dock" role="group" aria-label="Атака, шесть навыков и два зелья">
           <button id="attack" class="action-cell" type="button"><kbd>ЛКМ</kbd><span class="attack-icon action-art" aria-hidden="true"></span><span class="action-name">Атака</span><small>Shift · на месте</small><i id="cooldown"></i></button>
           <button id="special" class="skill-button action-cell" type="button"><kbd>1</kbd><span class="skill-sigil action-art" aria-hidden="true"></span><span class="skill-name">Навык</span><small class="skill-meta">Мана</small></button>
           <button id="skill-secondary" class="skill-button action-cell" type="button"><kbd>2</kbd><span class="skill-sigil action-art" aria-hidden="true"></span><span class="skill-name">Навык</span><small class="skill-meta">Мана</small></button>
           <button id="skill-tertiary" class="skill-button action-cell" type="button"><kbd>3</kbd><span class="skill-sigil action-art" aria-hidden="true"></span><span class="skill-name">Навык</span><small class="skill-meta">Мана</small></button>
           <button id="skill-quaternary" class="skill-button action-cell" type="button"><kbd>4</kbd><span class="skill-sigil action-art" aria-hidden="true"></span><span class="skill-name">Навык</span><small class="skill-meta">Мана</small></button>
+          <button id="skill-quinary" class="skill-button action-cell" type="button"><kbd>5</kbd><span class="skill-sigil action-art" aria-hidden="true"></span><span class="skill-name">Навык</span><small class="skill-meta">Мана</small></button>
           <button id="skill-mouse" class="skill-button action-cell" type="button"><kbd>ПКМ</kbd><span class="skill-sigil action-art" aria-hidden="true"></span><span class="skill-name">Навык</span><small class="skill-meta">Книга · K</small></button>
           <button id="potion" class="action-cell quick-consumable" data-quick-slot="q" type="button"><kbd>Q</kbd><b id="potions" class="quick-count" aria-hidden="true">0</b><span class="potion-icon action-art" aria-hidden="true"></span><span class="potion-timer" aria-hidden="true" hidden></span><span class="action-name">Пусто</span><small>Зелье</small></button>
           <button id="mana-potion" class="action-cell quick-consumable" data-quick-slot="w" type="button"><kbd>W</kbd><b id="mana-potions" class="quick-count" aria-hidden="true">0</b><span class="potion-icon action-art" aria-hidden="true"></span><span class="potion-timer" aria-hidden="true" hidden></span><span class="action-name">Пусто</span><small>Зелье</small></button>
@@ -152,7 +153,7 @@
     <div class="skillbook-tabs" role="tablist" aria-label="Разделы книги"><button id="skillbook-skills-tab" type="button" role="tab" aria-selected="true" aria-controls="skillbook-skills">Книга навыков <span>13</span></button><button id="skillbook-talents-tab" type="button" role="tab" aria-selected="false" aria-controls="skillbook-talents">Таланты <span id="talent-tab-points">0</span></button></div>
     <div class="skillbook-content">
       <section id="skillbook-skills" class="skillbook-page" role="tabpanel" aria-labelledby="skillbook-skills-tab">
-        <div class="skillbook-intro"><div><h3>Боевой набор</h3><p>Перетащите открытый навык в один из пяти слотов (1–4 и ПКМ) или выберите навык, затем слот.</p></div><div id="skillbook-safe-state" class="skillbook-safe-state"></div></div>
+        <div class="skillbook-intro"><div><h3>Боевой набор</h3><p>Перетащите открытый навык в один из шести слотов (1–5 и ПКМ) или выберите навык, затем слот.</p></div><div id="skillbook-safe-state" class="skillbook-safe-state"></div></div>
         <div id="skillbook-slots" class="skillbook-slots" role="group" aria-label="Пять активных навыков"></div>
         <div id="skillbook-catalog" class="skillbook-catalog" role="list" aria-label="Доступные навыки класса"></div>
       </section>

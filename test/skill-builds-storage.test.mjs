@@ -12,10 +12,10 @@ test('schema 8 persists exact loadout, ranked talents, three presets and remaini
  const db=await createTestDatabase();let store;
  try{
   store=await openHeroStore({connectionString:db.url});const accountId=await testAccount(store),p=newHero('Таланты','mage');
-  p.level=86;p.skillBuild={slots:['mage-beam','mage-teleport','mage-mana-shield','mage-mana-source',null],talents:{'mage-arcanist-1':2,'mage-arcanist-2':2,'mage-arcanist-3':2,'mage-arcanist-4':2,'mage-arcanist-mastery':1}};
+  p.level=86;p.skillBuild={slots:['mage-beam','mage-teleport','mage-mana-shield','mage-mana-source',null,null],talents:{'mage-arcanist-1':2,'mage-arcanist-2':2,'mage-arcanist-3':2,'mage-arcanist-4':2,'mage-arcanist-mastery':1}};
   p.skillPresets=[structuredClone(p.skillBuild),defaultSkillBuild('mage',86),null];p.buildRevision=7;p.skillCooldowns={'mage-teleport':6.4,'mage-ice-step':6.4,'mage-mana-shield':17};
   const original=persistentHero(p);await store.commit([{accountId,hero:original,expectedRevision:0}],randomUUID(),'build fixture');
-  const loaded=await store.load(p.id,accountId);assert.equal(await store.schemaVersion(),10);assert.equal(loaded.revision,1);
+  const loaded=await store.load(p.id,accountId);assert.equal(await store.schemaVersion(),11);assert.equal(loaded.revision,1);
   assert.deepEqual(loaded.hero.skillBuild,p.skillBuild);assert.deepEqual(loaded.hero.skillPresets,p.skillPresets);assert.equal(loaded.hero.buildRevision,7);assert.deepEqual(loaded.hero.skillCooldowns,p.skillCooldowns);
   const restarted=safeHero(loaded.hero);assert.deepEqual(restarted.skillBuild,p.skillBuild);assert.equal(restarted.effects.length,0);assert.deepEqual(restarted.skillCooldowns,{...p.skillCooldowns,'mage-fireball':0});
   const invalid={...original,skillBuild:{...original.skillBuild,talents:{'mage-arcanist-1':3}}};
@@ -31,28 +31,28 @@ test('schema5 migration adds legal level-based defaults without granting talents
   await store.commit([{accountId,hero:persistentHero(p),expectedRevision:0}],randomUUID());await store.close();store=null;
   const client=new pg.Client({connectionString:db.url});await client.connect();try{await removeBuildSchema(client);}finally{await client.end();}
   store=await openHeroStore({connectionString:db.url});const restored=(await store.load(p.id,accountId)).hero;
-  assert.equal(await store.schemaVersion(),10);assert.deepEqual(restored.skillBuild,defaultSkillBuild('archer',14));assert.deepEqual(restored.skillPresets,[null,null,null]);assert.equal(restored.buildRevision,0);assert.deepEqual(restored.skillCooldowns,{'archer-rain':4.25});
+  assert.equal(await store.schemaVersion(),11);assert.deepEqual(restored.skillBuild,defaultSkillBuild('archer',14));assert.deepEqual(restored.skillPresets,[null,null,null]);assert.equal(restored.buildRevision,0);assert.deepEqual(restored.skillCooldowns,{'archer-rain':4.25});
   assert.deepEqual(restored.items,p.items);assert.equal(restored.level,14);
   await store.commit([{accountId,hero:restored,expectedRevision:1}],randomUUID());assert.deepEqual((await store.load(p.id,accountId)).hero.skillBuild,restored.skillBuild);
  }finally{await store?.close();await db.close();}
 });
 
-test('schema 8 appends an empty RMB slot to schema 7 builds and presets without changing talents',{skip:!hasTestDatabase},async()=>{
+test('schema 11 inserts an empty key-5 slot before RMB without moving the mouse skill',{skip:!hasTestDatabase},async()=>{
  const db=await createTestDatabase();let store;
  try{
   store=await openHeroStore({connectionString:db.url});const accountId=await testAccount(store),p=newHero('Старые слоты','warrior');p.level=20;
-  p.skillBuild={slots:['warrior-cleave','warrior-whirlwind','warrior-thrust','warrior-charge',null],talents:{'warrior-duelist-1':2,'warrior-duelist-2':1}};
+  p.skillBuild={slots:['warrior-cleave','warrior-whirlwind','warrior-thrust','warrior-charge',null,'warrior-earthquake'],talents:{'warrior-duelist-1':2,'warrior-duelist-2':1}};
   p.skillPresets=[structuredClone(p.skillBuild),null,structuredClone(p.skillBuild)];await store.commit([{accountId,hero:persistentHero(p),expectedRevision:0}],randomUUID());await store.close();store=null;
   const client=new pg.Client({connectionString:db.url});await client.connect();try{await client.query(`
     ALTER TABLE heroes DROP CONSTRAINT heroes_skill_build_check;
     UPDATE heroes SET skill_build=jsonb_set(skill_build,'{slots}',(skill_build->'slots')-4),skill_presets=(
       SELECT jsonb_agg(CASE WHEN value='null'::jsonb THEN value ELSE jsonb_set(value,'{slots}',(value->'slots')-4) END ORDER BY ordinality)
       FROM jsonb_array_elements(skill_presets) WITH ORDINALITY AS preset(value,ordinality));
-    ALTER TABLE heroes ADD CONSTRAINT heroes_skill_build_check CHECK (skill_build IS NULL OR (jsonb_typeof(skill_build)='object' AND jsonb_typeof(skill_build->'slots')='array' AND jsonb_array_length(skill_build->'slots')=4 AND jsonb_typeof(skill_build->'talents')='object'));
-    DELETE FROM schema_migrations WHERE version=8;
+    ALTER TABLE heroes ADD CONSTRAINT heroes_skill_build_check CHECK (skill_build IS NULL OR (jsonb_typeof(skill_build)='object' AND jsonb_typeof(skill_build->'slots')='array' AND jsonb_array_length(skill_build->'slots')=5 AND jsonb_typeof(skill_build->'talents')='object'));
+    DELETE FROM schema_migrations WHERE version=11;
   `);}finally{await client.end();}
   store=await openHeroStore({connectionString:db.url});const restored=(await store.load(p.id,accountId)).hero;
-  assert.equal(await store.schemaVersion(),10);assert.deepEqual(restored.skillBuild,p.skillBuild);assert.deepEqual(restored.skillPresets,p.skillPresets);
+  assert.equal(await store.schemaVersion(),11);assert.deepEqual(restored.skillBuild,p.skillBuild);assert.deepEqual(restored.skillPresets,p.skillPresets);
   await store.commit([{accountId,hero:restored,expectedRevision:1}],randomUUID());assert.deepEqual((await store.load(p.id,accountId)).hero.skillBuild,p.skillBuild);
  }finally{await store?.close();await db.close();}
 });

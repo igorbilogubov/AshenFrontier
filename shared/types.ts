@@ -1,7 +1,7 @@
 /** Shared simulation and wire contracts. Browser input is still validated at runtime. */
 export type ClassId = 'warrior' | 'archer' | 'mage';
 export type SkillId = 'warrior-cleave' | 'warrior-whirlwind' | 'warrior-earthquake' | 'archer-piercing' | 'archer-volley' | 'archer-arrow-storm' | 'mage-fireball' | 'mage-frost' | 'mage-arcane-nova' | 'warrior-thrust' | 'warrior-shockwave' | 'archer-frost-shot' | 'archer-rain' | 'mage-lightning' | 'mage-meteor' | 'warrior-heavy' | 'warrior-bleed' | 'warrior-charge' | 'warrior-leap' | 'warrior-guard' | 'warrior-berserk' | 'warrior-shout' | 'warrior-banner' | 'archer-aimed' | 'archer-poison' | 'archer-retreat' | 'archer-roll' | 'archer-trap' | 'archer-focus' | 'archer-wind' | 'archer-smoke' | 'mage-ice-lance' | 'mage-beam' | 'mage-teleport' | 'mage-ice-step' | 'mage-mana-shield' | 'mage-seals' | 'mage-ward' | 'mage-mana-source';
-export type SkillLoadout = [SkillId|null,SkillId|null,SkillId|null,SkillId|null,SkillId|null];
+export type SkillLoadout = [SkillId|null,SkillId|null,SkillId|null,SkillId|null,SkillId|null,SkillId|null];
 export interface SkillBuild {slots:SkillLoadout;talents:Record<string,number>}
 export interface SkillEffect {skillId:SkillId;remaining:number}
 export interface SkillZone extends Point {id:string;owner:string;skillId:SkillId;radius:number;remaining:number}

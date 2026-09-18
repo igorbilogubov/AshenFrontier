@@ -44,7 +44,7 @@ export async function removeExpandedConsumableSchema(client){
 }
 export async function removeBuildSchema(client){
   await removeExpandedConsumableSchema(client);
-  await client.query('ALTER TABLE heroes DROP COLUMN IF EXISTS skill_build; ALTER TABLE heroes DROP COLUMN IF EXISTS build_revision; ALTER TABLE heroes DROP COLUMN IF EXISTS skill_presets; DELETE FROM schema_migrations WHERE version IN (6,8);');
+  await client.query('ALTER TABLE heroes DROP COLUMN IF EXISTS skill_build; ALTER TABLE heroes DROP COLUMN IF EXISTS build_revision; ALTER TABLE heroes DROP COLUMN IF EXISTS skill_presets; DELETE FROM schema_migrations WHERE version IN (6,8,11);');
 }
 export async function removeAccountSchema(client){
   await removeBuildSchema(client);

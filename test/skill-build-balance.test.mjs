@@ -7,7 +7,7 @@ import {World,newHero,stats} from '../dist/world.js';
 // This is deliberately not an economy, moving-target, talent-build or PvP claim.
 function sample(ids){
  const classId=ids[0].split('-')[0],w=new World({random:()=>0}),p=newHero('Проверка',classId);
- p.level=45;p.skillBuild={slots:[...ids,...Array(5-ids.length).fill(null)],talents:{}};
+ p.level=45;p.skillBuild={slots:[...ids,...Array(6-ids.length).fill(null)],talents:{}};
  Object.assign(p,{x:8,z:1.8,yaw:Math.PI/2,targetYaw:Math.PI/2});w.add(p);
  const m=w.mobs[0];Object.assign(m,{x:9.4,z:1.8,homeX:9.4,homeZ:1.8,hp:100000,state:'recover',timer:10000,target:p.id});w.mobs=[m];
  let manaSpent=0,casts=0;

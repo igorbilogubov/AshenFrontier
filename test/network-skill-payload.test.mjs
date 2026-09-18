@@ -18,7 +18,7 @@ test('real client skill payloads omit cursor coordinates for non-area skills and
   const {game,messages}=browserGame(t);
   for(const skill of Object.values(SKILLS))for(const selected of [false,true]){
     const world=new World(),hero=newHero('Навык',skill.classId);world.add(hero);
-    Object.assign(hero,{x:6.6,z:1.8,level:45});hero.skillBuild={slots:[skill.id,null,null,null,null],talents:{}};hero.mana=stats(hero).maxMana;
+    Object.assign(hero,{x:6.6,z:1.8,level:45});hero.skillBuild={slots:[skill.id,null,null,null,null,null],talents:{}};hero.mana=stats(hero).maxMana;
     const mob=world.mobs[0];world.mobs=[mob];Object.assign(mob,{x:8,z:1.8});
     const yaw=.31,point={x:mob.x,z:mob.z},aim={target:point,...(selected?{targetId:mob.id}:{})};
     const before=structuredClone(aim),area=skill.id==='archer-rain'||skill.id==='archer-arrow-storm'||skill.id==='mage-meteor'||skill.kind==='mobility'||skill.id==='archer-trap';

@@ -212,7 +212,7 @@ test('schema 10 stores enhance and keeps the fingerprint when only enhance chang
     const accountId=await testAccount(store),p=newHero('Отпечаток заточки');
     const item=p.items.find(owned=>owned.id===p.equipment.weapon);item.enhance=4;
     const first=await store.commit([{accountId,hero:persistentHero(p),expectedRevision:0}],randomUUID());
-    assert.equal(await store.schemaVersion(),10);
+    assert.equal(await store.schemaVersion(),11);
     const loaded=await store.load(p.id,accountId);
     assert.equal(loaded.hero.items.find(owned=>owned.id===item.id).enhance,4);
     loaded.hero.items.find(owned=>owned.id===item.id).enhance=7;
@@ -223,7 +223,7 @@ test('schema 10 stores enhance and keeps the fingerprint when only enhance chang
     const sql=(await import('pg')).default;const client=new sql.Client({connectionString:db.url});
     await client.connect();await removeEnhanceSchema(client);await client.end();
     store=await openHeroStore({connectionString:db.url});
-    assert.equal(await store.schemaVersion(),10);
+    assert.equal(await store.schemaVersion(),11);
   }finally{await store?.close();await db.close();}
 });
 

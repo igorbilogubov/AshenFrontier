@@ -3,7 +3,7 @@
 @media(max-width:680px){#performance{top:45px;padding:1px 6px;font-size:9px}}
 .combat-hud{
   --orb-size:124px;
-  width:min(1100px,100%);
+  width:min(1180px,100%);
   display:grid;
   grid-template-columns:var(--orb-size) minmax(0,1fr) var(--orb-size);
   align-items:center;

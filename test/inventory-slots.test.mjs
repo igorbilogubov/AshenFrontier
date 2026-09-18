@@ -120,7 +120,7 @@ test('schema 9 stores purchased bag and chest cells and fills defaults for older
     w.command(p,{type:'buyStashSlot'});
     const saved=persistentHero(p);
     await store.commit([{accountId,hero:saved,expectedRevision:0}],randomUUID());
-    assert.equal(await store.schemaVersion(),10);
+    assert.equal(await store.schemaVersion(),11);
     assert.deepEqual((await store.load(p.id,accountId)).hero.bagCapacity,DEFAULT_BAG_CAPACITY+1);
     assert.equal((await store.load(p.id,accountId)).hero.stashCapacity,DEFAULT_STASH_CAPACITY+1);
     await store.close();store=null;
@@ -128,7 +128,7 @@ test('schema 9 stores purchased bag and chest cells and fills defaults for older
     await removeStorageCapacitySchema(sql);
     store=await openHeroStore({connectionString:db.url});
     const restored=(await store.load(p.id,accountId)).hero;
-    assert.equal(await store.schemaVersion(),10);
+    assert.equal(await store.schemaVersion(),11);
     assert.equal(restored.bagCapacity,DEFAULT_BAG_CAPACITY);
     assert.equal(restored.stashCapacity,DEFAULT_STASH_CAPACITY);
   }finally{await sql.end();await store?.close();await db.close();}

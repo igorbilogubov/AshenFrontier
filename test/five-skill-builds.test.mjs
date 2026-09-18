@@ -30,11 +30,13 @@ test('every class has a level-20 large-area skill with a deliberately low per-ta
   assert(SKILLS['mage-arcane-nova'].range>=5);
 });
 
-test('five-slot builds preserve old four-slot saves by adding an empty RMB slot',()=>{
+test('six-slot builds keep RMB on the last slot when upgrading four- and five-slot saves',()=>{
   const old={slots:['warrior-cleave','warrior-whirlwind','warrior-thrust','warrior-charge'],talents:{}};
-  assert.deepEqual(parseSkillBuild(old,'warrior',20),{...old,slots:[...old.slots,null]});
-  const current={slots:['warrior-cleave','warrior-whirlwind','warrior-thrust','warrior-charge','warrior-earthquake'],talents:{}};
+  assert.deepEqual(parseSkillBuild(old,'warrior',20),{...old,slots:[...old.slots,null,null]});
+  const five={slots:['warrior-cleave','warrior-whirlwind','warrior-thrust','warrior-charge','warrior-earthquake'],talents:{}};
+  assert.deepEqual(parseSkillBuild(five,'warrior',20),{...five,slots:[...five.slots.slice(0,4),null,five.slots[4]]});
+  const current={slots:['warrior-cleave','warrior-whirlwind','warrior-thrust','warrior-charge','warrior-guard','warrior-earthquake'],talents:{}};
   assert.deepEqual(parseSkillBuild(current,'warrior',20),current);
   assert.equal(parseSkillBuild({...current,slots:[...current.slots,null]},'warrior',20),null);
-  assert.equal(defaultSkillBuild('mage',20).slots.length,5);
+  assert.equal(defaultSkillBuild('mage',20).slots.length,6);
 });

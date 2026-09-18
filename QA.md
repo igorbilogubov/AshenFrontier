@@ -1,5 +1,10 @@
 # Проверка общей 3D-опушки
 
+## 18 сентября 2026: слот навыка 5
+
+Локально. `test/five-skill-builds.test.mjs`: 4→6 и 5→6 с сохранением ПКМ. `test/skill-builds.test.mjs`. `npm run check`.
+
+
 ## 18 сентября 2026: стадиум ×1,5 XP
 
 Локально. `test/stadium.test.mjs`: волк в загоне даёт `round(fieldXp * 1.5)`, добычи нет, на 100 уровне XP не капает. `npm run check`.

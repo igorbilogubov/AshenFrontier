@@ -1,6 +1,6 @@
 import type {PoolClient} from 'pg';
 
-export const DATABASE_SCHEMA_VERSION=10;
+export const DATABASE_SCHEMA_VERSION=11;
 
 // The migration is embedded so both source execution and dist execution use the
 // exact same schema, including in the production Docker image.
@@ -283,6 +283,23 @@ export async function migrate(client:PoolClient):Promise<void>{
     if(!tenth.rowCount){await client.query(`
       ALTER TABLE item_instances ADD COLUMN enhance integer NOT NULL DEFAULT 0 CHECK (enhance BETWEEN 0 AND 9);
     `);await client.query('INSERT INTO schema_migrations(version) VALUES (10)');}
+    const eleventh=await client.query<{version:number}>('SELECT version FROM schema_migrations WHERE version=11');
+    if(!eleventh.rowCount){await client.query(`
+      ALTER TABLE heroes DROP CONSTRAINT heroes_skill_build_check;
+      UPDATE heroes SET skill_build=jsonb_set(skill_build,'{slots}',jsonb_insert(skill_build->'slots','{4}','null'::jsonb))
+        WHERE skill_build IS NOT NULL AND jsonb_array_length(skill_build->'slots')=5;
+      UPDATE heroes SET skill_build=jsonb_set(skill_build,'{slots}',(skill_build->'slots')||'null'::jsonb||'null'::jsonb)
+        WHERE skill_build IS NOT NULL AND jsonb_array_length(skill_build->'slots')=4;
+      UPDATE heroes SET skill_presets=(
+        SELECT jsonb_agg(CASE
+          WHEN preset.value='null'::jsonb THEN preset.value
+          WHEN jsonb_array_length(preset.value->'slots')=5 THEN jsonb_set(preset.value,'{slots}',jsonb_insert(preset.value->'slots','{4}','null'::jsonb))
+          WHEN jsonb_array_length(preset.value->'slots')=4 THEN jsonb_set(preset.value,'{slots}',(preset.value->'slots')||'null'::jsonb||'null'::jsonb)
+          ELSE preset.value END ORDER BY preset.ordinality)
+        FROM jsonb_array_elements(skill_presets) WITH ORDINALITY AS preset(value,ordinality)
+      );
+      ALTER TABLE heroes ADD CONSTRAINT heroes_skill_build_check CHECK (skill_build IS NULL OR (jsonb_typeof(skill_build)='object' AND jsonb_typeof(skill_build->'slots')='array' AND jsonb_array_length(skill_build->'slots')=6 AND jsonb_typeof(skill_build->'talents')='object'));
+    `);await client.query('INSERT INTO schema_migrations(version) VALUES (11)');}
 
     await client.query('COMMIT');
   }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}

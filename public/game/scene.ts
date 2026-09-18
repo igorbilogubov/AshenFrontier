@@ -34,7 +34,7 @@ import {bindOnlineRoster} from './online-roster-ui.js';
 import {bindPanelLayout} from './panel-layout.js';
 import {bindResponsiveChat} from './responsive-chat.js';
 import {SKILLS} from './skills.js';
-import {effectiveSkill} from './skill-builds.js';
+import {effectiveSkill,RMB_SKILL_SLOT} from './skill-builds.js';
 import {createSkillEffects} from './skill-effects.js';
 import {createPersistentSkillEffects} from './persistent-skill-effects.js';
 import {createSkillProjectile,updateSkillProjectile,disposeSkillProjectile} from './skill-projectiles.js';
@@ -68,6 +68,8 @@ let targetZoom=1,interfaceUI:ReturnType<typeof bindInterface>,onlineRoster:Retur
 const remoteModels=new Map<string,RemoteWarrior>(),loadingPlayers=new Set<string>(),visualHeroes=new Map<string,VisualHero>(),visualMobs=new Map<number,PublicMob>(),shots=new Map<string,T.Group>();
 const ZOOM={min:.7,max:1.9,sensitivity:.0015};
 const keys=new Set<string>(),models=new Map<number,MobModel>(),particles:Particle[]=[],floats:FloatingNumber[]=[];
+const SKILL_DIGITS=['Digit1','Digit2','Digit3','Digit4','Digit5'] as const;
+const HUD_SKILL_BUTTONS=['special','skill-secondary','skill-tertiary','skill-quaternary','skill-quinary','skill-mouse'] as const;
 let heldHudSkill:number|null=null,channelSlot:number|null=null,lastChannelPulse=0;
 const raycaster=new T.Raycaster(),ndc=new T.Vector2(),groundPlane=new T.Plane(new T.Vector3(0,1,0),0),cameraTarget=new T.Vector3(.5,.3,2),skillOrigin=new T.Vector3();
 const mouse:HeldMouse={x:0,y:0,active:false,point:null,attacking:false,casting:false,pointerId:null,};
@@ -183,7 +185,7 @@ function castSkill(slot:number,held=false){
 function releaseMovement(){
   const id=mouse.pointerId;
   if(mouseWalk.release())game?.stopInput();
-  if(mouse.casting&&channelSlot===4)stopChannel();
+  if(mouse.casting&&channelSlot===RMB_SKILL_SLOT)stopChannel();
   mouse.attacking=false;mouse.casting=false;mouse.pointerId=null;
   if(id!==null&&canvas.hasPointerCapture(id))canvas.releasePointerCapture(id);
 
@@ -238,7 +240,7 @@ function tick(dt:number){
   const hero=game.player;
   if(hero.afk){game.update(dt,{x:0,z:0,aim:null});processEvents();sound.pulse(hero);return;}
   let input:{x:number;z:number;aim:number|null}={x:0,z:0,aim:null};
-  const keyboardSkill=['Digit1','Digit2','Digit3','Digit4'].findIndex(code=>keys.has(code)),heldSkill=keyboardSkill>=0?keyboardSkill:mouse.casting?4:heldHudSkill;
+  const keyboardSkill=SKILL_DIGITS.findIndex(code=>keys.has(code)),heldSkill=keyboardSkill>=0?keyboardSkill:mouse.casting?RMB_SKILL_SLOT:heldHudSkill;
   if(heldSkill!==null&&heldSkill>=0&&!safe(hero)){input.x=input.z=0;castSkill(heldSkill,true);}
   else if(mouse.attacking&&!safe(hero)){input.x=input.z=0;attackAt();}
   else {
@@ -439,7 +441,7 @@ canvas.addEventListener('pointerdown',event=>{
   if(!ready||!game.connected||game.player.dead||event.isPrimary===false||![0,2].includes(event.button))return;
   event.preventDefault();releaseMovement();cancelAfk();canvas.focus({preventScroll:true});mouse.x=event.clientX;mouse.y=event.clientY;mouse.active=true;mouse.point=pickGround();
   game.send({type:'cancelInteraction'});
-  if(event.button===2){if(!slotSkill(4)){toast('Назначьте навык на ПКМ в книге навыков · K');return;}mouse.casting=true;mouse.pointerId=event.pointerId;canvas.setPointerCapture(event.pointerId);castSkill(4,true);return;}
+  if(event.button===2){if(!slotSkill(RMB_SKILL_SLOT)){toast('Назначьте навык на ПКМ в книге навыков · K');return;}mouse.casting=true;mouse.pointerId=event.pointerId;canvas.setPointerCapture(event.pointerId);castSkill(RMB_SKILL_SLOT,true);return;}
   if(event.shiftKey){mouse.attacking=true;mouse.pointerId=event.pointerId;canvas.setPointerCapture(event.pointerId);attackAt();return;}
   const interaction=worldInteractions?.pick(raycaster);if(interaction){chooseInteraction(interaction.kind,interaction.id);return;}
   const picked=pickMob();if(picked!==null){selected=picked;selectedEntity=null;attackAt(null,true);return;}
@@ -467,19 +469,19 @@ canvas.addEventListener('wheel',event=>{
 addEventListener('keydown',event=>{
   if(event.defaultPrevented||!ready||event.metaKey||event.ctrlKey||event.altKey||['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName||''))return;
   if(document.activeElement?.tagName==='BUTTON'&&['Space','Enter'].includes(event.code))return;
-  if(['Space','Digit1','Digit2','Digit3','Digit4'].includes(event.code)){event.preventDefault();keys.add(event.code);}if(event.repeat)return;
+  if(['Space',...SKILL_DIGITS].includes(event.code)){event.preventDefault();keys.add(event.code);}if(event.repeat)return;
   if(event.code==='KeyR')toggleRun();
   if(event.code==='Space'){releaseMovement();cancelAfk();game.send({type:'pickupNearest'});}
-  const skillIndex=['Digit1','Digit2','Digit3','Digit4'].indexOf(event.code);if(skillIndex>=0)castSkill(skillIndex,true);
+  const skillIndex=SKILL_DIGITS.indexOf(event.code as typeof SKILL_DIGITS[number]);if(skillIndex>=0)castSkill(skillIndex,true);
   if(event.code==='KeyQ'){event.preventDefault();drink('q');}if(event.code==='KeyW'){event.preventDefault();drink('w');}
   if(event.code==='KeyZ'){event.preventDefault();toggleLootLabels();}
   if(event.code==='KeyM'){event.preventDefault();toggleSound();}
   if(event.code==='KeyF')toggleAfk();if(event.code==='Escape'&&!interfaceUI?.isPanelOpen()){cancelAfk();clearInput();}
 });
-addEventListener('keyup',event=>{keys.delete(event.code);const slot=['Digit1','Digit2','Digit3','Digit4'].indexOf(event.code);if(slot>=0&&channelSlot===slot)stopChannel();});addEventListener('blur',clearInput);document.addEventListener('visibilitychange',()=>{paused=document.hidden;if(paused)clearInput();last=0;accumulator=0;});addEventListener('resize',fitCamera);
+addEventListener('keyup',event=>{keys.delete(event.code);const slot=SKILL_DIGITS.indexOf(event.code as typeof SKILL_DIGITS[number]);if(slot>=0&&channelSlot===slot)stopChannel();});addEventListener('blur',clearInput);document.addEventListener('visibilitychange',()=>{paused=document.hidden;if(paused)clearInput();last=0;accumulator=0;});addEventListener('resize',fitCamera);
 canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();ready=false;clearInput();$('loading').hidden=false;$('loading').querySelector('h2')!.textContent='3D-изображение приостановлено';$('load-progress').textContent='Нажмите «Повторить», чтобы открыть локацию снова.';$('retry').hidden=false;});
 for(const b of document.querySelectorAll<HTMLButtonElement>('[data-weapon]'))b.addEventListener('click',()=>{chooseWeapon(b.dataset.weapon);canvas.focus({preventScroll:true});});
-for(const [index,id] of ['special','skill-secondary','skill-tertiary','skill-quaternary','skill-mouse'].entries()){
+for(const [index,id] of HUD_SKILL_BUTTONS.entries()){
   const button=$(id);button.addEventListener('click',()=>{if(slotSkill(index)?.kind!=='channel')castSkill(index);canvas.focus({preventScroll:true});});
   button.addEventListener('pointerdown',event=>{if(slotSkill(index)?.kind!=='channel'||event.button!==0)return;event.preventDefault();heldHudSkill=index;castSkill(index,true);button.setPointerCapture(event.pointerId);});
   const release=(event:PointerEvent)=>{if(heldHudSkill!==index)return;heldHudSkill=null;if(channelSlot===index)stopChannel();if(button.hasPointerCapture(event.pointerId))button.releasePointerCapture(event.pointerId);canvas.focus({preventScroll:true});};button.addEventListener('pointerup',release);button.addEventListener('pointercancel',release);button.addEventListener('lostpointercapture',()=>{if(heldHudSkill===index){heldHudSkill=null;if(channelSlot===index)stopChannel();}});

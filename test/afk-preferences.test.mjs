@@ -133,7 +133,7 @@ test('AFK uses each action range and target body allowance without casting an un
 test('enabled buffs fire immediately on cooldown, even at full health, and skip while already active',()=>{
   const {w,p,spot}=fixture(),target=w.mobs.find(m=>m.id===spot.spawnIds[0]);
   w.mobs=[target];Object.assign(target,{hp:10000,state:'recover',timer:100,target:p.id});
-  p.level=32;p.skillBuild={slots:['warrior-heavy','warrior-guard','warrior-berserk',null,null],talents:{}};
+  p.level=32;p.skillBuild={slots:['warrior-heavy','warrior-guard','warrior-berserk',null,null,null],talents:{}};
   p.hp=stats(p).maxHp;p.mana=stats(p).maxMana;
   p.afkPreferences={...p.afkPreferences,attackSkill:'warrior-heavy',buffSkills:['warrior-guard','warrior-berserk'],basicAttackFallback:false};
   assert(w.autoAttack(p));assert.equal(p.attack.skillId,'warrior-guard');
@@ -168,7 +168,7 @@ test('schema 3 migration keeps a schema 2 hero, stash, potions and class-specifi
     assert.equal(restored.revision,1);assert.equal(restored.hero.gold,31);assert.equal(restored.hero.potions,7);assert.equal(restored.hero.manaPotions,4);
     assert.deepEqual(restored.hero.items,hero.items);assert.deepEqual(restored.hero.stash,hero.stash);
     assert.deepEqual(restored.hero.afkPreferences,defaultAfkPreferences('mage'));
-    assert.equal(await store.schemaVersion(),10);assert.equal(await store.health(),true);
+    assert.equal(await store.schemaVersion(),11);assert.equal(await store.health(),true);
   }finally{if(store)await store.close();await db.close();}
 });
 

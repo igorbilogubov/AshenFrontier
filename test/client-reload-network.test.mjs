@@ -25,7 +25,7 @@ test('SIGTERM tells connected clients to reload before closing 1012',{skip:!hasT
     await ended;
     await until(()=>closeCode!==undefined,{timeout:8000,message:'Timed out waiting for restart close'});
     assert(messages.some(message=>message.type==='reload'&&message.reason==='restart'),JSON.stringify(messages.map(message=>message.type)));
-    assert(messages.some(message=>message.type==='error'&&message.code==='restart'));
+    assert(!messages.some(message=>message.type==='error'&&message.code==='restart'));
     assert.equal(closeCode,1012);
     assert.match(closeReason,/restart/i);
   }finally{

@@ -1,6 +1,7 @@
 export const RELOAD_STORAGE_KEY='ashen-client-reload';
 export const RELOAD_TTL_MS=120_000;
 export type ReloadResume={heroId:string;afk:boolean;at:number};
+export type HealthSnapshot={ok:boolean;bootId?:string;restarting?:boolean};
 
 type StorageLike={getItem(key:string):string|null;setItem(key:string,value:string):void;removeItem(key:string):void};
 
@@ -27,16 +28,30 @@ export function shouldResumeAfk(resume:ReloadResume|null,heroId:string){
   return !!resume&&!!heroId&&resume.heroId===heroId&&resume.afk;
 }
 
-export async function waitUntilHealthy(fetchImpl:typeof fetch,timeoutMs=60_000,now=()=>Date.now()){
+export async function readHealth(fetchImpl:typeof fetch):Promise<HealthSnapshot|null>{
+  try{
+    const response=await fetchImpl('/health',{cache:'no-store'});
+    const body=await response.json() as {ok?:unknown;bootId?:unknown;restarting?:unknown};
+    return {
+      ok:response.ok&&body?.ok===true,
+      bootId:typeof body?.bootId==='string'?body.bootId:undefined,
+      restarting:body?.restarting===true
+    };
+  }catch{return null;}
+}
+
+export function isSuccessorHealth(health:HealthSnapshot|null,previousBootId?:string,sawDown=false){
+  if(!health||!health.ok||health.restarting)return false;
+  if(previousBootId)return !!health.bootId&&health.bootId!==previousBootId;
+  return sawDown;
+}
+
+export async function waitUntilHealthy(fetchImpl:typeof fetch,timeoutMs=90_000,now=()=>Date.now(),previousBootId?:string){
   const deadline=now()+timeoutMs;
   while(now()<deadline){
-    try{
-      const response=await fetchImpl('/health',{cache:'no-store'});
-      if(response.ok){
-        const body=await response.json() as {ok?:unknown};
-        if(body&&body.ok===true)return true;
-      }
-    }catch{/* Server is still swapping. */}
+    const health=await readHealth(fetchImpl);
+    const down=!health||!health.ok||!!health.restarting;
+    if(!down&&(!previousBootId||health.bootId!==previousBootId))return true;
     await new Promise(resolve=>setTimeout(resolve,400));
   }
   return false;

@@ -2,7 +2,7 @@
 
 ## 18 сентября 2026: перезапуск клиента после выкладки
 
-`test/client-reload.test.mjs`: резюме AFK только для того же heroId, TTL 120 с, опрос `/health`. `test/client-reload-network.test.mjs`: SIGTERM шлёт `reload` + `error restart` и close 1012; после рестарта процесса AFK из сохранения не поднимается, повторная команда `afk` снова включает охоту. `npm run check`.
+`test/client-reload.test.mjs`: резюме AFK только для того же heroId, TTL 120 с, опрос `/health` не принимает тот же `bootId`. `test/client-reload-network.test.mjs`: SIGTERM шлёт `reload` и close 1012, без `error restart`. После рестарта процесса AFK из сохранения не поднимается. `npm run check`.
 
 
 

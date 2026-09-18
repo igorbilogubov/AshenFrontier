@@ -110,7 +110,7 @@ export type ClientCommand =
   | { type: 'resetStats'; revision: number };
 export type ClientMessage = ClientCommand | { type: 'join'; protocol: 3; heroId: string } | { type: 'chat'; text: string } | { type: 'ping'; t: number };
 export type ServerMessage =
-  | { type: 'welcome'; protocol: 3; id: string; chat: ChatEntry[] }
+  | { type: 'welcome'; protocol: 3; id: string; chat: ChatEntry[]; bootId?: string }
   | ({ type: 'state'; save: { at: number; ok: boolean } } & WorldSnapshot)
   | { type: 'chat'; entry: ChatEntry } | { type: 'error'; code: string; text: string } | { type: 'pong'; t: unknown }
   | { type: 'reload'; reason: 'restart' };

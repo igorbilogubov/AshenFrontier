@@ -57,6 +57,7 @@ const auth=createGoogleAuth(store,{onSessionRevoked:(sessionHash:string)=>{
 const commands=new Map<WebSocket,{move:unknown|null; actions:unknown[]}>();
 const economy=(p:PersistentHero)=>JSON.stringify([p.gold,p.xp,p.level,p.kills,p.items,p.pendingItems,p.stash,p.equipment,p.consumableInventory,p.quickSlots,p.consumableOverflow,p.bag,p.allocatedStats,p.statRevision,p.potions,p.manaPotions,p.questKills,p.questClaimed,p.boss,p.afkPreferences,p.skillBuild,p.buildRevision,p.skillPresets]);
 let lastSavedAt=Date.now(),lastCheckpoint=Date.now(),saveHealthy=true,shuttingDown=false,busy=false,pending:PendingCommit|null=null,retryTimer:ReturnType<typeof setTimeout>|null=null,writerLost=false,noticeSent=false;
+const bootId=randomBytes(8).toString('hex');
 const stress=stressModule?await stressModule.createStressController(world,dataDir,host,async()=>{
   // Test-only scenario reset: old camp inputs must not cancel freshly placed AFK
   // heroes on the next authoritative tick. Wait for in-flight saves first.
@@ -183,11 +184,16 @@ const server=http.createServer(async(req,res)=>{
     if(req.method!=='GET'&&req.method!=='HEAD'){res.writeHead(405);res.end();return;}
     const url=new URL(req.url||'/','http://localhost');
     if(url.pathname==='/health'){
+      if(shuttingDown){
+        res.writeHead(503,{'Content-Type':'application/json','Cache-Control':'no-store'});
+        res.end(req.method==='HEAD'?undefined:JSON.stringify({ok:false,restarting:true,bootId,world:'ashen-opushka-3d'}));
+        return;
+      }
       const dbHealthy=!writerLost&&await store.health().catch(()=>false);
       const dbSchemaVersion=await store.schemaVersion().catch(()=>0);
       const ok=saveHealthy&&dbHealthy&&!pending;
       if(!dbHealthy){writerLost=true;saveHealthy=false;for(const ws of connections.keys())ws.close(1013,'Storage unavailable');}
-      res.writeHead(ok?200:503,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(req.method==='HEAD'?undefined:JSON.stringify({ok,world:'ashen-opushka-3d',players:connections.size,entities:world.players.size,saveVersion:SAVE_VERSION,storage:{backend:'postgresql',schemaVersion:dbSchemaVersion,writer:dbHealthy,pending:!!pending}}));return;
+      res.writeHead(ok?200:503,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(req.method==='HEAD'?undefined:JSON.stringify({ok,bootId,world:'ashen-opushka-3d',players:connections.size,entities:world.players.size,saveVersion:SAVE_VERSION,storage:{backend:'postgresql',schemaVersion:dbSchemaVersion,writer:dbHealthy,pending:!!pending}}));return;
     }
     // Keep previously bookmarked workshops reachable, without serving the obsolete app.
     if(url.pathname==='/art-test.html'||url.pathname.startsWith('/art-test/')){
@@ -283,7 +289,7 @@ wss.on('connection',(ws,req)=>{
         sessions.set(heroId,entry);
       }
       world.add(entry.p);connections.set(ws,entry);clearTimeout(helloTimeout);
-      send(ws,{type:'welcome',protocol:3,id:entry.p.id,chat});
+      send(ws,{type:'welcome',protocol:3,id:entry.p.id,chat,bootId});
     }catch(error){console.error('Hero join/storage failed:',errorMessage(error));reject('storage_unavailable','Хранилище недоступно. Повторите подключение');}
     finally{joining.delete(accountId);}
   }
@@ -356,10 +362,7 @@ server.listen(port,host,()=>{
 async function shutdown(){
   if(shuttingDown)return;shuttingDown=true;stress?.close();clearInterval(tick);clearInterval(heartbeat);
   if(retryTimer){clearTimeout(retryTimer);retryTimer=null;}
-  for(const ws of wss.clients){
-    send(ws,{type:'reload',reason:'restart'});
-    send(ws,{type:'error',code:'restart',text:'Мир обновляется. Перезапускаем клиент…'});
-  }
+  for(const ws of wss.clients)send(ws,{type:'reload',reason:'restart'});
   await new Promise<void>(resolve=>setTimeout(resolve,200));
   for(const ws of wss.clients)ws.close(1012,'Server restarting');
   previewServer?.close();server.close();wss.close();

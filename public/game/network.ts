@@ -1,6 +1,6 @@
 import {defaultAfkPreferences} from './afk-preferences.js';
 import {defaultSkillBuild} from './skill-builds.js';
-import {clearReloadResume,readReloadResume,reloadPage,shouldResumeAfk,storeReloadResume,waitUntilHealthy} from './client-reload.js';
+import {clearReloadResume,readHealth,readReloadResume,reloadPage,shouldResumeAfk,storeReloadResume,waitUntilHealthy} from './client-reload.js';
 import {moveHero,stand} from './location.js';
 import {sameLocation} from './world-layout.js';
 import {characterStats,DEFAULT_BAG_CAPACITY,DEFAULT_STASH_CAPACITY} from '../rules.js';
@@ -35,7 +35,7 @@ export class NetworkGame{
   onChat:(entries:ChatEntry[],replace?:boolean)=>void;
   socket:WebSocket|undefined;
   options:ConnectionOptions={heroId:''};
-  id='';fatal=false;reloading=false;consumedReload=false;
+  id='';bootId='';fatal=false;reloading=false;consumedReload=false;
   save:SaveState|undefined;
   groundLoot:GroundDrop[]=[];
   skillZones:SkillZone[]=[];
@@ -61,7 +61,11 @@ export class NetworkGame{
     const storage=sessionStore();
     if(storage)storeReloadResume(this.options.heroId||this.id,!!this.player.afk,storage);
     this.onStatus('connecting','Мир обновляется. Перезапускаем клиент…');
-    void waitUntilHealthy(fetch).finally(()=>this.reloadPage());
+    void (async()=>{
+      const snapshot=await readHealth(fetch);
+      const previous=this.bootId||snapshot?.bootId;
+      await waitUntilHealthy(fetch,90_000,()=>Date.now(),previous);
+    })().finally(()=>this.reloadPage());
   }
   resumeAfkAfterReload(){
     if(this.consumedReload)return;
@@ -90,7 +94,7 @@ export class NetworkGame{
       } catch {socket.close(1002,'Invalid server message');return;}
       if(m.type==='reload'||(m.type==='error'&&m.code==='restart')){this.beginReload();return;}
       if(m.type==='welcome'){
-        welcomed=true;this.id=m.id;this.onChat(m.chat,true);return;
+        welcomed=true;this.id=m.id;if(m.bootId)this.bootId=m.bootId;this.onChat(m.chat,true);return;
       }
       if(m.type==='error'){
         if(m.code!=='full'&&m.code!=='storage_unavailable'){this.fatal=true;this.connected=false;this.rejectJoin?.(new ConnectionError(m.code,m.text));this.rejectJoin=null;this.onTerminal(m.code,m.text);socket.close();}

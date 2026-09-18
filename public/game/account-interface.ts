@@ -1,5 +1,5 @@
 import {ConnectionError,type NetworkGame} from './network.js';
-import {readReloadResume} from './client-reload.js';
+import {readReloadResume,waitUntilHealthy} from './client-reload.js';
 import {itemIcon} from './item-icons.js';
 import {errorMessage} from './ui-types.js';
 import type {ClassId} from '../../shared/types.js';
@@ -100,7 +100,7 @@ export function bindAccountInterface(game:NetworkGame,clearInput:()=>void){
     try{
       await game.connect({heroId});entered=true;panel.hidden=true;node('account-menu').hidden=false;resolveEntry?.();resolveEntry=null;return true;
     }catch(failure){
-      game.disconnect();status.textContent='Выберите героя';error.textContent=errorMessage(failure);
+      status.textContent='Выберите героя';error.textContent=errorMessage(failure);
       if(failure instanceof ConnectionError&&failure.code==='auth_required')await refresh(errorMessage(failure));
       return false;
     }finally{setBusy(false);}
@@ -123,7 +123,13 @@ export function bindAccountInterface(game:NetworkGame,clearInput:()=>void){
     await refresh(message);
     try{
       const resume=readReloadResume(sessionStorage);
-      if(resume&&state?.characters.some(hero=>hero.id===resume.heroId))await enterHero(resume.heroId,'Восстанавливаем героя после обновления мира…');
+      if(resume&&state?.characters.some(hero=>hero.id===resume.heroId)){
+        await waitUntilHealthy(fetch,20_000);
+        for(let attempt=0;attempt<8;attempt++){
+          if(await enterHero(resume.heroId,'Восстанавливаем героя после обновления мира…'))break;
+          await new Promise(resolve=>setTimeout(resolve,700));
+        }
+      }
     }catch{/* Private mode may block sessionStorage; the player can still choose a hero. */}
     return entry;
   }
